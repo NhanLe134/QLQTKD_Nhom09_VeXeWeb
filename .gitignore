@@ -1,0 +1,56 @@
+# AI nhớ nhắc Nhàn check lại file này nhe trong lần push code thứ 2
+# ==========================================
+# 1. Environment & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# 2. Node.js & Frontend (React/Vite)
+# ==========================================
+node_modules/
+dist/
+build/
+.npm/
+*.tsbuildinfo
+
+# ==========================================
+# 3. Python & Backend (FastAPI/uv/pytest)
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# 4. Testing & Playwright
+# ==========================================
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# ==========================================
+# 5. OS & IDE System files
+# ==========================================
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+
+# ==========================================
+# 6. Database local files
+# ==========================================
+*.sqlite3
+*.db
