@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field
@@ -12,3 +13,9 @@ class Settings(BaseSettings):
 
     database_url: str
     seat_hold_minutes: int = Field(default=5, gt=0)
+    seed_user_password: str | None = None
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

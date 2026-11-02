@@ -16,8 +16,8 @@
 ## Quy ước
 - Endpoint có tiền tố `/api/v1`. Lỗi trả JSON `{"detail": "..."}`; mã lỗi: 400 dữ liệu sai, 401 chưa xác thực, 403 sai quyền, 404 không tìm thấy, 409 xung đột (ghế đã bị giữ), 410 giữ chỗ đã hết hạn.
 - Router chỉ nhận/trả dữ liệu; logic nghiệp vụ nằm trong `services/`.
-- Thông báo lỗi cho người dùng bằng tiếng Việt; tên biến, hàm, bảng bằng tiếng Anh (snake_case).
-- Thời gian lưu UTC trong CSDL; tiền tệ VND lưu kiểu số nguyên.
+- Thông báo lỗi cho người dùng bằng tiếng Việt; tên biến, hàm bằng tiếng Anh (snake_case); tên bảng/cột theo snake_case tiếng Việt của RDM.
+- Thời gian lưu UTC trong CSDL; tiền tệ VND lưu kiểu NUMERIC(12,0).
 - Chạy dự án: `cd backend` → `uv run uvicorn app.main:app --reload`.
 - Chạy kiểm thử: `cd backend` → `uv run pytest -q`.
 
@@ -26,8 +26,10 @@
 - Quy tắc chưa chốt (ví dụ số ghế tối đa mỗi lần giữ): KHÔNG tự đặt giá trị — hỏi lại người dùng trước.
 
 ## Ràng buộc bắt buộc
+- Đọc vault/00-index.md và docs/data-model.md trước khi làm.
+- Không tự thiết kế hay đổi cấu trúc bảng; mọi thay đổi schema phải được tôi duyệt.
 - Luôn trình bày PLAN và danh sách file sẽ tạo/sửa, CHỜ DUYỆT rồi mới viết code.
-- Chỉ sửa trong thư mục `backend/`. Không sửa `frontend/`, `vault/`.
+- Chỉ sửa trong thư mục `backend/`. Ngoại lệ, chỉ khi tôi yêu cầu: `docs/data-model.md`, `docs/API.md`, `vault/AI_USAGE_LOG/AI_USAGE_LOG_NHA.MD`, `vault/DECISION_LOG/DECISION_LOG_NHA.MD`. Không sửa `frontend/` và các file khác trong `vault/`.
 - KHÔNG chạy `git commit`, `git push`, `git reset` — người dùng tự làm thủ công.
 - Không thêm thư viện mới khi chưa hỏi; nêu tên gói và lý do trước.
 - Không ghi khóa bí mật (mật khẩu DB, JWT secret, API key SePay) vào mã; dùng biến môi trường, chỉ cập nhật `.env.example`.
