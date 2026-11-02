@@ -1,0 +1,26 @@
+[project]
+name = "vexe-backend"
+version = "0.1.0"
+description = "Backend hệ thống đặt vé xe khách trực tuyến (Nhóm 09)"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "alembic",
+    "asyncpg",
+    "fastapi",
+    "pydantic-settings",
+    "sqlalchemy[asyncio]",
+    "uvicorn",
+]
+
+[dependency-groups]
+dev = [
+    "httpx",
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
