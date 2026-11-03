@@ -42,3 +42,17 @@ async def get_booking(
     now: datetime = Depends(get_now),
 ) -> BookingOut:
     return await booking_service.booking_detail(session, booking, now)
+
+
+@router.post("/{ma_don}/cancel")
+async def cancel_booking(
+    booking: booking_service.Booking = Depends(get_accessible_booking),
+    session: AsyncSession = Depends(get_session),
+    now: datetime = Depends(get_now),
+) -> BookingOut:
+    """Khách hủy khi đang giữ ghế (BR-BUS-33); đơn đã hủy thì trả 200 như cũ."""
+    try:
+        cancelled = await booking_service.cancel_booking(session, booking, now)
+    except booking_service.BookingError as error:
+        raise HTTPException(error.status_code, detail=error.detail) from None
+    return await booking_service.booking_detail(session, cancelled, now)

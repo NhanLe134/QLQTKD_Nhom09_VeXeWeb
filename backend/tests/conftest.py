@@ -78,6 +78,7 @@ def test_settings(migrated_database_url: URL) -> Settings:
         database_url=migrated_database_url.render_as_string(hide_password=False),
         jwt_secret=TEST_JWT_SECRET,
         access_token_minutes=60,
+        release_job_enabled=False,
     )
 
 

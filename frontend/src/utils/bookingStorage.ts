@@ -39,6 +39,13 @@ export function clearStoredBooking(): void {
   }
 }
 
+/** Xóa đơn đã lưu chỉ khi đúng là đơn này, không xóa nhầm đơn khác của tab. */
+export function clearStoredBookingFor(maDon: string): void {
+  if (readStoredBooking()?.ma_don === maDon) {
+    clearStoredBooking()
+  }
+}
+
 /** Mã truy cập đã lưu của đúng đơn này; đơn khác trả null. */
 export function accessCodeFor(maDon: string): string | null {
   const stored = readStoredBooking()

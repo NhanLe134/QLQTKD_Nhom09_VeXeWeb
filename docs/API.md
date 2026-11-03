@@ -424,6 +424,7 @@ Sai mã, thiếu mã, tài khoản khác hoặc đơn không tồn tại đều 
   "tong_tien": 200000,
   "han_giu_cho": "2026-12-01T03:20:00Z",
   "dang_giu_cho": true,
+  "trang_thai_don": "DANG_GIU",
   "thoi_diem_hien_tai": "2026-12-01T03:16:30Z"
 }
 ```
@@ -435,6 +436,27 @@ Sai mã, thiếu mã, tài khoản khác hoặc đơn không tồn tại đều 
 | `tong_tien` | Tổng `gia_ve` của các vé chưa hủy; frontend hiển thị số này, không tự cộng |
 | `han_giu_cho` | Hạn giữ của các vé còn `GIU_CHO`; `null` khi không còn vé nào đang giữ |
 | `dang_giu_cho` | `true` khi còn vé `GIU_CHO` chưa quá hạn. `false` → hiển thị "Hết thời gian giữ chỗ" |
+| `trang_thai_don` | Trạng thái tổng của đơn do backend tính, xem bảng dưới. Frontend dùng trường này, không tự suy từ `ve` |
+
+**Trạng thái đơn (`trang_thai_don`)** — xét theo thứ tự:
+
+| Giá trị | Khi nào |
+|---|---|
+| `DA_XAC_NHAN` | Có vé `DA_XAC_NHAN` |
+| `DANG_GIU` | Có vé `GIU_CHO` chưa quá hạn giữ |
+| `HET_HAN` | Còn vé `GIU_CHO` nhưng đã quá hạn, job nhả ghế chưa chạy tới (tối đa khoảng `RELEASE_JOB_INTERVAL_SECONDS`) |
+| `DA_HUY` | Mọi vé đã `DA_HUY` |
+
+**Giới hạn:** khách tự hủy và job nhả ghế hết hạn đều để lại cùng một dữ liệu (vé `DA_HUY`, ghế `TRONG`). `ve` không có cột lý do hay thời điểm hủy, và schema không đổi. Vì vậy, sau khi job đã chạy, đơn hết hạn cũng trả `DA_HUY`, và thông báo cho `DA_HUY` là câu trung tính **"Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ"**. Tab đang mở vẫn hiện đúng lý do vì frontend biết lý do tại chỗ: khách vừa bấm hủy, hoặc đồng hồ về 0.
+
+**Kiểm tra đơn còn hiệu lực (task #9–#11):** `booking_service.ensure_booking_active(booking, now)` trả **410** cho đơn không còn giữ chỗ:
+
+| Trạng thái | `detail` |
+|---|---|
+| `HET_HAN` | `Giữ chỗ đã hết hạn` |
+| `DA_HUY` | `Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ` |
+
+Đơn `DANG_GIU` và `DA_XAC_NHAN` đi qua; endpoint gọi hàm này tự xử lý đơn đã xác nhận.
 
 `ma_truy_cap` không bao giờ có trong response này.
 
@@ -444,3 +466,59 @@ Sai mã, thiếu mã, tài khoản khác hoặc đơn không tồn tại đều 
 |---|---|---|
 | 401 | `Phiên đăng nhập không hợp lệ hoặc đã hết hạn` | Gửi token sai/hết hạn |
 | 404 | `Không tìm thấy đơn` | Không có quyền xem, hoặc đơn không tồn tại |
+
+### POST `/api/v1/bookings/{ma_don}/cancel` — Hủy đơn đang giữ ghế
+
+Khách bấm **Hủy** ở bất kỳ bước nào trước khi xác nhận thì ghế được nhả ngay (BR-BUS-33, US-BUS-06 AC1). Quyền giống `GET /bookings/{ma_don}`: tài khoản sở hữu đơn, hoặc header `X-Ma-Truy-Cap` đúng. Không có body.
+
+| Trạng thái đơn trước khi hủy | Kết quả |
+|---|---|
+| `DANG_GIU` | Nhả ghế, trả **200**, `trang_thai_don = DA_HUY` |
+| `HET_HAN` | Nhả ghế (dọn trước job), trả **200**, `trang_thai_don = DA_HUY` |
+| `DA_HUY` | Không đổi gì, trả **200** (gọi lại nhiều lần đều thành công) |
+| `DA_XAC_NHAN` | **400** (hủy vé sau xác nhận nằm ngoài phạm vi task này) |
+
+Khi nhả ghế:
+
+- Mọi vé `GIU_CHO` của đơn chuyển `DA_HUY`.
+- Ghế của các vé đó về `TRONG`, `han_giu_cho` và `khach_hang_id` về NULL. Điều kiện: ghế vẫn đang `GIU_CHO` bởi chính khách của đơn.
+- Vé `DA_XAC_NHAN` và ghế `DA_BAN` không bị đụng tới.
+- Ghế quá hạn đã được người khác giữ lại thì vé cũ của đơn đã `DA_HUY` từ lúc người đó giữ, nên không bị nhả.
+
+Hàm dùng chung là `booking_service.release_booking(session, ma_don, now)`; task #12 dùng lại.
+
+**Response 200:** giống `GET /bookings/{ma_don}` (đã đọc lại sau khi hủy).
+
+Sự kiện hủy được ghi log `Hủy đơn ma_don=... so_ve_nha=... nguon=khach`. Log không chứa mã truy cập, số điện thoại hay họ tên.
+
+**Lỗi**
+
+| Mã | `detail` | Khi nào |
+|---|---|---|
+| 400 | `Đơn đã xác nhận, không thể hủy ở bước này` | Đơn có vé `DA_XAC_NHAN` |
+| 401 | `Phiên đăng nhập không hợp lệ hoặc đã hết hạn` | Gửi token sai/hết hạn |
+| 404 | `Không tìm thấy đơn` | Không có quyền, hoặc đơn không tồn tại |
+
+### Job nhả ghế hết hạn (chạy nền, không phải endpoint)
+
+Job tự nhả ghế khi hết thời gian giữ (BR-BUS-17, US-BUS-06 AC2).
+
+- **Khởi động:** vòng lặp asyncio khởi động trong `lifespan` của FastAPI (`app/services/release_job.py`).
+- **Mỗi vòng:**
+  1. Lấy giờ của CSDL (`SELECT now()`), không lấy giờ máy.
+  2. Tìm tối đa 100 đơn có vé `GIU_CHO` mà ghế đã quá `han_giu_cho` (`seat_available(now)`).
+  3. Gọi `release_booking` cho từng đơn, mỗi đơn một transaction.
+- **Nhiều instance cùng lúc an toàn:** mỗi đơn khóa theo cùng thứ tự với giữ ghế (hồ sơ khách hàng, rồi ghế theo `ghe_id`) bằng `FOR UPDATE SKIP LOCKED`. Đơn đang bị request giữ ghế hoặc job ở máy khác khóa thì bỏ qua, để vòng sau. Gọi lại một đơn đã nhả không đổi thêm gì.
+- **Lỗi:** một đơn lỗi hoặc cả vòng lỗi chỉ được ghi log, job vẫn chạy tiếp ở vòng sau. Đơn nhả được ghi log `Hủy đơn ma_don=... so_ve_nha=... nguon=het_han`.
+- **Lệch giờ:** mỗi vòng so giờ máy với giờ CSDL. Lệch quá 5 giây thì ghi `WARNING` một lần, đến khi giờ máy về lại bình thường.
+
+| Biến môi trường | Mặc định | Ý nghĩa |
+|---|---|---|
+| `RELEASE_JOB_ENABLED` | `true` | `false` thì không chạy job (pytest luôn tắt) |
+| `RELEASE_JOB_INTERVAL_SECONDS` | `30` | Chu kỳ quét (giây, > 0) |
+
+**Rủi ro:**
+
+- **Giờ máy lệch:** job dùng giờ CSDL nên không nhả ghế trước hạn dù máy chạy job có giờ lệch. Tuy vậy, các request (giữ ghế, xem đơn, hủy) vẫn dùng `get_now()` của máy chạy backend để tính `han_giu_cho` và trạng thái đơn. Máy lệch giờ sẽ cấp hạn giữ lệch tương ứng, nên **mọi máy thành viên chạy backend cần bật đồng bộ giờ tự động**.
+- **Nhiều job trên Supabase:** mỗi backend đang chạy thêm vài truy vấn mỗi chu kỳ và dùng chung pool kết nối nhỏ. Không cần job trên máy mình thì đặt `RELEASE_JOB_ENABLED=false`.
+- **Thanh toán (task #11):** task #11 phải khóa theo cùng thứ tự (khách hàng, rồi ghế) để không tranh chấp với job khi khách trả tiền đúng lúc ghế hết hạn.

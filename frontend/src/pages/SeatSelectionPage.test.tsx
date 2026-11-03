@@ -70,10 +70,11 @@ type Handlers = {
   seatMaps: SeatMap[]
   hold?: () => Response
   booking?: () => Response
+  cancel?: () => Response
 }
 
 /** Giả lập backend; sơ đồ ghế trả lần lượt theo `seatMaps` (lần cuối lặp lại). */
-function mockBackend({ seatMaps, hold, booking }: Handlers) {
+function mockBackend({ seatMaps, hold, booking, cancel }: Handlers) {
   let seatCalls = 0
   fetchMock.mockImplementation(async (input) => {
     const url = new URL(String(input))
@@ -84,6 +85,9 @@ function mockBackend({ seatMaps, hold, booking }: Handlers) {
     }
     if (url.pathname === '/api/v1/bookings/hold') {
       return hold ? hold() : jsonResponse(201, HOLD_RESPONSE)
+    }
+    if (url.pathname.endsWith('/cancel')) {
+      return cancel ? cancel() : jsonResponse(404, { detail: 'Không tìm thấy đơn' })
     }
     if (url.pathname.startsWith('/api/v1/bookings/')) {
       return booking ? booking() : jsonResponse(404, { detail: 'Không tìm thấy đơn' })
@@ -303,6 +307,43 @@ describe('SeatSelectionPage', () => {
     expect(seatButton('A01')).toBeDisabled()
     const bookingCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/bookings/DH00100000'))
     expect(bookingCall?.[1]?.headers).toMatchObject({ 'X-Ma-Truy-Cap': 'ma-bi-mat' })
+  })
+
+  it('"Hủy đơn cũ": xác nhận, gọi API hủy, xóa đơn khỏi tab và cho giữ ghế mới', async () => {
+    saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
+    mockBackend({
+      seatMaps: [seatMap(seats('TRONG', 'TRONG', 'TRONG', 'TRONG'))],
+      booking: () => jsonResponse(200, { ma_don: 'DH00100000', dang_giu_cho: true }),
+      cancel: () => jsonResponse(200, { ma_don: 'DH00100000', trang_thai_don: 'DA_HUY' }),
+    })
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Hủy đơn cũ' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Đồng ý hủy' }))
+
+    await waitFor(() => expect(screen.queryByRole('link', { name: /Mở lại đơn/ })).not.toBeInTheDocument())
+    const cancelCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/bookings/DH00100000/cancel'))
+    expect(cancelCall?.[1]?.method).toBe('POST')
+    expect(cancelCall?.[1]?.headers).toMatchObject({ 'X-Ma-Truy-Cap': 'ma-bi-mat' })
+    expect(readStoredBooking()).toBeNull()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Đặt cả xe' })).toBeEnabled())
+    expect(seatButton('A01')).toBeEnabled()
+  })
+
+  it('bỏ qua "Hủy đơn cũ" thì vẫn giữ đơn cũ', async () => {
+    saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
+    mockBackend({
+      seatMaps: [seatMap(seats('TRONG', 'TRONG', 'TRONG', 'TRONG'))],
+      booking: () => jsonResponse(200, { ma_don: 'DH00100000', dang_giu_cho: true }),
+    })
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Hủy đơn cũ' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Không hủy' }))
+
+    expect(screen.getByRole('link', { name: 'Mở lại đơn DH00100000' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/cancel'))).toBe(false)
+    expect(readStoredBooking()).not.toBeNull()
   })
 
   it('đơn đã lưu hết hạn giữ thì xóa khỏi tab và cho giữ ghế mới', async () => {

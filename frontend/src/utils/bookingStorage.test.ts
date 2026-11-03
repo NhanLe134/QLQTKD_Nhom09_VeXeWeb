@@ -4,6 +4,7 @@ import {
   accessCodeFor,
   BOOKING_STORAGE_KEY,
   clearStoredBooking,
+  clearStoredBookingFor,
   readStoredBooking,
   saveStoredBooking,
 } from './bookingStorage'
@@ -14,6 +15,15 @@ describe('bookingStorage', () => {
 
     expect(readStoredBooking()).toEqual({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
     clearStoredBooking()
+    expect(readStoredBooking()).toBeNull()
+  })
+
+  it('chỉ xóa đơn đã lưu khi đúng mã đơn', () => {
+    saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
+
+    clearStoredBookingFor('DH00100001')
+    expect(readStoredBooking()).not.toBeNull()
+    clearStoredBookingFor('DH00100000')
     expect(readStoredBooking()).toBeNull()
   })
 

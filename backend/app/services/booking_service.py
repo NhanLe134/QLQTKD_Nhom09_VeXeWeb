@@ -1,5 +1,6 @@
-"""Giữ ghế, đặt cả xe và xem đơn (BR-BUS-14 đến 20, 37)."""
+"""Giữ ghế, đặt cả xe, xem đơn, nhả ghế và hủy đơn (BR-BUS-14 đến 20, 33, 37)."""
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -21,6 +22,7 @@ from app.schemas.booking import (
     NguoiDatIn,
     NguoiDatOut,
     TicketOut,
+    TrangThaiDon,
 )
 from app.services.seat_availability import seat_available
 from app.services.seat_map_service import TRIP_NOT_FOUND, TripRecord, load_trip
@@ -36,6 +38,12 @@ ACTIVE_BOOKING_EXISTS = "Số điện thoại này đang có đơn chưa hoàn t
 PHONE_HAS_ACCOUNT = "Số điện thoại đã có tài khoản, vui lòng đăng nhập"
 BOOKER_REQUIRED = "Vui lòng nhập thông tin người đặt"
 NO_CUSTOMER_PROFILE = "Tài khoản chưa có hồ sơ khách hàng"
+HOLD_EXPIRED = "Giữ chỗ đã hết hạn"
+# Đơn hết hạn đã được job nhả cũng thành DA_HUY, CSDL không phân biệt được (docs/API.md)
+BOOKING_CANCELLED = "Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ"
+BOOKING_CONFIRMED = "Đơn đã xác nhận, không thể hủy ở bước này"
+
+logger = logging.getLogger(__name__)
 
 
 class BookingError(Exception):
@@ -60,6 +68,10 @@ class ConflictError(BookingError):
 
 class MissingDataError(BookingError):
     status_code = 422
+
+
+class GoneError(BookingError):
+    status_code = 410
 
 
 @dataclass(frozen=True)
@@ -298,35 +310,20 @@ async def hold_seats(
 # --- Xem đơn ---
 
 
-async def load_accessible_booking(
-    session: AsyncSession,
-    ma_don: str,
-    tai_khoan: TaiKhoan | None,
-    ma_truy_cap: str | None,
-) -> Booking | None:
-    """Đơn chỉ trả về cho tài khoản sở hữu hoặc người có mã truy cập (BR-BUS-19, 37)."""
+async def _load_booking(session: AsyncSession, ma_don: str) -> Booking | None:
+    # populate_existing: đọc lại sau khi nhả ghế, không dùng bản cũ trong session
     rows = (
         await session.execute(
             select(Ve, GheNgoi.so_ghe, GheNgoi.han_giu_cho)
             .join(GheNgoi, GheNgoi.ghe_id == Ve.ghe_id)
             .where(Ve.ma_don == ma_don)
             .order_by(GheNgoi.so_ghe, Ve.ve_id)
+            .execution_options(populate_existing=True)
         )
     ).all()
     if not rows:
         return None
-    first = rows[0].Ve
-    khach_hang = await session.get(KhachHang, first.khach_hang_id)
-    is_owner = (
-        tai_khoan is not None
-        and khach_hang.user_id is not None
-        and khach_hang.user_id == tai_khoan.user_id
-    )
-    has_code = ma_truy_cap is not None and access_code_matches(
-        ma_truy_cap, first.ma_truy_cap_hash
-    )
-    if not (is_owner or has_code):
-        return None
+    khach_hang = await session.get(KhachHang, rows[0].Ve.khach_hang_id)
     tickets = [
         BookingTicket(
             ve=row.Ve,
@@ -339,6 +336,52 @@ async def load_accessible_booking(
         for row in rows
     ]
     return Booking(ma_don=ma_don, khach_hang=khach_hang, tickets=tickets)
+
+
+async def load_accessible_booking(
+    session: AsyncSession,
+    ma_don: str,
+    tai_khoan: TaiKhoan | None,
+    ma_truy_cap: str | None,
+) -> Booking | None:
+    """Đơn chỉ trả về cho tài khoản sở hữu hoặc người có mã truy cập (BR-BUS-19, 37)."""
+    booking = await _load_booking(session, ma_don)
+    if booking is None:
+        return None
+    khach_hang = booking.khach_hang
+    is_owner = (
+        tai_khoan is not None
+        and khach_hang.user_id is not None
+        and khach_hang.user_id == tai_khoan.user_id
+    )
+    has_code = ma_truy_cap is not None and access_code_matches(
+        ma_truy_cap, booking.tickets[0].ve.ma_truy_cap_hash
+    )
+    if not (is_owner or has_code):
+        return None
+    return booking
+
+
+def booking_status(booking: Booking, now: datetime) -> TrangThaiDon:
+    statuses = {t.ve.trang_thai_ve for t in booking.tickets}
+    if TrangThaiVe.DA_XAC_NHAN in statuses:
+        return TrangThaiDon.DA_XAC_NHAN
+    held = [t for t in booking.tickets if t.ve.trang_thai_ve == TrangThaiVe.GIU_CHO]
+    if any(t.han_giu_cho is not None and t.han_giu_cho > now for t in held):
+        return TrangThaiDon.DANG_GIU
+    # Vé còn GIU_CHO nhưng ghế đã quá hạn: job nhả ghế chưa chạy tới
+    if held:
+        return TrangThaiDon.HET_HAN
+    return TrangThaiDon.DA_HUY
+
+
+def ensure_booking_active(booking: Booking, now: datetime) -> None:
+    """Chặn thao tác tiếp trên đơn đã hết hạn giữ hoặc đã hủy (task #9 đến #11)."""
+    status = booking_status(booking, now)
+    if status == TrangThaiDon.HET_HAN:
+        raise GoneError(HOLD_EXPIRED)
+    if status == TrangThaiDon.DA_HUY:
+        raise GoneError(BOOKING_CANCELLED)
 
 
 async def booking_detail(
@@ -376,5 +419,108 @@ async def booking_detail(
         ),
         han_giu_cho=han_giu_cho,
         dang_giu_cho=han_giu_cho is not None and han_giu_cho > now,
+        trang_thai_don=booking_status(booking, now),
         thoi_diem_hien_tai=now,
     )
+
+
+# --- Nhả ghế, hủy đơn ---
+
+
+async def release_booking(
+    session: AsyncSession,
+    ma_don: str,
+    now: datetime,
+    *,
+    skip_locked: bool = False,
+    expired_only: bool = False,
+) -> int | None:
+    """Hủy vé GIU_CHO của đơn, trả ghế về TRONG; không commit (BR-BUS-17, 33).
+
+    Idempotent: gọi lại không đổi thêm gì. Vé DA_XAC_NHAN, ghế DA_BAN không bị đụng tới.
+    Trả số vé đã hủy; None khi skip_locked mà có dòng đang bị khóa (để lần sau).
+    """
+    khach_hang_id = await session.scalar(
+        select(Ve.khach_hang_id).where(Ve.ma_don == ma_don).limit(1)
+    )
+    if khach_hang_id is None:
+        return 0
+    # Cùng thứ tự khóa với giữ ghế: hồ sơ khách hàng, rồi ghế theo ghe_id
+    locked = await session.scalar(
+        select(KhachHang.khach_hang_id)
+        .where(KhachHang.khach_hang_id == khach_hang_id)
+        .with_for_update(skip_locked=skip_locked)
+    )
+    if locked is None:
+        return None
+    seat_ids = list(
+        await session.scalars(
+            select(Ve.ghe_id).where(
+                Ve.ma_don == ma_don, Ve.trang_thai_ve == TrangThaiVe.GIU_CHO
+            )
+        )
+    )
+    if not seat_ids:
+        return 0
+    locked_seats = list(
+        await session.scalars(
+            select(GheNgoi.ghe_id)
+            .where(GheNgoi.ghe_id.in_(seat_ids))
+            .order_by(GheNgoi.ghe_id)
+            .with_for_update(skip_locked=skip_locked)
+        )
+    )
+    if len(locked_seats) != len(seat_ids):
+        return None
+
+    # Đọc lại sau khi khóa ghế: request giữ lại ghế quá hạn có thể vừa hủy vé của đơn
+    statement = (
+        select(Ve.ghe_id)
+        .join(GheNgoi, GheNgoi.ghe_id == Ve.ghe_id)
+        .where(Ve.ma_don == ma_don, Ve.trang_thai_ve == TrangThaiVe.GIU_CHO)
+    )
+    if expired_only:
+        statement = statement.where(seat_available(now))
+    held = list(await session.scalars(statement))
+    if not held:
+        return 0
+    await session.execute(
+        update(Ve)
+        .where(
+            Ve.ma_don == ma_don,
+            Ve.ghe_id.in_(held),
+            Ve.trang_thai_ve == TrangThaiVe.GIU_CHO,
+        )
+        .values(trang_thai_ve=TrangThaiVe.DA_HUY)
+    )
+    # Chỉ nhả ghế còn do chính khách của đơn giữ
+    await session.execute(
+        update(GheNgoi)
+        .where(
+            GheNgoi.ghe_id.in_(held),
+            GheNgoi.trang_thai == TrangThaiGhe.GIU_CHO,
+            GheNgoi.khach_hang_id == khach_hang_id,
+        )
+        .values(trang_thai=TrangThaiGhe.TRONG, han_giu_cho=None, khach_hang_id=None)
+    )
+    return len(held)
+
+
+async def cancel_booking(
+    session: AsyncSession, booking: Booking, now: datetime
+) -> Booking:
+    """Khách hủy trước khi xác nhận: nhả ghế ngay (BR-BUS-33). Hủy lại vẫn thành công."""
+    status = booking_status(booking, now)
+    if status == TrangThaiDon.DA_XAC_NHAN:
+        raise BusinessRuleError(BOOKING_CONFIRMED)
+    if status == TrangThaiDon.DA_HUY:
+        return booking
+    try:
+        released = await release_booking(session, booking.ma_don, now)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    # Không ghi mã truy cập, SĐT, họ tên vào log
+    logger.info("Hủy đơn ma_don=%s so_ve_nha=%d nguon=khach", booking.ma_don, released)
+    return await _load_booking(session, booking.ma_don)

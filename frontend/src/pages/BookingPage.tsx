@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
+import BookingFailed, { type FailureReason } from '../components/BookingFailed'
+import CancelBookingButton from '../components/CancelBookingButton'
 import HoldCountdown from '../components/HoldCountdown'
 import { useCountdown } from '../hooks/useCountdown'
 import { type Booking, getBooking } from '../services/bookingService'
+import { clearStoredBookingFor } from '../utils/bookingStorage'
 import { formatCurrency, formatDate, formatTime, formatVehicleType } from '../utils/format'
 
 type BookingState =
@@ -54,11 +57,22 @@ export default function BookingPage() {
 
 // Tách riêng để useCountdown bắt đầu đếm đúng lúc đã có dữ liệu đơn
 function BookingDetail({ data, clockOffsetMs }: { data: Booking; clockOffsetMs: number }) {
-  const remainingMs = useCountdown(data.dang_giu_cho ? data.han_giu_cho : null, clockOffsetMs)
+  const [cancelled, setCancelled] = useState(false)
+  const dangGiu = data.trang_thai_don === 'DANG_GIU'
+  const remainingMs = useCountdown(dangGiu ? data.han_giu_cho : null, clockOffsetMs)
   // Hết giờ trên đồng hồ thì coi như hết giữ chỗ ngay, không chờ tải lại đơn
   const holding = remainingMs !== null && remainingMs > 0
+  const failure = failureReason(data, cancelled, dangGiu && !holding)
   const { chuyen } = data
   const heldTickets = data.ve.filter((ve) => ve.trang_thai_ve !== 'DA_HUY')
+
+  useEffect(() => {
+    if (failure) clearStoredBookingFor(data.ma_don)
+  }, [failure, data.ma_don])
+
+  if (failure) {
+    return <BookingFailed reason={failure} maDon={data.ma_don} chuyenXeId={chuyen.chuyen_xe_id} />
+  }
 
   return (
     <section className="space-y-4">
@@ -67,7 +81,13 @@ function BookingDetail({ data, clockOffsetMs }: { data: Booking; clockOffsetMs: 
         Mã đơn: <span className="font-semibold text-slate-900">{data.ma_don}</span>
       </p>
 
-      <HoldCountdown remainingMs={remainingMs} />
+      {dangGiu ? (
+        <HoldCountdown remainingMs={remainingMs} />
+      ) : (
+        <p role="status" className="rounded-md bg-green-50 px-3 py-2 font-medium text-green-700">
+          Đơn đã được xác nhận.
+        </p>
+      )}
 
       <div className="space-y-1 rounded-lg border border-slate-200 bg-white p-4">
         <p className="text-lg font-semibold">{chuyen.ten_tuyen}</p>
@@ -93,20 +113,24 @@ function BookingDetail({ data, clockOffsetMs }: { data: Booking; clockOffsetMs: 
         </p>
       </div>
 
-      {holding ? (
-        <div className="space-y-1 rounded-lg border border-dashed border-slate-300 p-4">
-          <h2 className="font-semibold">Thông tin hành khách</h2>
-          {/* Task #9: nhập hành khách từng ghế, điểm đón/trả */}
-          <p className="text-sm text-slate-600">Đang xây dựng.</p>
-        </div>
-      ) : (
-        <Link
-          to={`/chuyen/${encodeURIComponent(chuyen.chuyen_xe_id)}`}
-          className="inline-block rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800"
-        >
-          Chọn lại ghế
-        </Link>
+      {holding && (
+        <>
+          <div className="space-y-1 rounded-lg border border-dashed border-slate-300 p-4">
+            <h2 className="font-semibold">Thông tin hành khách</h2>
+            {/* Task #9: nhập hành khách từng ghế, điểm đón/trả */}
+            <p className="text-sm text-slate-600">Đang xây dựng.</p>
+          </div>
+          <CancelBookingButton maDon={data.ma_don} onCancelled={() => setCancelled(true)} />
+        </>
       )}
     </section>
   )
+}
+
+/** Lý do biết ngay trên trang (tự hủy, hết giờ) ưu tiên hơn trạng thái tải từ backend. */
+function failureReason(data: Booking, cancelled: boolean, timedOut: boolean): FailureReason | null {
+  if (cancelled) return 'TU_HUY'
+  if (timedOut) return 'HET_GIO'
+  if (data.trang_thai_don === 'HET_HAN' || data.trang_thai_don === 'DA_HUY') return data.trang_thai_don
+  return null
 }

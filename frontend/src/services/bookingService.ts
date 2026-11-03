@@ -1,4 +1,4 @@
-import { accessCodeFor, saveStoredBooking } from '../utils/bookingStorage'
+import { accessCodeFor, clearStoredBookingFor, saveStoredBooking } from '../utils/bookingStorage'
 import { get, post, type RequestHeaders } from './apiClient'
 import type { TripInfo } from './tripService'
 
@@ -35,6 +35,9 @@ export type HoldResponse = {
 
 export type TrangThaiVe = 'GIU_CHO' | 'DA_XAC_NHAN' | 'DA_HUY'
 
+/** Trạng thái tổng của đơn do backend tính (docs/API.md) */
+export type TrangThaiDon = 'DANG_GIU' | 'HET_HAN' | 'DA_HUY' | 'DA_XAC_NHAN'
+
 export type Ticket = {
   ve_id: string
   ghe_id: string
@@ -56,6 +59,7 @@ export type Booking = {
   han_giu_cho: string | null
   /** Còn vé đang giữ chưa quá hạn */
   dang_giu_cho: boolean
+  trang_thai_don: TrangThaiDon
   thoi_diem_hien_tai: string
 }
 
@@ -73,4 +77,15 @@ export async function holdSeats(data: HoldRequest): Promise<HoldResponse> {
 
 export function getBooking(maDon: string): Promise<Booking> {
   return get<Booking>(`/api/v1/bookings/${encodeURIComponent(maDon)}`, accessHeaders(maDon))
+}
+
+/** Hủy đơn đang giữ (BR-BUS-33); thành công thì xóa đơn khỏi tab. */
+export async function cancelBooking(maDon: string): Promise<Booking> {
+  const result = await post<Booking>(
+    `/api/v1/bookings/${encodeURIComponent(maDon)}/cancel`,
+    undefined,
+    accessHeaders(maDon),
+  )
+  clearStoredBookingFor(maDon)
+  return result
 }

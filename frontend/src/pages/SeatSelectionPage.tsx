@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import BookerForm from '../components/BookerForm'
+import CancelBookingButton from '../components/CancelBookingButton'
 import SeatMap from '../components/SeatMap'
 import { ApiError } from '../services/apiClient'
 import { getBooking, holdSeats, type NguoiDat } from '../services/bookingService'
@@ -159,11 +160,20 @@ export default function SeatSelectionPage() {
       )}
 
       {activeOrder && (
-        <div role="status" className="space-y-1 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <p>Bạn đang có một đơn giữ ghế chưa hoàn tất. Mỗi lần chỉ giữ được một đơn.</p>
-          <Link to={`/dat-ve/${encodeURIComponent(activeOrder)}`} className="font-medium underline">
+        <div className="space-y-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <p role="status">Bạn đang có một đơn giữ ghế chưa hoàn tất. Mỗi lần chỉ giữ được một đơn.</p>
+          <Link to={`/dat-ve/${encodeURIComponent(activeOrder)}`} className="block font-medium underline">
             Mở lại đơn {activeOrder}
           </Link>
+          {/* Hủy đơn cũ để giữ ghế mới (BR-BUS-18, 33) */}
+          <CancelBookingButton
+            maDon={activeOrder}
+            label="Hủy đơn cũ"
+            onCancelled={() => {
+              setActiveOrder(null)
+              setReloadKey((value) => value + 1)
+            }}
+          />
         </div>
       )}
 

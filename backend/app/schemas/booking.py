@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated, Self
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
@@ -8,6 +9,15 @@ from app.schemas.auth import EMAIL_PATTERN, PHONE_PATTERN
 from app.schemas.trip import TripInfo
 
 MaSo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=10)]
+
+
+class TrangThaiDon(StrEnum):
+    """Trạng thái tổng của đơn, backend tính từ các vé (không có cột trong CSDL)."""
+
+    DANG_GIU = "DANG_GIU"
+    HET_HAN = "HET_HAN"
+    DA_HUY = "DA_HUY"
+    DA_XAC_NHAN = "DA_XAC_NHAN"
 
 
 class NguoiDatIn(BaseModel):
@@ -98,4 +108,5 @@ class BookingOut(BaseModel):
     han_giu_cho: datetime | None
     # Còn vé GIU_CHO chưa quá hạn giữ
     dang_giu_cho: bool
+    trang_thai_don: TrangThaiDon
     thoi_diem_hien_tai: datetime

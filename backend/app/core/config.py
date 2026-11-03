@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Phiên đăng nhập hết hạn sau 60 phút (BR-BUS-05)
     access_token_minutes: int = Field(default=60, gt=0)
     seed_user_password: str | None = None
+    # Job nhả ghế hết hạn (BR-BUS-17); test tắt job để không chạm CSDL dùng chung
+    release_job_enabled: bool = True
+    release_job_interval_seconds: int = Field(default=30, gt=0)
     # NoDecode: đọc CORS_ORIGINS dạng "a,b" thay vì bắt buộc chuỗi JSON
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(DEFAULT_CORS_ORIGINS)

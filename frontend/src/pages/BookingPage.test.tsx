@@ -1,9 +1,9 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Booking } from '../services/bookingService'
-import { saveStoredBooking } from '../utils/bookingStorage'
+import { readStoredBooking, saveStoredBooking } from '../utils/bookingStorage'
 import BookingPage from './BookingPage'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -50,7 +50,28 @@ const BOOKING: Booking = {
   tong_tien: 390000,
   han_giu_cho: '2026-12-01T03:20:00Z',
   dang_giu_cho: true,
+  trang_thai_don: 'DANG_GIU',
   thoi_diem_hien_tai: '2026-12-01T03:15:00Z',
+}
+
+const CANCELLED: Booking = {
+  ...BOOKING,
+  ve: BOOKING.ve.map((ve) => ({ ...ve, trang_thai_ve: 'DA_HUY' })),
+  tong_tien: 0,
+  han_giu_cho: null,
+  dang_giu_cho: false,
+  trang_thai_don: 'DA_HUY',
+}
+
+/** GET đơn trả `booking`, POST hủy trả `cancelled`; mỗi lần gọi một Response mới. */
+function mockBackend(booking: Booking, cancelled: Booking = CANCELLED) {
+  fetchMock.mockImplementation(async (input) =>
+    String(input).endsWith('/cancel') ? jsonResponse(200, cancelled) : jsonResponse(200, booking),
+  )
+}
+
+function cancelCalls() {
+  return fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/cancel'))
 }
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -119,7 +140,7 @@ describe('BookingPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Hết thời gian giữ chỗ')
   })
 
-  it('đồng hồ về 0 thì ẩn ngay thông tin hành khách, hiện hết giờ và nút chọn lại ghế', async () => {
+  it('đồng hồ về 0 thì hiện màn đặt vé thất bại vì hết giờ và xóa đơn khỏi tab', async () => {
     saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
     fetchMock.mockResolvedValue(jsonResponse(200, BOOKING))
 
@@ -137,19 +158,74 @@ describe('BookingPage', () => {
       vi.advanceTimersByTime(1000)
     })
     expect(screen.queryByRole('heading', { name: 'Thông tin hành khách' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Đặt vé thất bại' })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Hết thời gian giữ chỗ')
     expect(screen.getByRole('link', { name: 'Chọn lại ghế' })).toHaveAttribute('href', '/chuyen/CX00000001')
+    expect(screen.getByRole('link', { name: 'Tìm chuyến khác' })).toHaveAttribute('href', '/tim-chuyen')
+    expect(readStoredBooking()).toBeNull()
     // Không tải lại đơn: chỉ có lần gọi ban đầu
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('đơn đã hết hạn giữ thì báo hết và cho chọn lại ghế', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(200, { ...BOOKING, dang_giu_cho: false }))
+  it.each([
+    ['HET_HAN', 'Hết thời gian giữ chỗ'],
+    ['DA_HUY', 'Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ'],
+  ] as const)('mở lại đơn %s: hiện màn thất bại theo trạng thái backend, xóa đơn khỏi tab', async (status, message) => {
+    saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { ...(status === 'DA_HUY' ? CANCELLED : BOOKING), dang_giu_cho: false, trang_thai_don: status }),
+    )
 
     renderPage()
 
-    expect(await screen.findByText('Hết thời gian giữ chỗ')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Đặt vé thất bại' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(message)
     expect(screen.getByRole('link', { name: 'Chọn lại ghế' })).toHaveAttribute('href', '/chuyen/CX00000001')
+    expect(screen.queryByRole('button', { name: 'Hủy đặt vé' })).not.toBeInTheDocument()
+    expect(readStoredBooking()).toBeNull()
+  })
+
+  it('mở đơn không phải của tab thì không xóa đơn đang lưu', async () => {
+    saveStoredBooking({ ma_don: 'DH00100001', ma_truy_cap: 'ma-khac' })
+    fetchMock.mockResolvedValue(jsonResponse(200, CANCELLED))
+
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Đặt vé thất bại' })).toBeInTheDocument()
+    expect(readStoredBooking()).toEqual({ ma_don: 'DH00100001', ma_truy_cap: 'ma-khac' })
+  })
+
+  it('hủy đặt vé: xác nhận trong trang, gọi API hủy, xóa đơn và báo đã hủy', async () => {
+    saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
+    mockBackend(BOOKING)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Hủy đặt vé' }))
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(cancelCalls()).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Đồng ý hủy' }))
+
+    expect(await screen.findByRole('heading', { name: 'Đặt vé thất bại' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Bạn đã hủy đặt vé')
+    expect(cancelCalls()).toHaveLength(1)
+    expect(cancelCalls()[0][1]?.headers).toMatchObject({ 'X-Ma-Truy-Cap': 'ma-bi-mat' })
+    expect(readStoredBooking()).toBeNull()
+  })
+
+  it('bỏ qua hộp xác nhận thì vẫn giữ đơn', async () => {
+    saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
+    mockBackend(BOOKING)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Hủy đặt vé' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Không hủy' }))
+
+    expect(screen.getByRole('timer')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Thông tin hành khách' })).toBeInTheDocument()
+    expect(cancelCalls()).toHaveLength(0)
+    expect(readStoredBooking()).not.toBeNull()
   })
 
   it('không có quyền xem thì hiện nguyên văn lỗi 404', async () => {

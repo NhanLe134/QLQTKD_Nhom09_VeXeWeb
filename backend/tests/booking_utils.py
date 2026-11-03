@@ -1,6 +1,10 @@
-"""Hàm dùng chung cho test sơ đồ ghế, giữ ghế và xem đơn (dữ liệu seed)."""
+"""Hàm dùng chung cho test sơ đồ ghế, giữ ghế, xem đơn và hủy đơn (dữ liệu seed)."""
+
+from sqlalchemy import select, update
 
 from app.db.ids import CHUYEN_XE_ID, format_id
+from app.models import GheNgoi, Ve
+from app.models.enums import TrangThaiGhe, TrangThaiVe
 
 HOLD_URL = "/api/v1/bookings/hold"
 LOGIN_URL = "/api/v1/auth/login"
@@ -18,6 +22,35 @@ def seats_url(chuyen_xe_id: str) -> str:
 
 def booking_url(ma_don: str) -> str:
     return f"/api/v1/bookings/{ma_don}"
+
+
+def cancel_url(ma_don: str) -> str:
+    return f"/api/v1/bookings/{ma_don}/cancel"
+
+
+def code_header(code: str) -> dict[str, str]:
+    return {"X-Ma-Truy-Cap": code}
+
+
+async def confirm_tickets(factory, ma_don: str, so_ghe: list[str] | None = None) -> None:
+    """Giả lập đơn đã xác nhận (task #10 chưa có): vé DA_XAC_NHAN, ghế DA_BAN."""
+    async with factory() as session, session.begin():
+        statement = select(Ve.ghe_id).join(GheNgoi, GheNgoi.ghe_id == Ve.ghe_id).where(
+            Ve.ma_don == ma_don
+        )
+        if so_ghe is not None:
+            statement = statement.where(GheNgoi.so_ghe.in_(so_ghe))
+        ghe_ids = list(await session.scalars(statement))
+        await session.execute(
+            update(Ve)
+            .where(Ve.ma_don == ma_don, Ve.ghe_id.in_(ghe_ids))
+            .values(trang_thai_ve=TrangThaiVe.DA_XAC_NHAN)
+        )
+        await session.execute(
+            update(GheNgoi)
+            .where(GheNgoi.ghe_id.in_(ghe_ids))
+            .values(trang_thai=TrangThaiGhe.DA_BAN, han_giu_cho=None)
+        )
 
 
 def guest(
