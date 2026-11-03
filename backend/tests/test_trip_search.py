@@ -2,20 +2,18 @@ import time
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
+from conftest import DEFAULT_NOW
 from sqlalchemy import select, update
 
-from app.core.clock import VIETNAM_TZ, get_now, vietnam_date
+from app.core.clock import VIETNAM_TZ, vietnam_date
 from app.db.ids import CHUYEN_XE_ID, format_id
-from app.db.seed import KHACH_VANG_LAI, seed_database
+from app.db.seed import KHACH_VANG_LAI
 from app.models import ChuyenXe, GheNgoi
 from app.models.enums import TrangThaiChuyenXe, TrangThaiGhe
 from app.services.seat_availability import seat_available
 
 LOCATIONS_URL = "/api/v1/locations"
 TRIPS_URL = "/api/v1/trips"
-
-# Mặc định: 01/12/2026 00:00 giờ Việt Nam, trước mọi chuyến mẫu (15 và 16/12)
-DEFAULT_NOW = datetime(2026, 12, 1, tzinfo=VIETNAM_TZ)
 
 # Mã chuyến theo thứ tự sinh trong seed: loại 4 chỗ 1–6, 7 chỗ 7–12, 16 chỗ 13–18
 DA_NANG_HUE_4_CHO = format_id(CHUYEN_XE_ID, 1)
@@ -28,22 +26,6 @@ DA_NANG_HOI_AN_16_CHO = format_id(CHUYEN_XE_ID, 18)
 
 def vn(day: int, hour: int, minute: int = 0) -> datetime:
     return datetime(2026, 12, day, hour, minute, tzinfo=VIETNAM_TZ)
-
-
-@pytest.fixture
-async def seeded(session_factory):
-    async with session_factory() as session, session.begin():
-        await seed_database(session, "mat-khau-test")
-    return session_factory
-
-
-@pytest.fixture
-def set_now(app):
-    def _set(moment: datetime) -> None:
-        app.dependency_overrides[get_now] = lambda: moment.astimezone(UTC)
-
-    _set(DEFAULT_NOW)
-    return _set
 
 
 async def search(client, diem_di="Đà Nẵng", diem_den="Huế", ngay="2026-12-15"):

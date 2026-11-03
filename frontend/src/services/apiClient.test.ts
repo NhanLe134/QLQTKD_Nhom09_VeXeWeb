@@ -138,3 +138,22 @@ describe('token đăng nhập', () => {
     expect(onUnauthorized).not.toHaveBeenCalled()
   })
 })
+
+describe('header thêm', () => {
+  it('gửi header thêm cùng token, không ghi đè Accept', async () => {
+    setAuthToken('abc')
+    fetchMock.mockImplementation(async () => jsonResponse(200, {}))
+
+    await get('/bookings/DH1', { 'X-Ma-Truy-Cap': 'ma-bi-mat', Accept: 'text/plain' })
+    await post('/bookings/hold', { a: 1 }, { 'X-Ma-Truy-Cap': 'ma-2' })
+
+    const [, getInit] = fetchMock.mock.calls[0]
+    expect(getInit?.headers).toEqual({
+      'X-Ma-Truy-Cap': 'ma-bi-mat',
+      Accept: 'application/json',
+      Authorization: 'Bearer abc',
+    })
+    const [, postInit] = fetchMock.mock.calls[1]
+    expect(postInit?.headers).toMatchObject({ 'X-Ma-Truy-Cap': 'ma-2', 'Content-Type': 'application/json' })
+  })
+})

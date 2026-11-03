@@ -23,6 +23,27 @@ export type Trip = {
   so_ghe_trong: number
 }
 
+/** Thông tin chuyến trên trang chọn ghế (không có số ghế trống). */
+export type TripInfo = Omit<Trip, 'so_ghe_trong'>
+
+/** Trạng thái hiển thị do backend tính: ghế giữ đã quá hạn hiện TRONG. */
+export type SeatStatus = 'TRONG' | 'GIU_CHO' | 'DA_BAN'
+
+export type Seat = {
+  ghe_id: string
+  so_ghe: string
+  trang_thai: SeatStatus
+}
+
+export type SeatMap = {
+  chuyen: TripInfo
+  /** Chuyến đang mở bán và chưa khởi hành */
+  co_the_dat: boolean
+  ghe: Seat[]
+  /** Giờ server (UTC) */
+  thoi_diem_hien_tai: string
+}
+
 export type TripSearchResult = {
   chuyen: Trip[]
   /** Chỉ có phần tử khi `chuyen` rỗng: cùng tuyến, ±1 ngày */
@@ -42,4 +63,8 @@ export function getLocations(): Promise<Locations> {
 export function searchTrips({ diemDi, diemDen, ngay }: TripSearchQuery): Promise<TripSearchResult> {
   const query = new URLSearchParams({ diem_di: diemDi, diem_den: diemDen, ngay })
   return get<TripSearchResult>(`/api/v1/trips?${query.toString()}`)
+}
+
+export function getTripSeats(chuyenXeId: string): Promise<SeatMap> {
+  return get<SeatMap>(`/api/v1/trips/${encodeURIComponent(chuyenXeId)}/seats`)
 }

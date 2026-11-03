@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -48,3 +51,19 @@ def decode_access_token(token: str, *, secret: str) -> dict[str, Any]:
         )
     except jwt.PyJWTError as error:
         raise InvalidTokenError from error
+
+
+# Mã truy cập đơn (BR-BUS-19): 32 byte ngẫu nhiên, CSDL chỉ lưu SHA-256 (data-model mục 7)
+ACCESS_CODE_BYTES = 32
+
+
+def new_access_code() -> str:
+    return secrets.token_urlsafe(ACCESS_CODE_BYTES)
+
+
+def hash_access_code(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()
+
+
+def access_code_matches(code: str, code_hash: str) -> bool:
+    return hmac.compare_digest(hash_access_code(code), code_hash)

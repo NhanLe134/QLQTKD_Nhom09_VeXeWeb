@@ -148,7 +148,7 @@
 - **Quyết định:** Chọn phương án 2. 6 tuyến 2 chiều: Đà Nẵng ⇄ Huế (trung gian Lăng Cô), Đà Nẵng ⇄ Hội An (không có trung gian), Hội An ⇄ Huế (trung gian Đà Nẵng; Lăng Cô, ghi theo thứ tự trên tuyến). 3 loại xe: 4 chỗ 200.000đ, 7 chỗ 150.000đ, 16 chỗ 100.000đ mỗi ghế. Ghế 1 tầng A01…An.
 - **Lý do:** Đúng phạm vi BR-BUS-09, 24; giữ giá theo loại xe theo RDM (D-07), không cần đổi schema.
 - **Hệ quả:** Seed có 6 tuyến, 3 loại xe, 9 xe, 18 chuyến, 162 ghế. Cùng loại xe có cùng giá trên tuyến ngắn (Đà Nẵng – Hội An) và tuyến dài (Hội An – Huế), đã ghi ở mục "Vấn đề RDM cần nhóm xem lại" trong `docs/data-model.md`. Quy ước mã ghế 2 tầng A/B cũ bị bỏ.
-- **Người quyết định:** Nhã (AI đề xuất phương án)
+- **Người quyết định:** Nhã 
 ### D-16: Dùng TypeScript cho frontend
 **Ngày · Commit:** 03/11/2026 · Task #4 – chore: khoi tao frontend React Vite, router va API client
 **Bối cảnh:** cần chọn ngôn ngữ cho frontend React + Vite.
@@ -172,7 +172,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 **Quyết định:** phương án 2, kèm điều kiện phải chứng minh luật React Hooks đang bật và typecheck/test/build chạy được với TypeScript 7.
 **Lý do:** 00-index chỉ yêu cầu npm run lint chạy được, không bắt buộc ESLint; không phải hạ phiên bản đi ngược template; không thêm gói; sửa tài liệu cho khớp thực tế.
 **Hệ quả:** sửa frontend/CLAUDE.md (ESLint → oxlint); nếu sau này oxlint thiếu luật cần thiết thì xem lại phương án 1.
-**Người quyết định:** Nhã (AI đề xuất phương án)
+**Người quyết định:** Nhã 
 ### D-19: Luật exhaustive-deps ở mức error
 **Ngày · Commit:** 03/11/2026 · Task #4 – chore: khoi tao frontend React Vite, router va API client
 **Bối cảnh:** exhaustive-deps bật sẵn ở mức warn; nếu chỉ vi phạm luật này, npm run lint vẫn exit 0.
@@ -271,7 +271,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2; /locations chỉ trả điểm đầu/cuối tuyến.
 - Lý do: giữ task gọn và đúng phạm vi; khách vẫn chọn được điểm đón/trả trung gian ở bước nhập thông tin (task #9, BR-BUS-23).
 - Hệ quả: tìm "Đà Nẵng → Lăng Cô" không ra kết quả; có test xác nhận hành vi này.
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã 
 
 ### D-31: Nguồn thời gian "hiện tại" duy nhất, giả lập được trong test
 - Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
@@ -280,7 +280,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2 (core/clock.py: get_now, vietnam_date).
 - Lý do: test không tự hỏng khi ngày thật vượt qua ngày dữ liệu mẫu; "hôm nay" luôn tính theo giờ Việt Nam.
 - Hệ quả: các task sau dùng get_now() thay vì gọi đồng hồ hệ thống.
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã 
 
 ### D-32: Tuyến không tồn tại trả 200 với danh sách rỗng
 - Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
@@ -289,7 +289,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2.
 - Lý do: đây là kết quả tìm kiếm rỗng, không phải lỗi; frontend xử lý thống nhất với trường hợp "không có chuyến".
 - Hệ quả: frontend hiện "Không có chuyến phù hợp" cho cả hai trường hợp.
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã 
 
 ### D-33: Điều kiện "ghế khả dụng" dùng chung, tính cả ghế giữ đã quá hạn
 - Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
@@ -298,7 +298,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2, hàm seat_available(now) trong seat_availability.py, có test riêng.
 - Lý do: số ghế trống hiển thị đúng thực tế; bước tìm chuyến và bước giữ ghế (task #7) dùng cùng một điều kiện nên không lệch nhau.
 - Hệ quả: task #7, #8 bắt buộc dùng lại seat_available(now).
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã 
 
 ### D-34: Gợi ý ±1 ngày theo cùng cặp điểm đi / điểm đến
 - Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
@@ -307,7 +307,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2; bỏ các ngày đã qua.
 - Lý do: khách quan tâm đi từ đâu đến đâu, không quan tâm mã tuyến.
 - Hệ quả: nếu sau này có nhiều nhà xe chạy cùng cặp điểm thì gợi ý gồm chuyến của mọi nhà xe.
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã 
 
 ### D-35: Hiển thị "Xe N chỗ" khi thiếu tên loại xe
 - Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
@@ -316,7 +316,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2 (formatVehicleType ở frontend).
 - Lý do: chỉ là định dạng hiển thị, không tính toán dữ liệu nghiệp vụ.
 - Hệ quả: không ảnh hưởng backend.
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã 
 
 ### D-36: Không lọc chuyến theo trạng thái xe
 - Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
@@ -325,4 +325,66 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2; ghi vào mục rủi ro của docs/API.md.
 - Lý do: việc mở / ngừng bán là quyết định ở cấp chuyến; nhà xe chuyển chuyến sang NGUNG_BAN khi xe hỏng.
 - Hệ quả: nếu nhà xe quên đổi trạng thái chuyến thì chuyến vẫn hiện (rủi ro vận hành, thuộc phần nhà xe).
+- Người quyết định: Nhã 
+### D-37: Nhập thông tin người đặt ngay khi giữ ghế (phương án A)
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: mã đơn và mã truy cập lưu trên bảng ve (D-11), mà ve.khach_hang_id bắt buộc (RDM); khách vãng lai chưa có hồ sơ khi mới chọn ghế.
+- Các phương án đã cân nhắc: (A) hỏi họ tên + SĐT người đặt khi giữ ghế, không đổi schema; (B) migration cho ve.khach_hang_id được NULL đến khi nhập thông tin.
+- Quyết định: phương án A; sửa BR-BUS-20 cho khớp.
+- Lý do: không đổi schema thêm lần nữa; chặn giữ ghế tràn lan theo SĐT ngay từ đầu (rủi ro 2 trong requirements.md); vẫn khớp BPMN vì bước "Điền thông tin từng hành khách & điểm đón/trả" vẫn sau bước giữ ghế.
+- Hệ quả: task #9 chỉ còn thông tin hành khách và điểm đón/trả; SĐT đã có tài khoản phải đăng nhập mới đặt được.
+- Người quyết định: Nhã 
+
+### D-38: Lỗi 409 "đang có đơn chưa hoàn tất" không trả mã đơn
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: PLAN ban đầu trả ma_don trong lỗi 409 của BR-BUS-18; trang Tra cứu vé (task #13) cho xem vé bằng mã đơn + SĐT.
+- Các phương án đã cân nhắc: (1) trả ma_don để khách mở lại đơn; (2) không trả ma_don, chủ đơn mở lại bằng mã đã lưu trên trình duyệt.
+- Quyết định: phương án 2; có test xác nhận response không chứa mã đơn; ghi rủi ro vào docs/API.md.
+- Lý do: người chỉ biết SĐT sẽ lấy được mã đơn rồi xem được vé, tên, điểm đón của người khác (lộ dữ liệu cá nhân, F9).
+- Hệ quả: khách mất mã đơn (đóng tab) thì phải chờ hết 5 phút giữ chỗ mới đặt lại bằng cùng SĐT.
+- Người quyết định: Nhã (AI đề xuất phương án; rủi ro được đánh giá lại khi rà soát PLAN)
+
+### D-39: BR-BUS-18 chỉ chặn đơn còn trong thời gian giữ ghế
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: vault chưa định nghĩa "đơn đang giữ / chờ thanh toán".
+- Các phương án đã cân nhắc: (1) chỉ tính vé GIU_CHO còn hạn giữ; (2) tính cả đơn tiền mặt đã xác nhận.
+- Quyết định: phương án 1.
+- Lý do: nếu tính cả đơn đã xác nhận thì khách không đặt được chuyến thứ hai trước khi đi xong chuyến đầu.
+- Hệ quả: một SĐT có thể có nhiều đơn đã xác nhận, nhưng chỉ 1 đơn đang giữ ghế.
+- Người quyết định: Nhã 
+
+### D-40: Không ghi đè họ tên hồ sơ khách vãng lai khi đặt lại
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: khách vãng lai đặt lại bằng SĐT cũ nhưng nhập họ tên / email khác.
+- Các phương án đã cân nhắc: (1) ghi đè hồ sơ như luồng đăng ký (D-25); (2) vé lưu họ tên vừa nhập, hồ sơ giữ nguyên họ tên, chỉ bổ sung email khi hồ sơ chưa có.
+- Quyết định: phương án 2.
+- Lý do: người chỉ biết SĐT không đổi được tên trong hồ sơ của người khác. Khác với đăng ký (D-25) vì đăng ký là bước tạo tài khoản chính thức.
+- Hệ quả: GET đơn trả nguoi_dat theo hồ sơ, họ tên vừa nhập nằm ở từng vé; task #9 xem lại cách hiển thị.
+- Người quyết định: Nhã 
+
+### D-41: Tài khoản không phải khách hàng không được giữ ghế
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: tài khoản NHA_XE, TAI_XE, ADMIN không có hồ sơ khach_hang.
+- Các phương án đã cân nhắc: (1) trả 403; (2) coi như khách vãng lai.
+- Quyết định: 403 "Bạn không có quyền thực hiện thao tác này" (get_optional_customer).
+- Lý do: các vai trò này không phải khách đi xe; tránh tạo vé gắn sai chủ.
+- Hệ quả: nhân viên nhà xe muốn đặt vé thì đăng xuất và đặt như khách.
+- Người quyết định: Nhã (AI đề xuất phương án)
+
+### D-42: Mỗi tab trình duyệt một đơn đang giữ (sessionStorage), backend chặn theo SĐT
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: BR-BUS-18 ghi "mỗi trình duyệt 1 đơn"; mã đơn và mã truy cập lưu ở sessionStorage (cùng cách lưu token ở D-24).
+- Các phương án đã cân nhắc: (1) localStorage để đúng "mỗi trình duyệt"; (2) sessionStorage theo tab, dựa vào backend chặn theo SĐT.
+- Quyết định: phương án 2; sửa chữ BR-BUS-18 thành "mỗi tab trình duyệt".
+- Lý do: thống nhất với D-24; chặn quan trọng nằm ở backend (theo SĐT), không phụ thuộc trình duyệt.
+- Hệ quả: đóng tab là mất mã truy cập đơn đang giữ; đơn tự hết hạn sau 5 phút.
+- Người quyết định: Nhã (AI đề xuất phương án)
+
+### D-43: Thứ tự khóa cố định khi giữ ghế (khách hàng → ghế theo ghe_id)
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: nhiều request giữ ghế cùng lúc có thể khóa chéo nhau; 2 request cùng SĐT phải chạy lần lượt để BR-BUS-18 đúng.
+- Các phương án đã cân nhắc: (1) chỉ khóa ghế; (2) khóa dòng khach_hang trước, rồi ghế theo thứ tự ghe_id, kiểm tra lại sau khi khóa, partial UNIQUE làm lưới an toàn cuối.
+- Quyết định: phương án 2; tạo hồ sơ khách vãng lai bằng INSERT … ON CONFLICT DO NOTHING.
+- Lý do: không deadlock; không bán trùng ghế; 2 request cùng SĐT không tạo được 2 đơn.
+- Hệ quả: có 2 test đồng thời thật trên PostgreSQL; task #9–#12 phải giữ cùng thứ tự khóa.
 - Người quyết định: Nhã (AI đề xuất phương án)

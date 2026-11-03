@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.clock import get_now
 from app.db.session import get_session
-from app.schemas.trip import LocationsResponse, TripSearchResponse
-from app.services import trip_search_service
+from app.schemas.trip import LocationsResponse, SeatMapResponse, TripSearchResponse
+from app.services import seat_map_service, trip_search_service
 
 # Không yêu cầu đăng nhập: khách vãng lai tìm chuyến được (BR-BUS-01)
 router = APIRouter(tags=["trips"])
@@ -33,3 +33,17 @@ async def search_trips(
         )
     except trip_search_service.BusinessRuleError as error:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=error.detail) from None
+
+
+@router.get("/trips/{chuyen_xe_id}/seats")
+async def get_seat_map(
+    chuyen_xe_id: str,
+    session: AsyncSession = Depends(get_session),
+    now: datetime = Depends(get_now),
+) -> SeatMapResponse:
+    seat_map = await seat_map_service.get_seat_map(session, chuyen_xe_id, now)
+    if seat_map is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail=seat_map_service.TRIP_NOT_FOUND
+        )
+    return seat_map

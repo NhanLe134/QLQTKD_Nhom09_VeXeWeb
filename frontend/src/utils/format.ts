@@ -62,3 +62,11 @@ export function todayInVietnam(now: Date = new Date()): string {
 export function formatVehicleType(tenLoaiXe: string | null, soCho: number): string {
   return tenLoaiXe ?? `Xe ${soCho} chỗ`
 }
+
+/** Thời gian còn lại dạng mm:ss, làm tròn lên giây (còn 1 ms vẫn hiện 00:01). */
+export function formatCountdown(remainingMs: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}

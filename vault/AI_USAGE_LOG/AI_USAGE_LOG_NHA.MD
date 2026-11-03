@@ -22,7 +22,7 @@
 
 | **LOG-07** | C6 – Tìm chuyến và gợi ý chuyến lân cận (US-BUS-01) | Nhiệm vụ: Task #6 "Tìm chuyến và gợi ý chuyến lân cận" — làm cả backend và frontend. (nguyên văn: xem [P-LOG-07](#p-log-07))<br>Tài liệu: backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md, vault/01-requirements/business-rules.md (BR-BUS-09 đến 13), docs/user-stories.md (US-BUS-01); code C1–C5 | PLAN Scope/Plan/Risks: đồng hồ giả lập được (core/clock.py, get_now) làm nguồn "hiện tại" duy nhất; GET /locations (điểm đầu/cuối tuyến) và GET /trips (một truy vấn nối chuyen_xe → tuyen_xe → xe → loai_xe, subquery đếm ghế, tránh N+1; ngày theo giờ VN; gợi ý ±1 ngày bỏ ngày đã qua); gia_ve ép int vì Pydantic v2 đổi Decimal thành chuỗi. Frontend: form chọn điểm từ /locations, tham số trên URL, TripCard khóa nút khi hết ghế, trạng thái tải / lỗi / rỗng kèm gợi ý, hủy kết quả cũ khi đổi tham số. Tự nêu rủi ro: múi giờ (00:00–07:00 VN nếu tính theo UTC sẽ chặn sai), ghế giữ quá hạn chưa được tính là trống, so khớp chuỗi chính xác, chưa lọc xe.trang_thai; hỏi 4 điểm D1–D4. Khi thực hiện: hàm seat_available(now) dùng chung (TRONG hoặc GIU_CHO có han_giu_cho <= now) có test riêng 5 trường hợp; thêm test 05:00 giờ VN, chuyến khởi hành đúng thời điểm hiện tại, tìm theo điểm trung gian không ra kết quả, chuyến hết ghế vẫn hiện. Kết quả AI báo: pytest 137 passed (26 test mới), lint và typecheck exit 0, 98 test frontend, build thành công | Kiểm tra PLAN theo 5 điểm (không đổi schema/thư viện; tìm theo ngày giờ VN; số ghế trống đếm ở backend; "hiện tại" giả lập được; không ghép chuỗi SQL). Trả lời 4 điểm: D1 tuyến không tồn tại trả 200 rỗng; D2 đếm ghế giữ quá hạn là trống, điều kiện viết MỘT LẦN dùng chung cho task #7, #8, có test riêng; D3 gợi ý theo cùng cặp điểm đi/đến; D4 hiện "Xe N chỗ" khi thiếu tên loại xe. Quyết định không lọc theo xe.trang_thai, ghi vào rủi ro trong docs/API.md. Tự kiểm tra: `uv run pytest -q`; `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`; Swagger: /locations trả 3 điểm không có Lăng Cô, /trips Đà Nẵng → Huế 15/12/2026 trả 3 chuyến; trình duyệt: Đà Nẵng → Huế 15/12 ra 3 thẻ đúng giờ, giá 200.000 / 150.000 / 100.000 đ và số ghế; F5 giữ kết quả; Đà Nẵng → Hội An 15/12 không có chuyến, gợi ý 3 chuyến ngày 16/12, bấm gợi ý tìm lại được; điểm đi trùng điểm đến báo lỗi; không chọn được ngày đã qua; "Chọn chuyến" sang trang tạm; khổ 375px không vỡ<br>Giá trị: Khách vãng lai tìm được chuyến theo đúng BR-BUS-10 đến 13; điều kiện "ghế khả dụng" dùng chung tránh lệch giữa bước tìm chuyến và bước giữ ghế; test không phụ thuộc ngày thật nhờ đồng hồ giả lập. Lưu ý: test ≤ 2 giây chỉ mang tính chỉ báo, chưa phải đo tải thật |
 
-| **LOG-08** |  |  |  |  |
+| **LOG-08** | C7 – Sơ đồ ghế, giữ ghế 5 phút và đặt cả xe (US-BUS-02) | Nhiệm vụ: Task #7 "Sơ đồ ghế, giữ ghế 5 phút và đặt cả xe" — làm cả backend và frontend. (nguyên văn: xem [P-LOG-08](#p-log-08))<br>Tài liệu: backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md, vault/01-requirements/business-rules.md (BR-BUS-14 đến 20, 37; BR-BUS-20 sửa trước khi làm: người đặt nhập ngay khi giữ ghế), docs/user-stories.md (US-BUS-02); code C1–C6 (seat_available, get_now, get_optional_user) | PLAN Scope/Plan/Risks: GET /trips/{id}/seats (trạng thái hiển thị theo seat_available, cờ co_the_dat do backend quyết định); POST /bookings/hold trong 1 transaction (khóa khach_hang trước rồi ghế theo ghe_id để tránh deadlock, kiểm tra lại sau khi khóa, hủy vé GIU_CHO cũ của ghế quá hạn trước khi tạo vé mới, mã truy cập token_urlsafe lưu SHA-256, partial UNIQUE làm lưới an toàn cuối); GET /bookings/{ma_don} qua dependency dùng chung get_accessible_booking (chủ tài khoản hoặc header X-Ma-Truy-Cap, sai trả 404). Frontend: sơ đồ ghế, form người đặt, đồng hồ theo giờ server, trang /dat-ve/:maDon. Nêu rủi ro và 3 khoảng trống (KHÔNG ĐỦ DỮ LIỆU TRONG VAULT): phạm vi "đơn đang giữ", ghi đè hồ sơ khách vãng lai, vai trò không phải KHACH. Trong mục rủi ro AI ghi response 409 của BR-BUS-18 trả ma_don cho người chỉ biết SĐT là "một kiểu dò được" nhưng vẫn giữ trong thiết kế. Khi thực hiện: 1 test Vitest sai do dùng lại một Response (sửa test, không sửa code chính); PostgreSQL chưa chạy nên phải bật Docker. Kết quả AI báo: pytest 181 passed (44 test mới, gồm 2 test đồng thời thật trên Postgres), lint và typecheck exit 0, 143 test frontend, build thành công. Tự báo tồn đọng: khi đồng hồ về 0, ô thông tin hành khách vẫn hiện tới khi tải lại trang | [F9 – Lỗ hổng bảo mật] Rà soát PLAN theo checklist 7 điểm, có dùng thêm trợ lý AI thứ hai (Claude chat) để đối chiếu. Đánh giá lại rủi ro AI xếp nhẹ: lỗi 409 trả ma_don + trang Tra cứu vé (task #13) chỉ cần mã đơn + SĐT → người chỉ biết SĐT xem được vé, tên, điểm đón của người khác. Quyết định: 409 không trả ma_don, thêm test xác nhận, ghi rủi ro vào docs/API.md. Chọn phương án A (hỏi người đặt khi giữ ghế, không đổi schema). Trả lời Q1 chỉ chặn đơn còn hạn giữ; Q2 không ghi đè họ tên hồ sơ, chỉ bổ sung email; Q3 vai trò không phải KHACH nhận 403; chấp nhận sessionStorage theo tab. Yêu cầu sửa thêm: đồng hồ về 0 thì ẩn ngay ô thông tin hành khách. Tự kiểm tra: `uv run pytest -q`; `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`; trình duyệt với 2 cửa sổ (thường + ẩn danh): giữ A01, A02 xe 4 chỗ ra tổng 400.000 đ và đồng hồ 5:00; cửa sổ kia thấy 2 ghế đang giữ; cùng SĐT báo "đang có đơn chưa hoàn tất" không kèm mã đơn; nút Đặt cả xe bị khóa; SĐT của tài khoản báo phải đăng nhập; đăng nhập khach_mau thì tự điền; cảnh báo khi còn 2:00; hết 5:00 ghế trống lại; nha_xe_mau bị từ chối; đặt cả xe 7 chỗ ra 1.050.000 đ; khổ 375px không vỡ<br>Giá trị: Không bán trùng ghế kể cả khi 2 người bấm cùng lúc (có test đồng thời thật); khách vãng lai giữ ghế được mà không cần đổi schema; chặn được một đường lộ thông tin cá nhân trước khi viết mã. Bài học: rủi ro AI tự nêu cần được đánh giá lại theo chuỗi tác động qua nhiều task, không chỉ trong phạm vi task hiện tại |
 | **LOG-09** |  |  |  |  |
 | **LOG-10** |  |  |  |  |
 
@@ -459,6 +459,64 @@ D3. Đồng ý gợi ý theo cùng cặp diem_di/diem_den.
 D4. Đồng ý hiển thị "Xe {so_cho} chỗ" khi thiếu tên loại xe.
 Không lọc theo xe.trang_thai; ghi vào mục rủi ro của docs/API.md: việc mở/ngừng bán do chuyen_xe.trang_thai quyết định.
 Duyệt PLAN, thực hiện. Báo kết quả thật của uv run pytest -q, npm run lint, npm run typecheck, npm test, npm run build.
+```
+### P-LOG-08
+
+**Lượt 1 – Yêu cầu lập kế hoạch Task #7:**
+
+```text
+Đọc backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md, vault/01-requirements/business-rules.md (BR-BUS-14 đến 20, 37), docs/user-stories.md (US-BUS-02).
+Nhiệm vụ: Task #7 "Sơ đồ ghế, giữ ghế 5 phút và đặt cả xe" — làm cả backend và frontend. KHÔNG đổi schema. Khách vãng lai dùng được.
+BẮT BUỘC dùng lại seat_available(now) (seat_availability.py) và get_now() (core/clock.py); dùng get_optional_user cho phần đăng nhập không bắt buộc.
+
+BACKEND:
+1. GET /api/v1/trips/{chuyen_xe_id}/seats: thông tin chuyến (tuyến, giờ đi, loại xe, số chỗ, giá mỗi ghế) + danh sách ghế (so_ghe, trạng thái hiển thị TRONG/GIU_CHO/DA_BAN; ghế giữ đã quá hạn hiển thị TRONG theo seat_available) + thời điểm hiện tại của server (để frontend đếm ngược đúng).
+2. POST /api/v1/bookings/hold, body: chuyen_xe_id, ghe_ids (danh sách) hoặc dat_ca_xe=true, nguoi_dat {ho_ten, so_dien_thoai, email tùy chọn}.
+   Người đặt (BR-BUS-20):
+   - Đã đăng nhập: dùng hồ sơ khach_hang của tài khoản, bỏ qua nguoi_dat gửi lên.
+   - Khách vãng lai: tìm khach_hang theo SĐT; chưa có thì tạo (user_id NULL); SĐT đã gắn với một tài khoản → 409 "Số điện thoại đã có tài khoản, vui lòng đăng nhập".
+   Trong MỘT transaction:
+   - Khóa các ghế bằng SELECT … FOR UPDATE, theo thứ tự ghe_id để tránh deadlock.
+   - Chuyến phải MO_BAN và chưa khởi hành; mọi ghế thuộc đúng chuyến (sai → 400); số ghế từ 1 đến so_cho (BR-BUS-15).
+   - Mọi ghế phải khả dụng theo seat_available(now); có ghế không khả dụng → 409 "Ghế đã được giữ" (BR-BUS-14).
+   - dat_ca_xe: chỉ được khi MỌI ghế của chuyến khả dụng (BR-BUS-16), không thì 409.
+   - Mỗi SĐT chỉ có 1 đơn đang giữ/chờ thanh toán (BR-BUS-18) → 409 kèm mã đơn đang có.
+   - Ghế khả dụng do giữ quá hạn: chuyển các vé GIU_CHO cũ của ghế đó sang DA_HUY TRƯỚC khi tạo vé mới (vì partial UNIQUE ve.ghe_id).
+   - Ghế → GIU_CHO, han_giu_cho = now + SEAT_HOLD_MINUTES, khach_hang_id = người đặt.
+   - Mỗi ghế 1 dòng ve: cùng ma_don (sequence MA_DON), gia_ve lấy từ loai_xe lúc đặt, trang_thai_ve GIU_CHO, trang_thai_thanh_toan CHO_THANH_TOAN, ho_ten/so_dien_thoai mặc định của người đặt.
+   - Mã truy cập: secrets.token_urlsafe, lưu SHA-256 vào ve.ma_truy_cap_hash (BR-BUS-19); mã gốc chỉ trả MỘT LẦN trong response, không log.
+   Response 201: ma_don, ma_truy_cap, han_giu_cho, thời điểm server, danh sách ghế, tong_tien (backend tính).
+3. GET /api/v1/bookings/{ma_don}: chi tiết đơn. Quyền xem: tài khoản sở hữu đơn, HOẶC header X-Ma-Truy-Cap đúng (so sánh hmac.compare_digest); sai → 404 (không lộ đơn có tồn tại). Viết thành dependency dùng chung (task #8–#13 dùng lại).
+4. Test pytest: giữ 1 ghế và nhiều ghế; 2 request ĐỒNG THỜI giữ cùng ghế → đúng 1 thành công, 1 nhận 409; ghế đã bán 409; ghế giữ quá hạn giữ lại được (vé cũ thành DA_HUY); ghế chuyến khác 400; vượt số chỗ / danh sách rỗng 400 hoặc 422; đặt cả xe thành công và bị từ chối khi có 1 ghế đã giữ; chuyến đã khởi hành / NGUNG_BAN; khách vãng lai tạo và tái dùng hồ sơ theo SĐT; SĐT có tài khoản mà chưa đăng nhập 409; đã đăng nhập dùng hồ sơ tài khoản; 1 SĐT 2 đơn 409; mã truy cập không lưu dạng gốc; GET đơn: đúng mã, sai mã, chủ tài khoản, người khác.
+5. Bổ sung 3 endpoint vào docs/API.md.
+
+FRONTEND:
+1. Trang /chuyen/:id: thông tin chuyến; sơ đồ ghế dạng lưới theo mã ghế (A01…), màu theo trạng thái (trống / đang giữ / đã bán / đang chọn) + chú thích; chọn nhiều ghế, tối đa số chỗ; nút "Đặt cả xe" (chỉ bấm được khi mọi ghế trống); hiển thị giá mỗi ghế và số ghế đã chọn (KHÔNG tự tính tổng tiền — tổng lấy từ backend sau khi giữ).
+2. Bấm "Giữ ghế": khách vãng lai điền họ tên, SĐT, email (kiểm tra phía client); đã đăng nhập thì tự điền và chỉ xác nhận.
+3. Giữ thành công: lưu {ma_don, ma_truy_cap} vào sessionStorage (mỗi trình duyệt 1 đơn đang giữ — BR-BUS-18; nếu đang có đơn thì nhắc và cho mở lại đơn đó), gửi X-Ma-Truy-Cap khi gọi API đơn; chuyển sang /dat-ve/:ma_don.
+4. Trang /dat-ve/:ma_don: ghế đã giữ, tổng tiền (từ backend), đồng hồ đếm ngược theo han_giu_cho và thời điểm server; còn 2:00 hiện cảnh báo (BR-BUS-17); hết giờ hiện "Hết thời gian giữ chỗ". Phần "nhập thông tin hành khách" để trang tạm (task #9).
+5. Gặp 409 thì hiện nguyên văn lỗi và tải lại sơ đồ ghế.
+6. Test Vitest: sơ đồ ghế, chọn/bỏ chọn, giới hạn số chỗ, Đặt cả xe, form người đặt, 409, đồng hồ (dùng fake timers), cảnh báo 2 phút.
+
+Gửi PLAN theo mẫu Scope/Plan/Risks và danh sách file. CHƯA VIẾT MÃ.
+```
+
+**Lượt 2 – Trả lời Q1–Q3, sửa lỗ hổng 409 và duyệt PLAN:**
+
+```text
+Đồng ý các phương án khuyến nghị:
+Q1. BR-BUS-18 chỉ chặn khi khách có vé GIU_CHO còn hạn giữ.
+Q2. Vé lưu họ tên vừa nhập; hồ sơ khach_hang giữ nguyên họ tên, chỉ bổ sung email khi hồ sơ chưa có.
+Q3. Tài khoản không phải KHACH gọi giữ ghế → 403.
+Sửa 1 điểm bảo mật: response 409 của BR-BUS-18 KHÔNG được trả ma_don (người chỉ biết SĐT sẽ lấy được mã đơn, rồi dùng mã đơn + SĐT ở trang Tra cứu vé – task #13 – để xem vé của người khác). Chỉ trả "Số điện thoại này đang có đơn chưa hoàn tất". Thêm test xác nhận response 409 này không chứa ma_don. Ghi rủi ro này và cách xử lý vào docs/API.md.
+Chấp nhận sessionStorage theo từng tab (backend chặn theo SĐT).
+Duyệt PLAN, thực hiện. Báo kết quả thật của uv run pytest -q, npm run lint, npm run typecheck, npm test, npm run build.
+```
+
+**Lượt 3 – Sửa đồng hồ về 0:**
+
+```text
+Sửa trang /dat-ve/:maDon: khi đồng hồ đếm ngược về 0 thì ẩn ngay ô "Thông tin hành khách" và hiện "Hết thời gian giữ chỗ" kèm nút "Chọn lại ghế" (không cần tải lại trang). Thêm test Vitest với fake timers. Chạy lại npm run lint, npm run typecheck, npm test, npm run build.
 ```
 
 ## Mẫu cách điền (XÓA mục này trước khi nộp — đây chỉ là ví dụ định dạng, không phải lượt thật)

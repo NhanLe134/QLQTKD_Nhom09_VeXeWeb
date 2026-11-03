@@ -52,11 +52,18 @@ describe('routes', () => {
     expect(screen.getByRole('link', { name: 'Tìm chuyến' })).toHaveAttribute('aria-current', 'page')
   })
 
-  it('/chuyen/:id hiện trang tạm "Đang xây dựng" (task #7)', () => {
+  it('/chuyen/:id hiện trang chọn ghế', () => {
     renderAt('/chuyen/CX00000001')
 
     expect(screen.getByRole('heading', { name: 'Chọn ghế' })).toBeInTheDocument()
-    expect(screen.getByText('Đang xây dựng.')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Đang tải sơ đồ ghế…')
+  })
+
+  it('/dat-ve/:maDon hiện trang đặt vé', () => {
+    renderAt('/dat-ve/DH00100000')
+
+    expect(screen.getByRole('heading', { name: 'Đặt vé' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Đang tải đơn…')
   })
 
   it.each([

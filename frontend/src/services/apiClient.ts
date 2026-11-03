@@ -55,10 +55,18 @@ async function readDetail(response: Response): Promise<string> {
   return GENERIC_ERROR_MESSAGE
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/** Header thêm cho một request, ví dụ `X-Ma-Truy-Cap` của đơn đặt vé. */
+export type RequestHeaders = Record<string, string>
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  extraHeaders?: RequestHeaders,
+): Promise<T> {
   const url = `${getBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`
   const sentToken = authToken
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  const headers: Record<string, string> = { ...extraHeaders, Accept: 'application/json' }
   if (sentToken) {
     headers.Authorization = `Bearer ${sentToken}`
   }
@@ -89,10 +97,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return (await response.json()) as T
 }
 
-export function get<T>(path: string): Promise<T> {
-  return request<T>('GET', path)
+export function get<T>(path: string, headers?: RequestHeaders): Promise<T> {
+  return request<T>('GET', path, undefined, headers)
 }
 
-export function post<T>(path: string, body?: unknown): Promise<T> {
-  return request<T>('POST', path, body)
+export function post<T>(path: string, body?: unknown, headers?: RequestHeaders): Promise<T> {
+  return request<T>('POST', path, body, headers)
 }

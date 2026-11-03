@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  formatCountdown,
   formatCurrency,
   formatDate,
   formatDateTime,
@@ -83,5 +84,19 @@ describe('formatVehicleType', () => {
   it('dùng tên loại xe từ backend, thiếu tên thì hiện theo số chỗ', () => {
     expect(formatVehicleType('Xe 7 chỗ VIP', 7)).toBe('Xe 7 chỗ VIP')
     expect(formatVehicleType(null, 16)).toBe('Xe 16 chỗ')
+  })
+})
+
+describe('formatCountdown', () => {
+  it.each([
+    [300000, '05:00'],
+    [120000, '02:00'],
+    [119001, '02:00'],
+    [61000, '01:01'],
+    [1, '00:01'],
+    [0, '00:00'],
+    [-5000, '00:00'],
+  ])('%i ms -> %s', (ms, expected) => {
+    expect(formatCountdown(ms)).toBe(expected)
   })
 })

@@ -250,3 +250,197 @@ Tuyến không tồn tại (VD `diem_di=Quảng Ngãi`) → **200** với `{"chu
 - Việc mở bán / ngừng bán **chỉ do `chuyen_xe.trang_thai` quyết định**. Tìm chuyến không lọc theo `xe.trang_thai` (xe `BAO_TRI`, `NGUNG_HOAT_DONG` vẫn hiện nếu chuyến còn `MO_BAN`); khi xe không chạy được, nhà xe phải chuyển chuyến sang `NGUNG_BAN`.
 - Số ghế trống là ảnh chụp tại lúc tìm; ghế có thể bị giữ ngay sau đó. Bước giữ ghế kiểm tra lại.
 - Chưa có index trên `chuyen_xe.ngay_khoi_hanh` (thêm index là đổi schema); đủ nhanh với dữ liệu mẫu, cần xem lại khi dữ liệu lớn.
+
+---
+
+## Sơ đồ ghế, giữ ghế, xem đơn — `/api/v1/trips/{id}/seats`, `/api/v1/bookings`
+
+Không bắt buộc đăng nhập (khách vãng lai dùng được, BR-BUS-01). Liên quan: US-BUS-02, BR-BUS-14 đến 20, 37. Task #7.
+
+Ghế **khả dụng** dùng chung điều kiện với tìm chuyến (`app/services/seat_availability.py`): ghế `TRONG`, hoặc `GIU_CHO` đã quá `han_giu_cho`.
+
+### GET `/api/v1/trips/{chuyen_xe_id}/seats` — Sơ đồ ghế
+
+**Response 200**
+
+```json
+{
+  "chuyen": {
+    "chuyen_xe_id": "CX00000001",
+    "ten_tuyen": "Đà Nẵng - Huế",
+    "diem_di": "Đà Nẵng",
+    "diem_den": "Huế",
+    "diem_trung_gian": "Lăng Cô",
+    "ngay_khoi_hanh": "2026-12-15",
+    "gio_di": "2026-12-14T23:00:00Z",
+    "gio_den": "2026-12-15T01:30:00Z",
+    "ten_loai_xe": "Xe 4 chỗ",
+    "so_cho": 4,
+    "gia_ve": 200000
+  },
+  "co_the_dat": true,
+  "ghe": [
+    { "ghe_id": "GH00000001", "so_ghe": "A01", "trang_thai": "TRONG" },
+    { "ghe_id": "GH00000002", "so_ghe": "A02", "trang_thai": "GIU_CHO" },
+    { "ghe_id": "GH00000003", "so_ghe": "A03", "trang_thai": "DA_BAN" },
+    { "ghe_id": "GH00000004", "so_ghe": "A04", "trang_thai": "TRONG" }
+  ],
+  "thoi_diem_hien_tai": "2026-12-01T03:15:00Z"
+}
+```
+
+| Trường | Ghi chú |
+|---|---|
+| `chuyen` | Các trường giống một phần tử của `GET /trips`, trừ `so_ghe_trong` |
+| `co_the_dat` | `true` khi chuyến `MO_BAN` và chưa khởi hành (BR-BUS-11). `false` thì frontend khóa nút giữ ghế |
+| `ghe[].trang_thai` | Trạng thái **hiển thị**: `TRONG`, `GIU_CHO`, `DA_BAN`. Ghế giữ đã quá hạn (chưa được nhả) hiện `TRONG`. Sắp theo `so_ghe` |
+| `thoi_diem_hien_tai` | Giờ server (UTC), dùng để đếm ngược đúng khi đồng hồ máy khách lệch |
+
+**Lỗi**
+
+| Mã | `detail` | Khi nào |
+|---|---|---|
+| 404 | `Không tìm thấy chuyến xe` | Không có chuyến |
+
+---
+
+### POST `/api/v1/bookings/hold` — Giữ ghế / đặt cả xe
+
+Header `Authorization` không bắt buộc. Gửi token sai hoặc hết hạn → 401 (xem mục Xác thực).
+
+**Request**
+
+| Trường | Kiểu | Bắt buộc | Ràng buộc |
+|---|---|---|---|
+| `chuyen_xe_id` | string | có | |
+| `ghe_ids` | string[] | một trong hai | Lấy `ghe_id` từ sơ đồ ghế; ít nhất 1, không trùng, tối đa `so_cho` (BR-BUS-15) |
+| `dat_ca_xe` | bool | một trong hai | `true`: giữ **mọi** ghế của chuyến, không gửi `ghe_ids` (BR-BUS-16) |
+| `nguoi_dat` | object | khách vãng lai: có | `ho_ten` (1–100 ký tự), `so_dien_thoai` (10 số, bắt đầu `0`), `email` (không bắt buộc, `""` coi như không nhập). Khách đã đăng nhập: **bỏ qua**, dùng hồ sơ của tài khoản |
+
+```json
+{
+  "chuyen_xe_id": "CX00000001",
+  "ghe_ids": ["GH00000001", "GH00000004"],
+  "nguoi_dat": { "ho_ten": "Trần Thị Bình", "so_dien_thoai": "0905111222", "email": null }
+}
+```
+
+**Người đặt (BR-BUS-20)**
+
+| Tình huống | Kết quả |
+|---|---|
+| Đã đăng nhập, vai trò `KHACH` | Dùng hồ sơ `khach_hang` của tài khoản |
+| Đã đăng nhập, vai trò khác | 403 |
+| Khách vãng lai, SĐT chưa có hồ sơ | Tạo hồ sơ mới, `user_id` NULL |
+| Khách vãng lai, SĐT đã có hồ sơ vãng lai | Dùng lại hồ sơ. **Không đổi** họ tên hồ sơ; chỉ bổ sung email khi hồ sơ chưa có. Vé lưu họ tên vừa nhập |
+| Khách vãng lai, SĐT đã gắn tài khoản | 409, phải đăng nhập |
+
+**Xử lý** (một transaction):
+
+1. Chuyến phải `MO_BAN` và chưa khởi hành.
+2. Khóa hồ sơ người đặt (`FOR UPDATE`), rồi khóa ghế theo thứ tự `ghe_id`. Mọi request khóa theo cùng thứ tự nên không deadlock; hai request cùng ghế thì đúng một request thành công (BR-BUS-14).
+3. Mỗi số điện thoại chỉ có **1 đơn đang giữ ghế** (BR-BUS-18): khách có vé `GIU_CHO` mà ghế còn hạn giữ → 409. Giữ đã quá hạn thì không chặn.
+4. Mọi ghế phải khả dụng. Vé `GIU_CHO` cũ của ghế giữ quá hạn chuyển `DA_HUY` trước khi tạo vé mới.
+5. Ghế → `GIU_CHO`, `han_giu_cho` = bây giờ + `SEAT_HOLD_MINUTES` phút (mặc định 5, BR-BUS-17).
+6. Mỗi ghế một vé, chung `ma_don`: `gia_ve` lấy theo loại xe lúc đặt, `trang_thai_ve` `GIU_CHO`, `trang_thai_thanh_toan` `CHO_THANH_TOAN`, họ tên và SĐT mặc định của người đặt.
+7. Cấp **mã truy cập** ngẫu nhiên cho đơn (BR-BUS-19). CSDL chỉ lưu SHA-256; mã gốc chỉ có trong response này, không ghi log.
+
+**Response 201**
+
+```json
+{
+  "ma_don": "DH00100000",
+  "ma_truy_cap": "q3W9y0ZK2m...(43 ký tự)",
+  "han_giu_cho": "2026-12-01T03:20:00Z",
+  "thoi_diem_hien_tai": "2026-12-01T03:15:00Z",
+  "ghe": [
+    { "ghe_id": "GH00000001", "so_ghe": "A01", "gia_ve": 200000 },
+    { "ghe_id": "GH00000004", "so_ghe": "A04", "gia_ve": 200000 }
+  ],
+  "tong_tien": 400000
+}
+```
+
+Frontend phải giữ `ma_truy_cap` (sessionStorage) và gửi lại trong header `X-Ma-Truy-Cap` khi thao tác trên đơn. Mất mã thì khách vãng lai không mở lại được đơn.
+
+**Lỗi**
+
+| Mã | `detail` | Khi nào |
+|---|---|---|
+| 400 | `Chuyến xe không mở bán` | Chuyến `NGUNG_BAN`, `HOAN_THANH`, `DA_HUY` |
+| 400 | `Chuyến xe đã khởi hành` | `gio_di` không sau thời điểm hiện tại |
+| 400 | `Ghế không thuộc chuyến xe này` | Có `ghe_id` không thuộc chuyến hoặc không tồn tại |
+| 400 | `Số ghế vượt quá số chỗ của xe` | Số ghế > `so_cho` |
+| 400 | `Tài khoản chưa có hồ sơ khách hàng` | Tài khoản `KHACH` không có hồ sơ (dữ liệu lỗi) |
+| 403 | `Bạn không có quyền thực hiện thao tác này` | Đăng nhập bằng vai trò không phải `KHACH` |
+| 404 | `Không tìm thấy chuyến xe` | Không có chuyến |
+| 409 | `Ghế đã được giữ` | Có ghế đang được giữ (còn hạn) hoặc đã bán |
+| 409 | `Không thể đặt cả xe vì đã có ghế được giữ hoặc đã bán` | `dat_ca_xe` khi không phải mọi ghế đều khả dụng |
+| 409 | `Số điện thoại này đang có đơn chưa hoàn tất` | BR-BUS-18 |
+| 409 | `Số điện thoại đã có tài khoản, vui lòng đăng nhập` | Khách vãng lai dùng SĐT đã gắn tài khoản |
+| 422 | `Vui lòng nhập thông tin người đặt` | Khách vãng lai không gửi `nguoi_dat` |
+| 422 | *(mảng lỗi Pydantic)* | `ghe_ids` rỗng hoặc trùng, gửi cả `ghe_ids` lẫn `dat_ca_xe`, không gửi cả hai, SĐT/email sai định dạng |
+
+**Rủi ro bảo mật đã xử lý: 409 BR-BUS-18 không trả mã đơn.**
+Nếu thông báo 409 kèm `ma_don`, người chỉ biết SĐT của người khác có thể gọi giữ ghế bằng SĐT đó để lấy mã đơn, rồi dùng mã đơn + SĐT ở trang Tra cứu vé (task #13) để xem vé của họ (trái BR-BUS-37). Vì vậy 409 chỉ trả `Số điện thoại này đang có đơn chưa hoàn tất`, không có `ma_don` ở bất kỳ trường nào (có test kiểm tra). Khách tự mở lại đơn của mình bằng `ma_don` + `ma_truy_cap` đã lưu trên trình duyệt, hoặc bằng tài khoản. Thông báo này vẫn cho biết một SĐT đang có đơn (dò được); nhóm chấp nhận trong phạm vi đồ án, giống rủi ro ở `/auth/register`.
+
+**Rủi ro khác**
+
+- Ràng buộc "mỗi trình duyệt 1 đơn đang giữ" (BR-BUS-18) chỉ do frontend thực hiện bằng sessionStorage, nên thực tế là **mỗi tab**. Backend chặn theo số điện thoại.
+- Vé `GIU_CHO` quá hạn vẫn nằm trong CSDL cho đến khi tác vụ nhả ghế (task #8) chạy, hoặc ghế được người khác giữ lại.
+- Dòng chuyến không bị khóa: nếu nhà xe chuyển chuyến sang `NGUNG_BAN` đúng lúc đang giữ ghế, lần giữ đó vẫn có thể thành công.
+- Chưa giới hạn số lần gọi; người xấu có thể giữ nhiều ghế bằng nhiều SĐT khác nhau.
+
+---
+
+### GET `/api/v1/bookings/{ma_don}` — Chi tiết đơn
+
+Được xem khi **một trong hai** đúng (BR-BUS-19, 37):
+
+- Đăng nhập bằng tài khoản sở hữu đơn (`Authorization: Bearer ...`).
+- Gửi header `X-Ma-Truy-Cap: <ma_truy_cap>` đúng (so sánh hash bằng `hmac.compare_digest`).
+
+Sai mã, thiếu mã, tài khoản khác hoặc đơn không tồn tại đều trả **cùng một** 404, để không lộ mã đơn nào có thật. Backend dùng chung dependency `get_accessible_booking` (`app/api/deps.py`) cho các thao tác trên đơn ở task #8–#13.
+
+**Response 200**
+
+```json
+{
+  "ma_don": "DH00100000",
+  "chuyen": { "chuyen_xe_id": "CX00000001", "ten_tuyen": "Đà Nẵng - Huế", "...": "giống sơ đồ ghế" },
+  "nguoi_dat": { "ho_ten": "Trần Thị Bình", "so_dien_thoai": "0905111222", "email": null },
+  "ve": [
+    {
+      "ve_id": "VE00100000",
+      "ghe_id": "GH00000001",
+      "so_ghe": "A01",
+      "gia_ve": 200000,
+      "trang_thai_ve": "GIU_CHO",
+      "trang_thai_thanh_toan": "CHO_THANH_TOAN",
+      "ho_ten": "Trần Thị Bình",
+      "so_dien_thoai": "0905111222"
+    }
+  ],
+  "tong_tien": 200000,
+  "han_giu_cho": "2026-12-01T03:20:00Z",
+  "dang_giu_cho": true,
+  "thoi_diem_hien_tai": "2026-12-01T03:16:30Z"
+}
+```
+
+| Trường | Ghi chú |
+|---|---|
+| `nguoi_dat` | Lấy từ hồ sơ `khach_hang`. Với khách vãng lai dùng lại hồ sơ cũ, họ tên ở đây có thể khác họ tên vừa nhập (họ tên đó nằm ở `ve[].ho_ten`) |
+| `ve` | Gồm cả vé `DA_HUY` (ví dụ ghế giữ quá hạn đã bị người khác giữ lại), sắp theo `so_ghe` |
+| `tong_tien` | Tổng `gia_ve` của các vé chưa hủy; frontend hiển thị số này, không tự cộng |
+| `han_giu_cho` | Hạn giữ của các vé còn `GIU_CHO`; `null` khi không còn vé nào đang giữ |
+| `dang_giu_cho` | `true` khi còn vé `GIU_CHO` chưa quá hạn. `false` → hiển thị "Hết thời gian giữ chỗ" |
+
+`ma_truy_cap` không bao giờ có trong response này.
+
+**Lỗi**
+
+| Mã | `detail` | Khi nào |
+|---|---|---|
+| 401 | `Phiên đăng nhập không hợp lệ hoặc đã hết hạn` | Gửi token sai/hết hạn |
+| 404 | `Không tìm thấy đơn` | Không có quyền xem, hoặc đơn không tồn tại |

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, trips
+from app.api.v1 import auth, bookings, trips
 from app.core.config import Settings, get_settings
 
 
@@ -22,6 +22,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(trips.router, prefix="/api/v1")
+    app.include_router(bookings.router, prefix="/api/v1")
 
     return app
 

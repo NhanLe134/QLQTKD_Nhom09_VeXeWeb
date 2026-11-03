@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -11,11 +12,16 @@ from sqlalchemy import URL
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.core.clock import VIETNAM_TZ, get_now
 from app.core.config import Settings, get_settings
+from app.db.seed import seed_database
 from app.db.session import get_session
 from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+# Mặc định: 01/12/2026 00:00 giờ Việt Nam, trước mọi chuyến mẫu (15 và 16/12)
+DEFAULT_NOW = datetime(2026, 12, 1, tzinfo=VIETNAM_TZ)
 
 
 @pytest.fixture
@@ -87,3 +93,19 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+async def seeded(session_factory):
+    async with session_factory() as session, session.begin():
+        await seed_database(session, "mat-khau-test")
+    return session_factory
+
+
+@pytest.fixture
+def set_now(app):
+    def _set(moment: datetime) -> None:
+        app.dependency_overrides[get_now] = lambda: moment.astimezone(UTC)
+
+    _set(DEFAULT_NOW)
+    return _set

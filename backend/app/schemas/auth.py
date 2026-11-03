@@ -7,6 +7,7 @@ from app.models.enums import VaiTro
 
 # BR-BUS-04: 10 chữ số, bắt đầu bằng 0
 PHONE_PATTERN = r"^0\d{9}$"
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 # BR-BUS-03
 MIN_PASSWORD_LENGTH = 8
 
@@ -31,7 +32,7 @@ class RegisterRequest(BaseModel):
             StringConstraints(
                 strip_whitespace=True,
                 max_length=100,
-                pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                pattern=EMAIL_PATTERN,
             ),
         ]
         | None
