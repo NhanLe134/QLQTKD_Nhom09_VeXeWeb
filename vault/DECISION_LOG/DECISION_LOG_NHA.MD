@@ -264,3 +264,65 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Lý do: khách đỡ một bước; backend vẫn tách bạch đăng ký và đăng nhập.
 - Hệ quả: đăng ký thành công thì vào thẳng trang chủ ở trạng thái đã đăng nhập.
 - Người quyết định: Nhã 
+### D-30: Tìm chuyến theo điểm đầu/cuối của tuyến, không theo điểm trung gian
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: tuyến có điểm trung gian (ví dụ Đà Nẵng → Huế qua Lăng Cô); cần chốt khách tìm theo điểm nào.
+- Các phương án đã cân nhắc: (1) tìm theo cả điểm trung gian; (2) chỉ tìm theo điểm đi / điểm đến của tuyến.
+- Quyết định: phương án 2; /locations chỉ trả điểm đầu/cuối tuyến.
+- Lý do: giữ task gọn và đúng phạm vi; khách vẫn chọn được điểm đón/trả trung gian ở bước nhập thông tin (task #9, BR-BUS-23).
+- Hệ quả: tìm "Đà Nẵng → Lăng Cô" không ra kết quả; có test xác nhận hành vi này.
+- Người quyết định: Nhã (AI đề xuất phương án)
+
+### D-31: Nguồn thời gian "hiện tại" duy nhất, giả lập được trong test
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: lọc chuyến đã khởi hành và chặn ngày đã qua phụ thuộc thời điểm hiện tại; dữ liệu mẫu cố định ngày 15–16/12/2026.
+- Các phương án đã cân nhắc: (1) gọi datetime.now() trực tiếp trong code; (2) một hàm get_now() dùng chung, test thay bằng dependency_overrides.
+- Quyết định: phương án 2 (core/clock.py: get_now, vietnam_date).
+- Lý do: test không tự hỏng khi ngày thật vượt qua ngày dữ liệu mẫu; "hôm nay" luôn tính theo giờ Việt Nam.
+- Hệ quả: các task sau dùng get_now() thay vì gọi đồng hồ hệ thống.
+- Người quyết định: Nhã (AI đề xuất phương án)
+
+### D-32: Tuyến không tồn tại trả 200 với danh sách rỗng
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: khách (hoặc người gọi API trực tiếp) tìm một cặp điểm không có tuyến.
+- Các phương án đã cân nhắc: (1) 404 "Không tìm thấy tuyến"; (2) 200 với chuyen = [] và goi_y = [].
+- Quyết định: phương án 2.
+- Lý do: đây là kết quả tìm kiếm rỗng, không phải lỗi; frontend xử lý thống nhất với trường hợp "không có chuyến".
+- Hệ quả: frontend hiện "Không có chuyến phù hợp" cho cả hai trường hợp.
+- Người quyết định: Nhã (AI đề xuất phương án)
+
+### D-33: Điều kiện "ghế khả dụng" dùng chung, tính cả ghế giữ đã quá hạn
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: trước khi có job tự nhả ghế (task #8), ghế GIU_CHO đã quá han_giu_cho vẫn nằm trong CSDL.
+- Các phương án đã cân nhắc: (1) chỉ đếm ghế TRONG; (2) đếm TRONG hoặc GIU_CHO có han_giu_cho <= now, viết một lần dùng chung.
+- Quyết định: phương án 2, hàm seat_available(now) trong seat_availability.py, có test riêng.
+- Lý do: số ghế trống hiển thị đúng thực tế; bước tìm chuyến và bước giữ ghế (task #7) dùng cùng một điều kiện nên không lệch nhau.
+- Hệ quả: task #7, #8 bắt buộc dùng lại seat_available(now).
+- Người quyết định: Nhã (AI đề xuất phương án)
+
+### D-34: Gợi ý ±1 ngày theo cùng cặp điểm đi / điểm đến
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: BR-BUS-12 yêu cầu gợi ý chuyến cùng tuyến ±1 ngày.
+- Các phương án đã cân nhắc: (1) chỉ cùng một tuyen_xe_id; (2) mọi tuyến cùng cặp điểm đi / điểm đến.
+- Quyết định: phương án 2; bỏ các ngày đã qua.
+- Lý do: khách quan tâm đi từ đâu đến đâu, không quan tâm mã tuyến.
+- Hệ quả: nếu sau này có nhiều nhà xe chạy cùng cặp điểm thì gợi ý gồm chuyến của mọi nhà xe.
+- Người quyết định: Nhã (AI đề xuất phương án)
+
+### D-35: Hiển thị "Xe N chỗ" khi thiếu tên loại xe
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: tên loại xe lấy từ chi_tiet_loai_xe, có thể trống nếu nhà xe chưa khai báo.
+- Các phương án đã cân nhắc: (1) để trống; (2) hiển thị "Xe {so_cho} chỗ".
+- Quyết định: phương án 2 (formatVehicleType ở frontend).
+- Lý do: chỉ là định dạng hiển thị, không tính toán dữ liệu nghiệp vụ.
+- Hệ quả: không ảnh hưởng backend.
+- Người quyết định: Nhã (AI đề xuất phương án)
+
+### D-36: Không lọc chuyến theo trạng thái xe
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: xe có trạng thái HOAT_DONG / BAO_TRI / NGUNG_HOAT_DONG; BR chưa quy định có lọc hay không.
+- Các phương án đã cân nhắc: (1) ẩn chuyến dùng xe BAO_TRI; (2) chỉ dựa vào chuyen_xe.trang_thai.
+- Quyết định: phương án 2; ghi vào mục rủi ro của docs/API.md.
+- Lý do: việc mở / ngừng bán là quyết định ở cấp chuyến; nhà xe chuyển chuyến sang NGUNG_BAN khi xe hỏng.
+- Hệ quả: nếu nhà xe quên đổi trạng thái chuyến thì chuyến vẫn hiện (rủi ro vận hành, thuộc phần nhà xe).
+- Người quyết định: Nhã (AI đề xuất phương án)

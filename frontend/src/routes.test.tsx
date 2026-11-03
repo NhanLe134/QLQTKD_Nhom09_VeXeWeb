@@ -36,15 +36,27 @@ describe('routes', () => {
     expect(screen.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute('href', '/dang-nhap')
   })
 
-  it.each([
-    ['/tim-chuyen', 'Tìm chuyến'],
-    ['/tra-cuu-ve', 'Tra cứu vé'],
-  ])('%s hiện trang tạm "Đang xây dựng"', (path, title) => {
-    renderAt(path)
+  it('/tra-cuu-ve hiện trang tạm "Đang xây dựng"', () => {
+    renderAt('/tra-cuu-ve')
 
-    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Tra cứu vé' })).toBeInTheDocument()
     expect(screen.getByText('Đang xây dựng.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: title })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Tra cứu vé' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('/tim-chuyen hiện trang tìm chuyến', () => {
+    renderAt('/tim-chuyen')
+
+    expect(screen.getByRole('heading', { name: 'Tìm chuyến' })).toBeInTheDocument()
+    expect(screen.getByRole('form', { name: 'Tìm chuyến' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Tìm chuyến' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('/chuyen/:id hiện trang tạm "Đang xây dựng" (task #7)', () => {
+    renderAt('/chuyen/CX00000001')
+
+    expect(screen.getByRole('heading', { name: 'Chọn ghế' })).toBeInTheDocument()
+    expect(screen.getByText('Đang xây dựng.')).toBeInTheDocument()
   })
 
   it.each([

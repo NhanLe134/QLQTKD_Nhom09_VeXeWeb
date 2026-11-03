@@ -160,3 +160,93 @@ Dùng chung cho mọi vai trò.
 ### Phân quyền (dùng cho các task sau)
 
 Các endpoint giới hạn vai trò trả **403** `Bạn không có quyền thực hiện thao tác này` khi đã đăng nhập nhưng sai vai trò, và 401 khi chưa đăng nhập.
+
+---
+
+## Tìm chuyến — `/api/v1/locations`, `/api/v1/trips`
+
+Không cần đăng nhập (khách vãng lai dùng được, BR-BUS-01). Liên quan: US-BUS-01, BR-BUS-09 đến 13.
+
+### GET `/api/v1/locations` — Danh sách điểm đi, điểm đến
+
+Lấy điểm đầu và điểm cuối của các tuyến hiện có (`tuyen_xe.diem_di`, `tuyen_xe.diem_den`), không gồm điểm trung gian. Không trùng, sắp xếp theo tên (thứ tự do collation của CSDL quyết định).
+
+**Response 200**
+
+```json
+{
+  "diem_di": ["Đà Nẵng", "Hội An", "Huế"],
+  "diem_den": ["Đà Nẵng", "Hội An", "Huế"]
+}
+```
+
+---
+
+### GET `/api/v1/trips` — Tìm chuyến
+
+**Query**
+
+| Tham số | Kiểu | Bắt buộc | Ghi chú |
+|---|---|---|---|
+| `diem_di` | string | có | Điểm đi **của tuyến** (lấy từ `/locations`); so khớp chính xác, bỏ khoảng trắng hai đầu |
+| `diem_den` | string | có | Điểm đến **của tuyến**; không tìm theo điểm trung gian |
+| `ngay` | string `YYYY-MM-DD` | có | Ngày khởi hành **theo giờ Việt Nam**, so với `chuyen_xe.ngay_khoi_hanh` |
+
+Ví dụ: `GET /api/v1/trips?diem_di=Đà Nẵng&diem_den=Huế&ngay=2026-12-15`
+
+**Điều kiện chọn chuyến**
+
+- Tuyến có đúng `diem_di`, `diem_den`; `ngay_khoi_hanh = ngay`.
+- `chuyen_xe.trang_thai = MO_BAN` và `gio_di` sau thời điểm hiện tại (BR-BUS-11). Chuyến hết ghế vẫn được trả, với `so_ghe_trong = 0`.
+- Sắp xếp theo `gio_di` tăng dần.
+- `so_ghe_trong`: số ghế **khả dụng** = ghế `TRONG`, hoặc `GIU_CHO` đã quá `han_giu_cho` (chưa được nhả). Điều kiện này dùng chung với giữ ghế, nhả ghế (`app/services/seat_availability.py`).
+- `gia_ve`: giá **mỗi ghế**, lấy theo loại xe (`loai_xe.gia_ve`, BR-BUS-13), kiểu số nguyên VND.
+
+**Gợi ý chuyến lân cận (BR-BUS-12):** chỉ khi `chuyen` rỗng, `goi_y` chứa các chuyến cùng `diem_di`/`diem_den` vào ngày `ngay - 1` và `ngay + 1` (bỏ ngày đã qua), cùng điều kiện mở bán và chưa khởi hành, sắp theo `gio_di`. Mỗi phần tử có `ngay_khoi_hanh` để hiển thị ngày. Có chuyến thì `goi_y` luôn là `[]`.
+
+**Response 200**
+
+```json
+{
+  "chuyen": [
+    {
+      "chuyen_xe_id": "CX00000001",
+      "ten_tuyen": "Đà Nẵng - Huế",
+      "diem_di": "Đà Nẵng",
+      "diem_den": "Huế",
+      "diem_trung_gian": "Lăng Cô",
+      "ngay_khoi_hanh": "2026-12-15",
+      "gio_di": "2026-12-14T23:00:00Z",
+      "gio_den": "2026-12-15T01:30:00Z",
+      "ten_loai_xe": "Xe 4 chỗ",
+      "so_cho": 4,
+      "gia_ve": 200000,
+      "so_ghe_trong": 4
+    }
+  ],
+  "goi_y": []
+}
+```
+
+| Trường | Ghi chú |
+|---|---|
+| `gio_di`, `gio_den` | UTC (ISO 8601); frontend hiển thị theo giờ Việt Nam. `gio_den` có thể `null` |
+| `ngay_khoi_hanh` | Ngày theo giờ Việt Nam (chuyến 06:00 ngày 15/12 có `gio_di` 23:00 UTC ngày 14/12) |
+| `diem_trung_gian` | Các điểm cách nhau bằng `;`, có thể `null` |
+| `ten_loai_xe` | Có thể `null` khi nhà xe chưa khai báo tên loại xe; frontend hiện `Xe {so_cho} chỗ` |
+
+Tuyến không tồn tại (VD `diem_di=Quảng Ngãi`) → **200** với `{"chuyen": [], "goi_y": []}`.
+
+**Lỗi**
+
+| Mã | `detail` | Khi nào |
+|---|---|---|
+| 400 | `Không thể tìm chuyến cho ngày đã qua` | `ngay` trước ngày hôm nay theo giờ Việt Nam (BR-BUS-10) |
+| 400 | `Điểm đi và điểm đến phải khác nhau` | `diem_di` trùng `diem_den` |
+| 422 | *(mảng lỗi Pydantic)* | Thiếu tham số, `ngay` sai định dạng |
+
+**Rủi ro / ghi chú**
+
+- Việc mở bán / ngừng bán **chỉ do `chuyen_xe.trang_thai` quyết định**. Tìm chuyến không lọc theo `xe.trang_thai` (xe `BAO_TRI`, `NGUNG_HOAT_DONG` vẫn hiện nếu chuyến còn `MO_BAN`); khi xe không chạy được, nhà xe phải chuyển chuyến sang `NGUNG_BAN`.
+- Số ghế trống là ảnh chụp tại lúc tìm; ghế có thể bị giữ ngay sau đó. Bước giữ ghế kiểm tra lại.
+- Chưa có index trên `chuyen_xe.ngay_khoi_hanh` (thêm index là đổi schema); đủ nhanh với dữ liệu mẫu, cần xem lại khi dữ liệu lớn.

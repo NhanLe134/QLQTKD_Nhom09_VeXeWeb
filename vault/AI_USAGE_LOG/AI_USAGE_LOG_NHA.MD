@@ -20,7 +20,8 @@
 |**LOG-05** | C4 – Khởi tạo frontend React Vite, router và API client (nền tảng cho US-BUS-00…07) | Nhiệm vụ: Task #4 "Khởi tạo frontend React Vite, router và API client". (nguyên văn: xem P-LOG-05)<br>Tài liệu: frontend/CLAUDE.md, backend/CLAUDE.md, vault/00-index.md, docs/user-stories.md; khung thư mục frontend/src do nhóm trưởng tạo sẵn; backend C1–C3 | PLAN Scope/Plan/Risks: khởi tạo Vite (React + TypeScript) ở thư mục tạm rồi chép cấu hình để giữ cấu trúc src/; Tailwind bản 4 qua plugin Vite; React Router; Vitest + Testing Library; apiClient (get/post, ApiError, lỗi mạng, lỗi 422); layout + header responsive; trang chủ gọi /health; trang "Đang xây dựng", 404; formatCurrency, formatDateTime; backend thêm CORS đọc từ CORS_ORIGINS và tách create_app(). Tự phát hiện: tsc --noEmit ở tsconfig gốc không kiểm tra file nào nhưng vẫn báo pass; @testing-library/react cần thêm @testing-library/dom. Khi thực hiện phát hiện template Vite mới không còn ESLint (dùng oxlint + TypeScript 7), hỏi lại cách lint. Chứng minh luật React Hooks bằng file thử vi phạm (rules-of-hooks báo error, exhaustive-deps chỉ warn), rồi đề xuất nâng exhaustive-deps lên error. Kết quả AI báo: lint 0 lỗi, typecheck exit 0, 26 test frontend, build thành công, 77 test backend. Một lượt ghi log bị bộ lọc của hệ thống dừng giữa chừng, không ghi được file | Trả lời 4 câu: thêm @testing-library/dom; tên hệ thống tạm "VeXe Nhóm 09" trong một hằng số; route tiếng Việt không dấu; định dạng dd/MM/yyyy HH:mm, giá trị sai trả chuỗi rỗng; giữ nhánh git hiện tại. Chọn oxlint + TypeScript 7 theo template thay vì hạ TypeScript để dùng ESLint, kèm điều kiện phải chứng minh luật React Hooks đang bật và typecheck/test/build chạy được với TS 7; yêu cầu in cấu hình oxlint để xem; quyết định exhaustive-deps ở mức error. Tự kiểm tra trên trình duyệt với backend thật: trang chủ hiện "Đã kết nối backend"; menu Tìm chuyến / Tra cứu vé / Đăng nhập ra trang "Đang xây dựng" và đánh dấu mục đang mở; /abc ra trang 404; khổ 375px không vỡ menu; tắt backend thì hiện "Không kết nối được backend"<br>Giá trị: Có khung frontend chạy được, nối được backend thật qua CORS; lint bắt được lỗi React Hooks ở mức chặn; không thêm thư viện ngoài danh sách đã duyệt. Bài học: template công cụ thay đổi theo thời gian, cần đối chiếu và sửa tài liệu (CLAUDE.md) cho khớp thực tế thay vì ép code theo tài liệu cũ |
 | **LOG-06** | C5 – Đăng ký, đăng nhập JWT và phân quyền theo vai trò (US-BUS-00) | Nhiệm vụ: Task #5 "Đăng ký, đăng nhập JWT và phân quyền theo vai trò" — làm cả backend và frontend. (nguyên văn: xem [P-LOG-06](#p-log-06))<br>Tài liệu: backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, vault/01-requirements/business-rules.md (BR-BUS-01 đến 08, 37), docs/user-stories.md (US-BUS-00); code C1–C4 | PLAN Scope/Plan/Risks: backend /register (1 transaction, 3 trường hợp SĐT: mới / khách vãng lai cũ / đã có tài khoản, SELECT … FOR UPDATE), /login, /me; get_current_user, get_optional_user, require_role; JWT HS256 có exp, chặn alg=none, vai trò đọc lại từ CSDL; kiểm tra mật khẩu giả khi sai tên để không lộ tên đăng nhập qua thời gian phản hồi. Frontend: trang /dang-nhap, /dang-ky, AuthContext, Header. Tự nêu rủi ro: chiếm hồ sơ khách vãng lai vì không có OTP; JWT không thu hồi được; 422 lệch quy ước "400 dữ liệu sai"; hỏi 4 câu (nơi lưu token, cách gắn hồ sơ, thư viện pyjwt, tài liệu). Khi thực hiện: 3 lỗi tự sửa trước lần chạy cuối (test_seed thiếu jwt_secret; 2 test Vitest dùng lại một Response; 1 cảnh báo lint); 4 điểm khác PLAN (tách AuthContext thành 3 file vì oxlint; thêm FormField dùng chung; thêm ô "Nhập lại mật khẩu"; đăng ký xong frontend tự gọi /login). Kết quả AI báo: pytest 111 passed, lint 0 lỗi, typecheck 0 lỗi, 70 test frontend, build thành công. Còn tồn đọng: Header chưa tự phát hiện phiên hết hạn (chỉ đăng xuất khi request sau nhận 401). Lượt ghi log bị bộ lọc an toàn dừng giữa chừng (yêu cầu chép nguyên văn prompt), không ghi được file | Kiểm tra PLAN theo 6 điểm (không đổi schema; 1 transaction, đủ 3 trường hợp SĐT; cùng thông báo sai tên/sai mật khẩu; JWT_SECRET bắt buộc; không chặn khách vãng lai; chỉ thêm pyjwt). Trả lời 4 câu: lưu token ở sessionStorage; gắn hồ sơ theo phương án (a); đồng ý pyjwt; tạo docs/API.md. Yêu cầu thêm: sửa quy ước mã lỗi trong backend/CLAUDE.md (422 sai định dạng, 400 sai nghiệp vụ); ghi rủi ro không có OTP vào docs/API.md. Đồng ý 4 điểm khác PLAN. Tự kiểm tra: `uv run pytest -q`: 111 passed; `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`: không lỗi; Swagger: đăng nhập khach_mau rồi gọi /me qua Authorize; trình duyệt: đăng nhập hiện họ tên + Đăng xuất, F5 vẫn giữ phiên, sai mật khẩu báo "Sai tên đăng nhập hoặc mật khẩu", đăng ký mới tự đăng nhập, SĐT trùng báo "Số điện thoại đã được đăng ký", đăng ký bằng SĐT khách vãng lai 0900000004 thành công, lỗi định dạng báo tại ô<br>Giá trị: Khách có thể đăng ký / đăng nhập nhưng không bị bắt buộc (đúng BR-BUS-01); tài khoản mới gắn được vào lịch sử đặt vé vãng lai (BR-BUS-08); có sẵn get_optional_user và require_role cho các task sau; có docs/API.md. Bài học: yêu cầu AI chép lại nguyên văn hội thoại dễ bị bộ lọc an toàn chặn, nên tự lưu prompt thay vì nhờ AI chép lại |
 
-| **LOG-07** |  |  |  |  |
+| **LOG-07** | C6 – Tìm chuyến và gợi ý chuyến lân cận (US-BUS-01) | Nhiệm vụ: Task #6 "Tìm chuyến và gợi ý chuyến lân cận" — làm cả backend và frontend. (nguyên văn: xem [P-LOG-07](#p-log-07))<br>Tài liệu: backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md, vault/01-requirements/business-rules.md (BR-BUS-09 đến 13), docs/user-stories.md (US-BUS-01); code C1–C5 | PLAN Scope/Plan/Risks: đồng hồ giả lập được (core/clock.py, get_now) làm nguồn "hiện tại" duy nhất; GET /locations (điểm đầu/cuối tuyến) và GET /trips (một truy vấn nối chuyen_xe → tuyen_xe → xe → loai_xe, subquery đếm ghế, tránh N+1; ngày theo giờ VN; gợi ý ±1 ngày bỏ ngày đã qua); gia_ve ép int vì Pydantic v2 đổi Decimal thành chuỗi. Frontend: form chọn điểm từ /locations, tham số trên URL, TripCard khóa nút khi hết ghế, trạng thái tải / lỗi / rỗng kèm gợi ý, hủy kết quả cũ khi đổi tham số. Tự nêu rủi ro: múi giờ (00:00–07:00 VN nếu tính theo UTC sẽ chặn sai), ghế giữ quá hạn chưa được tính là trống, so khớp chuỗi chính xác, chưa lọc xe.trang_thai; hỏi 4 điểm D1–D4. Khi thực hiện: hàm seat_available(now) dùng chung (TRONG hoặc GIU_CHO có han_giu_cho <= now) có test riêng 5 trường hợp; thêm test 05:00 giờ VN, chuyến khởi hành đúng thời điểm hiện tại, tìm theo điểm trung gian không ra kết quả, chuyến hết ghế vẫn hiện. Kết quả AI báo: pytest 137 passed (26 test mới), lint và typecheck exit 0, 98 test frontend, build thành công | Kiểm tra PLAN theo 5 điểm (không đổi schema/thư viện; tìm theo ngày giờ VN; số ghế trống đếm ở backend; "hiện tại" giả lập được; không ghép chuỗi SQL). Trả lời 4 điểm: D1 tuyến không tồn tại trả 200 rỗng; D2 đếm ghế giữ quá hạn là trống, điều kiện viết MỘT LẦN dùng chung cho task #7, #8, có test riêng; D3 gợi ý theo cùng cặp điểm đi/đến; D4 hiện "Xe N chỗ" khi thiếu tên loại xe. Quyết định không lọc theo xe.trang_thai, ghi vào rủi ro trong docs/API.md. Tự kiểm tra: `uv run pytest -q`; `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`; Swagger: /locations trả 3 điểm không có Lăng Cô, /trips Đà Nẵng → Huế 15/12/2026 trả 3 chuyến; trình duyệt: Đà Nẵng → Huế 15/12 ra 3 thẻ đúng giờ, giá 200.000 / 150.000 / 100.000 đ và số ghế; F5 giữ kết quả; Đà Nẵng → Hội An 15/12 không có chuyến, gợi ý 3 chuyến ngày 16/12, bấm gợi ý tìm lại được; điểm đi trùng điểm đến báo lỗi; không chọn được ngày đã qua; "Chọn chuyến" sang trang tạm; khổ 375px không vỡ<br>Giá trị: Khách vãng lai tìm được chuyến theo đúng BR-BUS-10 đến 13; điều kiện "ghế khả dụng" dùng chung tránh lệch giữa bước tìm chuyến và bước giữ ghế; test không phụ thuộc ngày thật nhờ đồng hồ giả lập. Lưu ý: test ≤ 2 giây chỉ mang tính chỉ báo, chưa phải đo tải thật |
+
 | **LOG-08** |  |  |  |  |
 | **LOG-09** |  |  |  |  |
 | **LOG-10** |  |  |  |  |
@@ -416,6 +417,48 @@ Duyệt PLAN, thực hiện. Báo kết quả thật của uv run pytest -q, npm
 
 ```text
 Chỉ ghi vào vault/AI_USAGE_LOG/AI_USAGE_LOG_NHA.MD, không sửa dòng cũ: … (LOG-06 và mục P-LOG-06)
+```
+### P-LOG-07
+
+**Lượt 1 – Yêu cầu lập kế hoạch Task #6:**
+
+```text
+Đọc backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md, vault/01-requirements/business-rules.md (BR-BUS-09 đến 13), docs/user-stories.md (US-BUS-01).
+Nhiệm vụ: Task #6 "Tìm chuyến và gợi ý chuyến lân cận" — làm cả backend và frontend. KHÔNG đổi schema. Không cần đăng nhập (khách vãng lai dùng được).
+
+BACKEND:
+- GET /api/v1/locations: danh sách điểm đi và điểm đến hiện có (lấy từ tuyen_xe), để frontend làm ô chọn.
+- GET /api/v1/trips?diem_di=&diem_den=&ngay=YYYY-MM-DD:
+  + Tìm theo điểm đi / điểm đến CỦA TUYẾN (không tìm theo điểm trung gian); ngay so với ngay_khoi_hanh (ngày giờ Việt Nam).
+  + Chỉ chuyến MO_BAN và gio_di sau thời điểm hiện tại (BR-BUS-11); ngày trong quá khứ → 400 (BR-BUS-10).
+  + Mỗi chuyến trả: chuyen_xe_id, tên tuyến, điểm trung gian, gio_di, gio_den, tên loại xe, số chỗ, giá mỗi ghế (theo loai_xe — BR-BUS-13), số ghế còn TRONG.
+  + Sắp xếp theo gio_di.
+  + Không có chuyến → trả thêm danh sách gợi ý: cùng tuyến, ngày ±1 (BR-BUS-12), mỗi gợi ý ghi rõ ngày.
+- Thời gian lấy "hiện tại" phải giả lập được trong test (không gọi trực tiếp datetime.now() rải rác).
+- Test pytest: có chuyến; sắp xếp theo giờ; ngày quá khứ 400; tuyến không tồn tại; không có chuyến thì có gợi ý (dùng dữ liệu mẫu Đà Nẵng → Hội An chỉ chạy 16/12, tìm ngày 15/12); không trả chuyến đã khởi hành hoặc NGUNG_BAN; số ghế trống đúng; thời gian phản hồi ≤ 2 giây với dữ liệu mẫu (NFR-BUS-01).
+- Bổ sung 2 endpoint vào docs/API.md.
+
+FRONTEND (trang /tim-chuyen):
+- Form: ô chọn điểm đi, điểm đến (lấy từ /locations), ngày (không cho chọn ngày quá khứ, không cho điểm đi = điểm đến).
+- Tham số tìm kiếm nằm trên URL (?di=&den=&ngay=) để F5 vẫn giữ kết quả.
+- Danh sách kết quả dạng thẻ: giờ đi → giờ đến, tên tuyến, loại xe, giá mỗi ghế (formatCurrency), số ghế trống, nút "Chọn chuyến" (dẫn tới /chuyen/:id — trang tạm "Đang xây dựng", task #7 làm tiếp).
+- Hết ghế thì khóa nút. Trạng thái: đang tải / lỗi / không có chuyến (hiện gợi ý, bấm vào gợi ý thì tìm theo ngày đó).
+- Frontend KHÔNG tự tính giá hay số ghế trống — chỉ hiển thị dữ liệu backend.
+- Test Vitest cho form, danh sách, trạng thái rỗng có gợi ý.
+
+Gửi PLAN theo mẫu Scope/Plan/Risks và danh sách file. CHƯA VIẾT MÃ.
+```
+
+**Lượt 2 – Trả lời 4 điểm D1–D4 và duyệt PLAN:**
+
+```text
+Trả lời 4 điểm:
+D1. Tuyến không tồn tại: 200 với chuyen=[] và goi_y=[].
+D2. Đồng ý đếm thêm ghế GIU_CHO đã quá han_giu_cho là còn trống. Điều kiện "ghế khả dụng" (TRONG, hoặc GIU_CHO và han_giu_cho <= now) phải viết MỘT LẦN ở một chỗ dùng chung (ví dụ hàm/biểu thức trong services) để task #7 (giữ ghế) và #8 (nhả ghế) dùng lại; có test riêng cho điều kiện này.
+D3. Đồng ý gợi ý theo cùng cặp diem_di/diem_den.
+D4. Đồng ý hiển thị "Xe {so_cho} chỗ" khi thiếu tên loại xe.
+Không lọc theo xe.trang_thai; ghi vào mục rủi ro của docs/API.md: việc mở/ngừng bán do chuyen_xe.trang_thai quyết định.
+Duyệt PLAN, thực hiện. Báo kết quả thật của uv run pytest -q, npm run lint, npm run typecheck, npm test, npm run build.
 ```
 
 ## Mẫu cách điền (XÓA mục này trước khi nộp — đây chỉ là ví dụ định dạng, không phải lượt thật)
