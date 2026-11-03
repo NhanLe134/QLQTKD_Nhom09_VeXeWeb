@@ -675,8 +675,28 @@ Log: `Xác nhận tiền mặt ma_don=... so_ve=...`. Không ghi mã truy cập,
 **Quy tắc cho task #11 (chuyển khoản SePay):** một đơn chỉ đi theo một phương thức.
 
 - Đơn đã có dòng `thanh_toan` `TIEN_MAT` (loại `THANH_TOAN`) thì **không tạo mã QR**.
-- Ngược lại, đơn đã có dòng `CHUYEN_KHOAN_SEPAY` (đã tạo QR) thì **không cho xác nhận tiền mặt**. Kiểm tra này chưa có trong `confirm-cash`; task #11 thêm khi tạo dòng QR.
+- Đơn đã xác nhận thì không tạo QR (400 `Đơn đã được thanh toán`).
+- Khách tạo QR rồi quay lại xác nhận tiền mặt: **được phép** — dòng SePay đang chờ chuyển `THAT_BAI` (quyết định 04/11/2026).
 - Task #11 khóa theo cùng thứ tự (`lock_booking`) và kiểm tra sau khóa.
+
+## POST `/api/v1/bookings/{ma_don}/pay-sepay` — Tạo mã QR SePay
+
+- Quyền như `confirm-cash`: tài khoản sở hữu hoặc `X-Ma-Truy-Cap` đúng (BR-BUS-19, 37).
+- Kiểm tra như `confirm-cash`: đơn đang giữ, chưa quá hạn, chuyến còn bán, chi tiết đầy đủ (400 kèm `truong`), đơn đã xác nhận → 400.
+- Chưa cấu hình `SEPAY_BANK_BIN`/`SEPAY_ACCOUNT_NO` → **503** `Chưa cấu hình thanh toán SePay`.
+- **Idempotent (NFR-BUS-05):** đơn đã có dòng SePay `CHO_THANH_TOAN` thì trả đúng QR cũ, không tạo dòng thứ hai.
+- **Response 200** `SepayQrOut`: `ma_don`, `so_tien` (tổng giá vé), `noi_dung` = `THANH TOAN VE {ma_don}`, `qr_url` (ảnh VietQR từ cấu hình tài khoản nhận), `thoi_gian_cho_giay` = `SEPAY_QR_MINUTES` × 60.
+- Đếm ngược 5 phút chỉ ở frontend; server chấp nhận tiền đến trong toàn bộ thời gian giữ chỗ (10 phút), sau khi job nhả ghế thì giao dịch rẽ nhánh `THAT_BAI`.
+
+## POST `/api/v1/webhooks/sepay` — Webhook SePay
+
+- **Công khai**, không JWT: xác thực bằng header `Authorization: Apikey {SEPAY_WEBHOOK_SECRET}` (so sánh constant-time). Thiếu cấu hình → 503; sai/thiếu khóa → 401.
+- Chỉ xử lý giao dịch `transferType = "in"` có `content` chứa `THANH TOAN VE {ma_don}`; còn lại bỏ qua, trả 200.
+- **Idempotency:** `ma_giao_dich` UNIQUE — SePay gửi lặp → `ket_qua: TRUNG_LAP`, không xác nhận lần hai (BR-BUS-31).
+- Đơn đang giữ + đủ số tiền → xác nhận vé (ghế `DA_BAN`, vé `DA_XAC_NHAN` + `DA_THANH_TOAN`), dòng SePay → `DA_THANH_TOAN`, gửi vé email nền; trả `{"error": 0, "message": "success", "ket_qua": "XAC_NHAN"}`.
+- Đến muộn / sai số tiền / đơn đã hủy hoặc không tồn tại → ghi dòng `THAT_BAI` kèm `ma_giao_dich` để nhà xe hoàn thủ công (quyết định 04/11/2026), trả `ket_qua: THAT_BAI`.
+- Khóa theo thứ tự chuẩn (`lock_booking`) như `confirm-cash`, không tranh chấp với job nhả ghế.
+- **Khi nối thật:** chỉnh khối hằng số `FIELD_*` trong `app/services/sepay_webhook_service.py` khớp payload SePay thật, đặt `SEPAY_WEBHOOK_SECRET` từ SePay Dashboard, và cấu hình Webhook URL trỏ tới `{backend}/api/v1/webhooks/sepay` (cần URL công khai HTTPS).
 
 ### Gửi vé qua email (giả lập)
 

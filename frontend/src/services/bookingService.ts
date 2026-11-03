@@ -169,3 +169,27 @@ export type MyBooking = {
 export function getMyTickets(): Promise<MyBooking[]> {
   return get<MyBooking[]>('/api/v1/me/tickets')
 }
+
+/** Mã QR chuyển khoản SePay của đơn (BR-BUS-29); đếm ngược do frontend chạy. */
+export type QrSePay = {
+  ma_don: string
+  so_tien: number
+  /** Nội dung chuyển khoản "THANH TOAN VE {ma_don}", khách không được sửa */
+  noi_dung: string
+  /** Ảnh QR dựng sẵn (VietQR) để hiển thị trực tiếp */
+  qr_url: string
+  /** Cửa sổ chuyển khoản hiển thị cho khách (giây) */
+  thoi_gian_cho_giay: number
+}
+
+/**
+ * Tạo mã QR chuyển khoản SePay (BR-BUS-29); gọi lại trả đúng QR cũ (NFR-BUS-05).
+ * Khách chọn chuyển khoản thì gọi, chọn lại tiền mặt thì không gọi thêm.
+ */
+export function taoQrSePay(maDon: string): Promise<QrSePay> {
+  return post<QrSePay>(
+    `/api/v1/bookings/${encodeURIComponent(maDon)}/pay-sepay`,
+    undefined,
+    accessHeaders(maDon),
+  )
+}
