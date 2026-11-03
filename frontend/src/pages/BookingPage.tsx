@@ -117,6 +117,9 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       .then((qr) => {
         setQrSePay(qr)
         setSepayDeadline(new Date(Date.now() + qr.thoi_gian_cho_giay * 1000).toISOString())
+        // Backend gia hạn giữ chỗ thêm 10 phút khi tạo QR: tải lại đơn để
+        // đồng hồ giữ chỗ hiện hạn mới
+        getBooking(data.ma_don).then(onChange).catch(() => {})
       })
       .catch((error: unknown) => {
         setSepayError(error instanceof ApiError ? error.detail : 'Không tạo được mã QR, vui lòng thử lại.')
@@ -124,8 +127,9 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       .finally(() => setSepayLoading(false))
   }
 
-  // Webhook SePay xác nhận đơn ở backend: hỏi lại đơn định kỳ để tự chuyển
-  // "Đặt vé thành công" (US-BUS-05 AC2); dừng khi đơn không còn đang giữ
+  // Webhook SePay xác nhận đơn ở backend: hỏi lại đơn mỗi 2 giây để chuyển
+  // "Đặt vé thành công" ngay khi webhook ghi xong (US-BUS-05 AC2);
+  // dừng khi đơn không còn đang giữ
   useEffect(() => {
     if (!qrSePay || step !== 'payment' || data.trang_thai_don !== 'DANG_GIU') return
     const timer = setInterval(() => {
@@ -135,7 +139,7 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
           if (latest.trang_thai_don !== 'DANG_GIU') onChange(latest)
         })
         .catch(() => {})
-    }, 3000)
+    }, 2000)
     return () => clearInterval(timer)
   }, [qrSePay, step, data.ma_don, data.trang_thai_don, onChange])
 

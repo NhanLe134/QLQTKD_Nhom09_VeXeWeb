@@ -46,9 +46,9 @@ def du_lieu_giao_dich(
     giao_dich: str = "10001",
     content: str | None = None,
     chieu: str = "in",
+    co_id: bool = True,
 ) -> dict:
-    return {
-        "id": giao_dich,
+    body = {
         "gateway": "Mb Bank",
         "transactionDate": "2026-12-01 00:01:00",
         "accountNumber": "0367545235",
@@ -56,6 +56,12 @@ def du_lieu_giao_dich(
         "transferType": chieu,
         "amount": so_tien,
     }
+    if co_id:
+        # Payload chuẩn có "id"; payload thật ngày 06/11 chỉ có "code"
+        body["id"] = giao_dich
+    else:
+        body["code"] = ma_don
+    return body
 
 
 async def dat_don(client, so_ghe=None) -> dict:
@@ -186,7 +192,11 @@ async def test_webhook_xac_nhan_don(client, seeded, set_now):
     await tao_qr(client, order)
     response = await gui_webhook(client, du_lieu_giao_dich(order["ma_don"], order["tong_tien"]))
     assert response.status_code == 200
-    assert response.json()["ket_qua"] == "XAC_NHAN"
+    assert response.json() == {
+        "success": True,
+        "message": "success",
+        "ket_qua": "XAC_NHAN",
+    }
     for ve in await cac_ve(seeded, order["ma_don"]):
         assert ve.trang_thai_ve == TrangThaiVe.DA_XAC_NHAN
         assert ve.trang_thai_thanh_toan == TrangThaiThanhToanVe.DA_THANH_TOAN
@@ -197,6 +207,41 @@ async def test_webhook_xac_nhan_don(client, seeded, set_now):
     assert len(rows) == 1
     assert rows[0].trang_thai_thanh_toan == TrangThaiGiaoDich.DA_THANH_TOAN
     assert rows[0].ma_giao_dich == "10001"
+
+
+async def test_webhook_payload_that_khong_co_id_dung_code(client, seeded, set_now):
+    """Payload SePay thật 06/11 không có "id", chỉ có "code" — vẫn xác nhận được."""
+    order = await dat_don(client)
+    await tao_qr(client, order)
+    response = await gui_webhook(
+        client, du_lieu_giao_dich(order["ma_don"], order["tong_tien"], co_id=False)
+    )
+    assert response.json()["ket_qua"] == "XAC_NHAN"
+    rows = await cac_thanh_toan(seeded, order["ma_don"])
+    assert rows[0].ma_giao_dich == order["ma_don"]
+    # Gửi lại cùng payload: mã giao dịch trùng → không xác nhận lần hai
+    replay = await gui_webhook(
+        client, du_lieu_giao_dich(order["ma_don"], order["tong_tien"], co_id=False)
+    )
+    assert replay.json()["ket_qua"] == "TRUNG_LAP"
+    for ve in await cac_ve(seeded, order["ma_don"]):
+        assert ve.trang_thai_thanh_toan == TrangThaiThanhToanVe.DA_THANH_TOAN
+
+
+async def test_tao_qr_gia_han_giu_cho(client, seeded, set_now):
+    """Tạo QR gia hạn giữ thêm một kỳ tính từ lúc tạo QR (đính chính 06/11)."""
+    order = await dat_don(client)
+    # Khách điền thông tin xong mới bấm QR: 3 phút sau lúc giữ ghế
+    set_now(DEFAULT_NOW + timedelta(minutes=3))
+    response = await tao_qr(client, order)
+    assert response.status_code == 200
+    chi_tiet = await client.get(
+        f"/api/v1/bookings/{order['ma_don']}", headers=code_header(order["ma_truy_cap"])
+    )
+    assert chi_tiet.status_code == 200
+    han_moi = chi_tiet.json()["han_giu_cho"]
+    # Hạn mới = bây giờ + 5 phút (test ghim giữ chỗ 5 phút), trễ hơn hạn cũ
+    assert han_moi > order["han_giu_cho"]
 
 
 async def test_webhook_trung_lap_khong_xac_nhan_lan_hai(client, seeded, set_now):

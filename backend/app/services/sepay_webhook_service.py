@@ -39,6 +39,10 @@ logger = logging.getLogger(__name__)
 # SePay. Khi nối thật, chỉ chỉnh khối hằng số này khớp du_lieu từ Dashboard.
 # ------------------------------------------------------------------
 TRUONG_MA_GIAO_DICH = "id"
+# SePay tự tách "mã thanh toán" từ nội dung chuyển khoản. Payload thật ngày
+# 06/11 không có "id", chỉ có "code" (VD: "DH00100013") — dùng làm mã giao
+# dịch dự phòng để vẫn đối soát idempotent được
+TRUONG_MA_THANH_TOAN = "code"
 TRUONG_SO_TIEN = "amount"
 TRUONG_NOI_DUNG = "content"
 TRUONG_CHIEU_GIAO_DICH = "transferType"
@@ -153,7 +157,9 @@ async def xu_ly_giao_dich(
     """Xử lý một giao dịch từ du_lieu webhook; endpoint tự quản lý phiên."""
     if str(du_lieu.get(TRUONG_CHIEU_GIAO_DICH)) != CHIEU_TIEN_VAO:
         return KetQuaWebhook(KET_QUA_BO_QUA, chi_tiet="khong phai tien vao")
-    gia_tri_ma = du_lieu.get(TRUONG_MA_GIAO_DICH)
+    # Mã giao dịch: ưu tiên "id"; payload thật của SePay có thể chỉ có "code"
+    # (mã thanh toán SePay tự tách từ nội dung chuyển khoản)
+    gia_tri_ma = du_lieu.get(TRUONG_MA_GIAO_DICH) or du_lieu.get(TRUONG_MA_THANH_TOAN)
     if gia_tri_ma is None:
         return KetQuaWebhook(KET_QUA_BO_QUA, chi_tiet="thieu ma giao dich")
     ma_giao_dich = str(gia_tri_ma)

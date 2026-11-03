@@ -84,7 +84,9 @@ describe('BookingPage — thanh toán chuyển khoản SePay', () => {
   })
 
   it('webhook xác nhận ở backend: trang tự chuyển "Đặt vé thành công" (US-BUS-05 AC2)', async () => {
-    mockBackend({ get: [SAVED_BOOKING, CONFIRMED_BOOKING] })
+    // GET lần 1: tải đơn; lần 2: tải lại sau khi tạo QR (ghế được gia hạn);
+    // lần 3 (poll 2s): đơn đã xác nhận nhờ webhook
+    mockBackend({ get: [SAVED_BOOKING, SAVED_BOOKING, CONFIRMED_BOOKING] })
     renderPage()
 
     await goToTransfer()

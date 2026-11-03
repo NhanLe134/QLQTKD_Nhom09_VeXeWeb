@@ -6,19 +6,20 @@ ngược 5 phút của QR chạy ở frontend, server chỉ chặn theo thời g
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from urllib.parse import quote
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.db.ids import THANH_TOAN_ID, next_id
-from app.models import ThanhToan
+from app.models import GheNgoi, ThanhToan
 from app.models.enums import (
     LoaiGiaoDich,
     PhuongThucThanhToan,
+    TrangThaiGhe,
     TrangThaiGiaoDich,
     TrangThaiVe,
 )
@@ -137,6 +138,20 @@ async def _tao_qr(
 
     ve_giu = [t.ve for t in don_hien_tai.tickets if t.ve.trang_thai_ve == TrangThaiVe.GIU_CHO]
     so_tien = sum((Decimal(ve.gia_ve) for ve in ve_giu), Decimal(0))
+    # Gia hạn giữ chỗ thêm một kỳ nữa tính từ lúc tạo QR (đính chính 06/11 sau
+    # khi test thật: khách mất đúng lúc hết hạn giữ trong khi tiền đã chuyển) —
+    # tổng thời gian của khách = 10 phút giữ + 10 phút từ lúc có QR
+    han_moi = now + timedelta(minutes=settings.seat_hold_minutes)
+    ghe_ids = [ve.ghe_id for ve in ve_giu]
+    await session.execute(
+        update(GheNgoi)
+        .where(
+            GheNgoi.ghe_id.in_(ghe_ids),
+            GheNgoi.trang_thai == TrangThaiGhe.GIU_CHO,
+            GheNgoi.khach_hang_id == don_hien_tai.khach_hang.khach_hang_id,
+        )
+        .values(han_giu_cho=han_moi)
+    )
     session.add(
         ThanhToan(
             thanh_toan_id=await next_id(session, THANH_TOAN_ID),
