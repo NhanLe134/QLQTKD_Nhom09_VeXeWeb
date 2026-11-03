@@ -24,11 +24,20 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_NOW = datetime(2026, 12, 1, tzinfo=VIETNAM_TZ)
 
 
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Dừng toàn bộ pytest nếu TEST_DATABASE_URL thiếu hoặc không an toàn."""
+    try:
+        get_test_database_url(get_settings())
+    except RuntimeError as error:
+        pytest.exit(str(error), returncode=1)
+
+
 @pytest.fixture
 def empty_database_url() -> Iterator[URL]:
-    """CSDL test trống, tạo mới cho từng test; không dùng tới CSDL dev."""
-    dev_url = get_settings().database_url
-    url = get_test_database_url(dev_url)
+    """CSDL test trống (TEST_DATABASE_URL), tạo mới cho từng test; không dùng DATABASE_URL."""
+    settings = get_settings()
+    dev_url = settings.database_url
+    url = get_test_database_url(settings)
     recreate_database(url, dev_url)
     yield url
     drop_database(url, dev_url)

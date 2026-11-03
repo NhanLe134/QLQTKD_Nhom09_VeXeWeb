@@ -1,13 +1,15 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from alembic import context
+from alembic import context, util
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.connection import check_downgrade_allowed, engine_options
 import app.models  # noqa: F401  (đăng ký model vào Base.metadata)
 
 # this is the Alembic Config object, which provides
@@ -25,6 +27,22 @@ target_metadata = Base.metadata
 def get_database_url() -> str:
     # Test truyền URL CSDL test qua attributes; mặc định dùng CSDL trong .env
     return config.attributes.get("database_url") or get_settings().database_url
+
+
+def is_downgrade_command() -> bool:
+    # cmd_opts chỉ có khi chạy CLI `alembic ...`: cmd = (hàm lệnh, tham số, tham số tên)
+    cmd = getattr(config.cmd_opts, "cmd", None)
+    return bool(cmd) and cmd[0].__name__ == "downgrade"
+
+
+def guard_downgrade() -> None:
+    """Chặn `alembic downgrade` trên CSDL dùng chung, trước khi kết nối."""
+    if not is_downgrade_command():
+        return
+    try:
+        check_downgrade_allowed(get_database_url(), os.environ)
+    except RuntimeError as error:
+        raise util.CommandError(str(error)) from error
 
 
 def run_migrations_offline() -> None:
@@ -63,7 +81,10 @@ async def run_async_migrations() -> None:
 
     """
 
-    connectable = create_async_engine(get_database_url(), poolclass=pool.NullPool)
+    url = get_database_url()
+    connectable = create_async_engine(
+        url, poolclass=pool.NullPool, **engine_options(url, pooled=False)
+    )
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
@@ -76,6 +97,8 @@ def run_migrations_online() -> None:
 
     asyncio.run(run_async_migrations())
 
+
+guard_downgrade()
 
 if context.is_offline_mode():
     run_migrations_offline()

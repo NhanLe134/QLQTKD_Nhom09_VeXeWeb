@@ -9,12 +9,14 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import get_settings
+from app.db.connection import engine_options
 
 
 # Tạo engine khi cần dùng để import module này không đòi hỏi DATABASE_URL
 @lru_cache
 def get_engine() -> AsyncEngine:
-    return create_async_engine(get_settings().database_url)
+    url = get_settings().database_url
+    return create_async_engine(url, **engine_options(url))
 
 
 @lru_cache

@@ -23,7 +23,8 @@
 | **LOG-07** | C6 – Tìm chuyến và gợi ý chuyến lân cận (US-BUS-01) | Nhiệm vụ: Task #6 "Tìm chuyến và gợi ý chuyến lân cận" — làm cả backend và frontend. (nguyên văn: xem [P-LOG-07](#p-log-07))<br>Tài liệu: backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md, vault/01-requirements/business-rules.md (BR-BUS-09 đến 13), docs/user-stories.md (US-BUS-01); code C1–C5 | PLAN Scope/Plan/Risks: đồng hồ giả lập được (core/clock.py, get_now) làm nguồn "hiện tại" duy nhất; GET /locations (điểm đầu/cuối tuyến) và GET /trips (một truy vấn nối chuyen_xe → tuyen_xe → xe → loai_xe, subquery đếm ghế, tránh N+1; ngày theo giờ VN; gợi ý ±1 ngày bỏ ngày đã qua); gia_ve ép int vì Pydantic v2 đổi Decimal thành chuỗi. Frontend: form chọn điểm từ /locations, tham số trên URL, TripCard khóa nút khi hết ghế, trạng thái tải / lỗi / rỗng kèm gợi ý, hủy kết quả cũ khi đổi tham số. Tự nêu rủi ro: múi giờ (00:00–07:00 VN nếu tính theo UTC sẽ chặn sai), ghế giữ quá hạn chưa được tính là trống, so khớp chuỗi chính xác, chưa lọc xe.trang_thai; hỏi 4 điểm D1–D4. Khi thực hiện: hàm seat_available(now) dùng chung (TRONG hoặc GIU_CHO có han_giu_cho <= now) có test riêng 5 trường hợp; thêm test 05:00 giờ VN, chuyến khởi hành đúng thời điểm hiện tại, tìm theo điểm trung gian không ra kết quả, chuyến hết ghế vẫn hiện. Kết quả AI báo: pytest 137 passed (26 test mới), lint và typecheck exit 0, 98 test frontend, build thành công | Kiểm tra PLAN theo 5 điểm (không đổi schema/thư viện; tìm theo ngày giờ VN; số ghế trống đếm ở backend; "hiện tại" giả lập được; không ghép chuỗi SQL). Trả lời 4 điểm: D1 tuyến không tồn tại trả 200 rỗng; D2 đếm ghế giữ quá hạn là trống, điều kiện viết MỘT LẦN dùng chung cho task #7, #8, có test riêng; D3 gợi ý theo cùng cặp điểm đi/đến; D4 hiện "Xe N chỗ" khi thiếu tên loại xe. Quyết định không lọc theo xe.trang_thai, ghi vào rủi ro trong docs/API.md. Tự kiểm tra: `uv run pytest -q`; `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`; Swagger: /locations trả 3 điểm không có Lăng Cô, /trips Đà Nẵng → Huế 15/12/2026 trả 3 chuyến; trình duyệt: Đà Nẵng → Huế 15/12 ra 3 thẻ đúng giờ, giá 200.000 / 150.000 / 100.000 đ và số ghế; F5 giữ kết quả; Đà Nẵng → Hội An 15/12 không có chuyến, gợi ý 3 chuyến ngày 16/12, bấm gợi ý tìm lại được; điểm đi trùng điểm đến báo lỗi; không chọn được ngày đã qua; "Chọn chuyến" sang trang tạm; khổ 375px không vỡ<br>Giá trị: Khách vãng lai tìm được chuyến theo đúng BR-BUS-10 đến 13; điều kiện "ghế khả dụng" dùng chung tránh lệch giữa bước tìm chuyến và bước giữ ghế; test không phụ thuộc ngày thật nhờ đồng hồ giả lập. Lưu ý: test ≤ 2 giây chỉ mang tính chỉ báo, chưa phải đo tải thật |
 
 | **LOG-08** | C7 – Sơ đồ ghế, giữ ghế 5 phút và đặt cả xe (US-BUS-02) | Nhiệm vụ: Task #7 "Sơ đồ ghế, giữ ghế 5 phút và đặt cả xe" — làm cả backend và frontend. (nguyên văn: xem [P-LOG-08](#p-log-08))<br>Tài liệu: backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md, vault/01-requirements/business-rules.md (BR-BUS-14 đến 20, 37; BR-BUS-20 sửa trước khi làm: người đặt nhập ngay khi giữ ghế), docs/user-stories.md (US-BUS-02); code C1–C6 (seat_available, get_now, get_optional_user) | PLAN Scope/Plan/Risks: GET /trips/{id}/seats (trạng thái hiển thị theo seat_available, cờ co_the_dat do backend quyết định); POST /bookings/hold trong 1 transaction (khóa khach_hang trước rồi ghế theo ghe_id để tránh deadlock, kiểm tra lại sau khi khóa, hủy vé GIU_CHO cũ của ghế quá hạn trước khi tạo vé mới, mã truy cập token_urlsafe lưu SHA-256, partial UNIQUE làm lưới an toàn cuối); GET /bookings/{ma_don} qua dependency dùng chung get_accessible_booking (chủ tài khoản hoặc header X-Ma-Truy-Cap, sai trả 404). Frontend: sơ đồ ghế, form người đặt, đồng hồ theo giờ server, trang /dat-ve/:maDon. Nêu rủi ro và 3 khoảng trống (KHÔNG ĐỦ DỮ LIỆU TRONG VAULT): phạm vi "đơn đang giữ", ghi đè hồ sơ khách vãng lai, vai trò không phải KHACH. Trong mục rủi ro AI ghi response 409 của BR-BUS-18 trả ma_don cho người chỉ biết SĐT là "một kiểu dò được" nhưng vẫn giữ trong thiết kế. Khi thực hiện: 1 test Vitest sai do dùng lại một Response (sửa test, không sửa code chính); PostgreSQL chưa chạy nên phải bật Docker. Kết quả AI báo: pytest 181 passed (44 test mới, gồm 2 test đồng thời thật trên Postgres), lint và typecheck exit 0, 143 test frontend, build thành công. Tự báo tồn đọng: khi đồng hồ về 0, ô thông tin hành khách vẫn hiện tới khi tải lại trang | [F9 – Lỗ hổng bảo mật] Rà soát PLAN theo checklist 7 điểm, có dùng thêm trợ lý AI thứ hai (Claude chat) để đối chiếu. Đánh giá lại rủi ro AI xếp nhẹ: lỗi 409 trả ma_don + trang Tra cứu vé (task #13) chỉ cần mã đơn + SĐT → người chỉ biết SĐT xem được vé, tên, điểm đón của người khác. Quyết định: 409 không trả ma_don, thêm test xác nhận, ghi rủi ro vào docs/API.md. Chọn phương án A (hỏi người đặt khi giữ ghế, không đổi schema). Trả lời Q1 chỉ chặn đơn còn hạn giữ; Q2 không ghi đè họ tên hồ sơ, chỉ bổ sung email; Q3 vai trò không phải KHACH nhận 403; chấp nhận sessionStorage theo tab. Yêu cầu sửa thêm: đồng hồ về 0 thì ẩn ngay ô thông tin hành khách. Tự kiểm tra: `uv run pytest -q`; `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`; trình duyệt với 2 cửa sổ (thường + ẩn danh): giữ A01, A02 xe 4 chỗ ra tổng 400.000 đ và đồng hồ 5:00; cửa sổ kia thấy 2 ghế đang giữ; cùng SĐT báo "đang có đơn chưa hoàn tất" không kèm mã đơn; nút Đặt cả xe bị khóa; SĐT của tài khoản báo phải đăng nhập; đăng nhập khach_mau thì tự điền; cảnh báo khi còn 2:00; hết 5:00 ghế trống lại; nha_xe_mau bị từ chối; đặt cả xe 7 chỗ ra 1.050.000 đ; khổ 375px không vỡ<br>Giá trị: Không bán trùng ghế kể cả khi 2 người bấm cùng lúc (có test đồng thời thật); khách vãng lai giữ ghế được mà không cần đổi schema; chặn được một đường lộ thông tin cá nhân trước khi viết mã. Bài học: rủi ro AI tự nêu cần được đánh giá lại theo chuỗi tác động qua nhiều task, không chỉ trong phạm vi task hiện tại |
-| **LOG-09** |  |  |  |  |
+| **LOG-09** | Chuyển CSDL dùng chung sang Supabase và hướng dẫn chạy dự án (commit ngoài bảng task, làm trước task #8) | Nhiệm vụ: chuyển CSDL dùng chung sang Supabase để n8n kết nối được và cả nhóm pull về là chạy; pytest chỉ chạy trên Docker. (nguyên văn: xem [P-LOG-09](#p-log-09))<br>Tài liệu: backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md; code C1–C7 (config, session, migrations/env.py, conftest, db_utils, seed) | PLAN Scope/Plan/Risks: connection.py (SSL require và pool nhỏ cho host không phải local, chặn cổng 6543 và tham số sslmode); tách CSDL test bằng biến TEST_DATABASE_URL với 3 điều kiện (host local, tên đuôi _test, không trùng DATABASE_URL); migration 0003 thu hồi quyền anon/authenticated trên bảng, sequence và quyền mặc định, bỏ qua khi role không tồn tại; chặn `alembic downgrade` trên host không phải local trừ khi ALLOW_REMOTE_DOWNGRADE=1; README, 2 file .env.example (CHANGE_ME), data-model mục 12; đề xuất role n8n quyền tối thiểu (cấp theo cột, không cấp ve.ma_truy_cap_hash, không quyền ghi ve/ghe_ngoi/thanh_toan). AI tự phát hiện khi đọc code: fixture test đang suy ra tên CSDL test từ DATABASE_URL, nên nếu đổi DATABASE_URL sang Supabase thì pytest sẽ DROP/CREATE CSDL ngay trên Supabase; AI sửa lỗi này trước tiên. AI giải thích không cần tắt prepared statement cache vì session pooler (5432) giữ kết nối suốt phiên. Nêu rủi ro: chốt downgrade chỉ chặn lệnh CLI; SSL require không xác minh chứng chỉ; quyền mặc định trên function vẫn còn cho anon. Khi chạy lên Supabase: AI ghi "upgrade 0002 → 0003" trong khi Supabase đang trống; script đếm số dòng lỗi `No module named 'app'` nên AI dừng lại và báo chưa có bằng chứng; curl trên Git Bash gửi sai mã hóa "Đà Nẵng" khiến /trips trả 0 chuyến, AI tự chẩn đoán và gọi lại bằng httpx. Kết quả AI báo: pytest 206 passed trên Docker, npm run build thành công, rà diff không thấy giá trị bí mật nào; trên Supabase: migration 0001 → 0003, 15 bảng RDM, 14 sequence; seed lần 3 số dòng trước = sau; /health 200, /trips Đà Nẵng → Huế 15/12 trả 3 chuyến; anon và authenticated có quyền trên 0/16 bảng, 0/14 sequence | [F2 – Giả định ngầm] Rà soát PLAN theo checklist 6 điểm (không lộ bí mật, pytest chỉ chạy Docker, session pooler + SSL, 0003 khóa anon, chặn downgrade từ xa, không đổi schema), có dùng thêm trợ lý AI thứ hai (Claude chat) để đối chiếu. Chốt: SSL require, có chặn cổng 6543, AI không ghi log, chỉ sửa 2 dòng backend/CLAUDE.md; test 0003 chỉ tạo/xóa role do chính test tạo. Phát hiện AI giả định Supabase đang ở bản 0002 như Docker → yêu cầu kiểm tra `alembic current` trước, phải trống mới được upgrade. Khi AI dừng vì thiếu bằng chứng, chọn chạy seed lần 3 và đếm trước/sau thay vì chấp nhận bảng đối chiếu. Tự làm trên web: tạo project, lấy chuỗi Session pooler, tắt Data API, kiểm tra Table Editor có đủ bảng và dữ liệu seed. Không cho AI chạy downgrade, seed hay xóa dữ liệu trên Supabase khi chưa đồng ý<br>Giá trị: Cả nhóm dùng chung một CSDL, pull về là chạy; n8n kết nối được; Data API bị khóa 2 lớp (tắt trên Dashboard + REVOKE); test không bao giờ chạm CSDL dùng chung. Bài học: khi đổi môi trường, phải soát mọi chỗ đang suy ra cấu hình từ biến cũ (lỗi DROP CSDL tiềm ẩn từ task #1), và bắt AI kiểm tra trạng thái thật của môi trường mới trước khi chạy lệnh ghi |
+
 | **LOG-10** |  |  |  |  |
 
 ---
@@ -517,6 +518,67 @@ Duyệt PLAN, thực hiện. Báo kết quả thật của uv run pytest -q, npm
 
 ```text
 Sửa trang /dat-ve/:maDon: khi đồng hồ đếm ngược về 0 thì ẩn ngay ô "Thông tin hành khách" và hiện "Hết thời gian giữ chỗ" kèm nút "Chọn lại ghế" (không cần tải lại trang). Thêm test Vitest với fake timers. Chạy lại npm run lint, npm run typecheck, npm test, npm run build.
+```
+### P-LOG-09
+
+**Lượt 1 – Yêu cầu lập kế hoạch:**
+
+```text
+Đọc backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, docs/API.md.
+Nhiệm vụ: commit "chore: chuyen CSDL sang Supabase va huong dan chay du an". Cả nhóm đã quyết định dùng Supabase (PostgreSQL) làm CSDL dùng chung để n8n kết nối được và mọi người pull về là chạy. KHÔNG đổi cấu trúc bảng, KHÔNG sửa migration 0001, 0002. Repo GitHub đang PUBLIC: tuyệt đối không ghi chuỗi kết nối, mật khẩu, host Supabase thật vào bất kỳ file nào được commit.
+
+1. Hai CSDL:
+   - DATABASE_URL: Supabase (session pooler, cổng 5432) — dùng cho app, Alembic, seed.
+   - TEST_DATABASE_URL (biến mới, bắt buộc khi chạy pytest): PostgreSQL Docker trên máy, tên CSDL kết thúc bằng _test.
+   - Toàn bộ pytest chỉ dùng TEST_DATABASE_URL. Chốt an toàn: từ chối chạy test nếu host của TEST_DATABASE_URL không phải localhost/127.0.0.1, hoặc tên không kết thúc bằng _test, hoặc trùng DATABASE_URL.
+2. Kết nối host không phải máy local phải dùng SSL; đảm bảo asyncpg chạy ổn qua session pooler (nêu rõ có cần tắt prepared statement cache không và vì sao).
+3. Khóa Data API của Supabase: migration 0003 thu hồi mọi quyền trên các bảng và sequence trong schema public của role anon và authenticated (kể cả quyền mặc định cho bảng tạo sau). Migration phải chạy được cả trên PostgreSQL Docker (role không tồn tại thì bỏ qua). Có downgrade.
+4. Chống thao tác nguy hiểm trên CSDL dùng chung: lệnh alembic downgrade phải từ chối chạy khi DATABASE_URL không phải localhost, trừ khi đặt biến ALLOW_REMOTE_DOWNGRADE=1.
+5. Tài liệu để người mới pull về là chạy:
+   - README.md ở gốc repo: yêu cầu cài đặt (uv, Node 20+, Docker chỉ cần khi chạy test), các bước: clone/pull → đặt backend/.env và frontend/.env (lấy file .env được gửi riêng, KHÔNG lấy từ Git) → uv sync → npm install → chạy backend → chạy frontend; cách chạy test; tài khoản mẫu; lưu ý KHÔNG chạy alembic downgrade / seed trên Supabase, chỉ người phụ trách CSDL chạy migration.
+   - backend/.env.example và frontend/.env.example có đủ biến, giá trị mẫu là CHANGE_ME, có chú thích.
+   - docs/data-model.md: mục "Môi trường CSDL" (Supabase dùng chung, Docker cho test, migration 0003).
+6. Đề xuất (CHƯA làm) câu lệnh SQL tạo role riêng cho n8n theo nguyên tắc quyền tối thiểu cho luồng đổi vé: chỉ SELECT các bảng cần đọc (ve, ghe_ngoi, chuyen_xe, tuyen_xe, loai_xe, khach_hang) và INSERT/UPDATE bảng yeu_cau_huy_doi; KHÔNG quyền ghi ve, ghe_ngoi, thanh_toan (đổi ghế/vé thật sẽ đi qua API backend). Ghi chú cách đăng nhập qua session pooler với role này. Không ghi mật khẩu vào file.
+7. Kiểm chứng:
+   - uv run pytest -q (chạy trên Docker, phải xanh hết).
+   - Báo tôi trước khi chạy lên Supabase; sau khi tôi đồng ý: alembic upgrade head, seed 2 lần (số dòng mỗi bảng không đổi).
+   - GET /health và GET /api/v1/trips (Đà Nẵng → Huế, 2026-12-15) chạy được với Supabase.
+   - Kiểm tra role anon không đọc được bảng nào trong public.
+   - npm run build.
+
+Gửi PLAN theo mẫu Scope/Plan/Risks và danh sách file. CHƯA VIẾT MÃ.
+```
+
+**Lượt 2 – Trả lời câu hỏi và duyệt PLAN:**
+
+```text
+Đồng ý PLAN. Chốt:
+1. SSL dùng require.
+2. Có thêm chốt báo lỗi khi URL dùng cổng 6543.
+3. KHÔNG ghi AI_USAGE_LOG và DECISION_LOG. Được phép sửa backend/CLAUDE.md: dòng "PostgreSQL (Docker Compose)" thành "PostgreSQL trên Supabase (dùng chung, qua session pooler); Docker chỉ dùng cho test" và thêm ràng buộc: "Không chạy alembic downgrade, seed hay xóa dữ liệu trên Supabase khi chưa được tôi đồng ý."
+4. .gitignore giữ nguyên.
+5. Trong test migration 0003: chỉ tạo role anon/authenticated nếu chưa có, và chỉ xóa role do chính test tạo ra.
+6. Role n8n: giữ đề xuất, chưa chạy.
+
+Viết mã, chạy uv run pytest -q trên Docker, rà diff tìm bí mật. Xong thì DỪNG, báo kết quả và chờ tôi đồng ý mới chạy lên Supabase.
+```
+
+**Lượt 3 – Đồng ý chạy lên Supabase, sửa giả định "đang ở bản 0002":**
+
+```text
+Đồng ý chạy lên Supabase, nhưng sửa 1 chỗ: Supabase đang TRỐNG (chưa có bảng nào), không phải ở bản 0002. Làm theo thứ tự:
+1. uv run alembic current (với DATABASE_URL Supabase): phải không có revision nào. Khác thì DỪNG và báo tôi.
+2. uv run alembic upgrade head (0001 → 0002 → 0003). Sau đó alembic current phải là 0003, và public có đủ 15 bảng theo RDM cùng alembic_version.
+3. Seed 2 lần, đếm số dòng từng bảng sau mỗi lần; số dòng phải không đổi.
+4. GET /health và GET /api/v1/trips (Đà Nẵng → Huế, 2026-12-15).
+5. anon và authenticated: has_table_privilege và has_sequence_privilege đều false trên mọi bảng và sequence trong public.
+Không chạy downgrade, không xóa dữ liệu. Lỗi ở bước nào thì DỪNG và báo tôi, không tự sửa trên Supabase. Báo kết quả từng bước dạng bảng.
+```
+
+**Lượt 4 – Bổ sung bằng chứng seed không sinh trùng:**
+
+```text
+Chọn cách A. Đếm số dòng → seed lần 3 → đếm lại, trình bày bảng trước/sau. Sau đó làm tiếp bước 4 và 5 (chỉ đọc). Lỗi ở bước nào thì DỪNG và báo tôi. Xong thì báo tổng kết cả 5 bước dạng bảng.
 ```
 
 ## Mẫu cách điền (XÓA mục này trước khi nộp — đây chỉ là ví dụ định dạng, không phải lượt thật)

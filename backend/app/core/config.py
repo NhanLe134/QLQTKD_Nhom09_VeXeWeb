@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE, extra="ignore")
 
     database_url: str
+    # CSDL PostgreSQL Docker trên máy, chỉ pytest dùng (tests/conftest.py)
+    test_database_url: str | None = None
     seat_hold_minutes: int = Field(default=5, gt=0)
     # Khóa ký JWT: bắt buộc, không có giá trị mặc định; HS256 cần khóa đủ dài
     jwt_secret: str = Field(min_length=32)

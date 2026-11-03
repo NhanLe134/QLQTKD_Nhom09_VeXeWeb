@@ -149,6 +149,133 @@ def test_0002_downgrade_stops_when_guest_customers_exist(
     assert guest_schema(migrated_database_url)["user_id_nullable"] is True
 
 
+SUPABASE_ROLES = ("anon", "authenticated")
+
+# Bảng (r) và sequence (S) trong public mà role còn bất kỳ quyền nào
+ACCESSIBLE_OBJECTS = text(
+    """
+    SELECT r.rolname, c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    CROSS JOIN pg_roles r
+    WHERE n.nspname = 'public'
+      AND c.relkind IN ('r', 'S')
+      AND r.rolname IN ('anon', 'authenticated')
+      AND CASE c.relkind
+            WHEN 'r' THEN has_table_privilege(
+              r.oid, c.oid, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+            ELSE has_sequence_privilege(r.oid, c.oid, 'USAGE, SELECT, UPDATE')
+          END
+    """
+)
+
+
+async def _execute(url: URL, *statements: str) -> None:
+    engine = create_async_engine(url, isolation_level="AUTOCOMMIT", poolclass=NullPool)
+    async with engine.connect() as connection:
+        for statement in statements:
+            await connection.execute(text(statement))
+    await engine.dispose()
+
+
+async def _existing_roles(url: URL) -> set[str]:
+    engine = create_async_engine(url, poolclass=NullPool)
+    async with engine.connect() as connection:
+        rows = await connection.execute(
+            text("SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')")
+        )
+        names = set(rows.scalars())
+    await engine.dispose()
+    return names
+
+
+async def _accessible_objects(url: URL) -> set[tuple[str, str]]:
+    engine = create_async_engine(url, poolclass=NullPool)
+    async with engine.connect() as connection:
+        rows = (await connection.execute(ACCESSIBLE_OBJECTS)).all()
+    await engine.dispose()
+    return {(role, name) for role, name in rows}
+
+
+def accessible_objects(url: URL) -> set[tuple[str, str]]:
+    return asyncio.run(_accessible_objects(url))
+
+
+def every_object(*extra_tables: str) -> set[tuple[str, str]]:
+    names = EXPECTED_TABLES | expected_sequences() | set(extra_tables)
+    return {(role, name) for role in SUPABASE_ROLES for name in names}
+
+
+@pytest.fixture
+def supabase_roles(empty_database_url):
+    """Tạo anon/authenticated nếu cụm Docker chưa có; chỉ xóa role do test tạo.
+
+    Cấp quyền mặc định giống Supabase trên CSDL test trước khi migrate. Role là
+    đối tượng của cả cụm: khi xóa, chạy DROP OWNED trong CSDL test để gỡ quyền.
+    """
+    admin_url = empty_database_url.set(database="postgres")
+    created = set(SUPABASE_ROLES) - asyncio.run(_existing_roles(admin_url))
+    asyncio.run(_execute(admin_url, *(f"CREATE ROLE {role} NOLOGIN" for role in created)))
+    asyncio.run(
+        _execute(
+            empty_database_url,
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+            "GRANT ALL ON TABLES TO anon, authenticated",
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+            "GRANT ALL ON SEQUENCES TO anon, authenticated",
+        )
+    )
+    yield
+    if created:
+        asyncio.run(
+            _execute(empty_database_url, *(f"DROP OWNED BY {role}" for role in created))
+        )
+        asyncio.run(_execute(admin_url, *(f"DROP ROLE {role}" for role in created)))
+
+
+def test_0003_revokes_data_api_roles(supabase_roles, empty_database_url, alembic_config):
+    command.upgrade(alembic_config, "0002")
+    assert accessible_objects(empty_database_url) == every_object()
+
+    command.upgrade(alembic_config, "0003")
+    assert accessible_objects(empty_database_url) == set()
+
+    # Quyền mặc định cũng bị thu hồi: bảng, sequence tạo sau vẫn bị chặn
+    asyncio.run(
+        _execute(
+            empty_database_url,
+            "CREATE TABLE bang_tao_sau (id int)",
+            "CREATE SEQUENCE seq_tao_sau",
+        )
+    )
+    assert accessible_objects(empty_database_url) == set()
+
+
+def test_0003_downgrade_restores_supabase_grants(
+    supabase_roles, empty_database_url, alembic_config
+):
+    command.upgrade(alembic_config, "head")
+
+    command.downgrade(alembic_config, "0002")
+    assert accessible_objects(empty_database_url) == every_object()
+
+    asyncio.run(_execute(empty_database_url, "CREATE TABLE bang_tao_sau (id int)"))
+    assert accessible_objects(empty_database_url) == every_object("bang_tao_sau")
+
+    command.upgrade(alembic_config, "head")
+    assert accessible_objects(empty_database_url) == set()
+
+
+def test_0003_runs_without_supabase_roles(empty_database_url, alembic_config):
+    admin_url = empty_database_url.set(database="postgres")
+    if asyncio.run(_existing_roles(admin_url)):
+        pytest.skip("Cụm PostgreSQL này đã có role anon/authenticated")
+
+    command.upgrade(alembic_config, "head")
+    command.downgrade(alembic_config, "0002")
+    command.upgrade(alembic_config, "head")
+
+
 @pytest.fixture
 async def seeded_factory(session_factory):
     async with session_factory() as session, session.begin():

@@ -27,6 +27,21 @@ def test_reads_values_from_environment(monkeypatch):
     assert settings.seat_hold_minutes == 7
 
 
+def test_reads_test_database_url(monkeypatch):
+    test_url = "postgresql+asyncpg://user:pass@127.0.0.1:5432/vexe_test"
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+    monkeypatch.setenv("TEST_DATABASE_URL", test_url)
+
+    assert Settings(_env_file=None).test_database_url == test_url
+
+
+def test_test_database_url_is_optional_for_the_app(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
+    monkeypatch.delenv("TEST_DATABASE_URL", raising=False)
+
+    assert Settings(_env_file=None).test_database_url is None
+
+
 def test_seat_hold_minutes_defaults_to_5(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
 

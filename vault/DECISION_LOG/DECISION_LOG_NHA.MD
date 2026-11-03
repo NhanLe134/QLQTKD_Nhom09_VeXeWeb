@@ -388,3 +388,47 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Lý do: không deadlock; không bán trùng ghế; 2 request cùng SĐT không tạo được 2 đơn.
 - Hệ quả: có 2 test đồng thời thật trên PostgreSQL; task #9–#12 phải giữ cùng thứ tự khóa.
 - Người quyết định: Nhã (AI đề xuất phương án)
+### D-44: Chuyển CSDL dùng chung từ Docker sang Supabase (thay thế D-01)
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
+- Bối cảnh: luồng đổi vé làm bằng n8n cần kết nối tới CSDL; mỗi thành viên chạy Docker riêng thì dữ liệu không chung và n8n không với tới được.
+- Các phương án đã cân nhắc: (1) giữ Docker, n8n gọi API backend qua webhook; (2) Supabase (PostgreSQL) dùng chung cho cả nhóm và n8n.
+- Quyết định: phương án 2 (quyết định của cả nhóm); kết nối qua Session pooler cổng 5432, SSL require; chặn cổng 6543 (Transaction pooler).
+- Lý do: thành viên làm n8n thay đổi luồng dễ hơn; pull về là chạy, không cần cài Docker để chạy app. Transaction pooler làm lỗi prepared statement của asyncpg.
+- Hệ quả: file .env chứa mật khẩu chung, gửi riêng từng người, không đưa lên Git; pool nhỏ (2 + 3) vì gói Free giới hạn kết nối; chỉ người phụ trách CSDL chạy migration.
+- Người quyết định: Cả nhóm (Nhã thực hiện; AI đề xuất cấu hình kết nối)
+
+### D-45: Test chỉ chạy trên PostgreSQL Docker (TEST_DATABASE_URL)
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
+- Bối cảnh: fixture test cũ suy ra tên CSDL test từ DATABASE_URL và DROP/CREATE nó; nếu DATABASE_URL trỏ Supabase thì test sẽ xóa CSDL trên Supabase.
+- Các phương án đã cân nhắc: (1) chạy test trên một project Supabase thứ hai; (2) biến TEST_DATABASE_URL riêng trỏ Docker, kèm chốt chặn.
+- Quyết định: phương án 2; pytest dừng ngay nếu TEST_DATABASE_URL thiếu, host không phải localhost/127.0.0.1, tên không đuôi _test, hoặc trùng DATABASE_URL.
+- Lý do: test tạo/xóa CSDL liên tục, không được chạm dữ liệu chung; Docker nhanh và miễn phí.
+- Hệ quả: ai chạy test vẫn cần Docker; máy chưa đặt TEST_DATABASE_URL thì pytest báo lỗi rõ cách sửa.
+- Người quyết định: Nhã (AI phát hiện lỗi tiềm ẩn và đề xuất phương án)
+
+### D-46: Khóa Data API của Supabase bằng 2 lớp
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
+- Bối cảnh: Supabase tự mở REST API (Data API) cho schema public; repo public nên mã project lộ được, ai có anon key có thể đọc bảng.
+- Các phương án đã cân nhắc: (1) bật RLS và viết policy cho 15 bảng; (2) tắt Data API trên Dashboard và thu hồi quyền anon/authenticated bằng migration.
+- Quyết định: phương án 2; migration 0003 REVOKE quyền trên bảng, sequence và quyền mặc định (role không tồn tại thì bỏ qua, chạy được trên Docker).
+- Lý do: ứng dụng chỉ truy cập CSDL qua backend, không dùng Data API; viết RLS cho 15 bảng là việc lớn không cần thiết.
+- Hệ quả: Security Advisor vẫn cảnh báo "RLS disabled"; quyền mặc định trên function cho anon vẫn còn (hiện chưa có function nào, Data API đã tắt) — nếu sau này tạo function thì cần migration riêng; mọi bảng phải tạo qua Alembic.
+- Người quyết định: Nhã 
+
+### D-47: Chặn alembic downgrade trên CSDL không phải máy local
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
+- Bối cảnh: downgrade 0001 xóa toàn bộ bảng; CSDL giờ dùng chung cho cả nhóm.
+- Các phương án đã cân nhắc: (1) chỉ nhắc trong README; (2) chặn trong migrations/env.py trước khi kết nối, mở bằng ALLOW_REMOTE_DOWNGRADE=1.
+- Quyết định: phương án 2, áp dụng cả chế độ online và --sql.
+- Lý do: một lệnh gõ nhầm không được làm mất dữ liệu của cả nhóm.
+- Hệ quả: chỉ chặn lệnh CLI, không chặn gọi command.downgrade() bằng Python (chấp nhận được); README ghi rõ không chạy downgrade/seed trên Supabase.
+- Người quyết định: Nhã 
+
+### D-48: n8n dùng tài khoản CSDL riêng với quyền tối thiểu
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an (role tạo thủ công trên SQL Editor, không đưa vào migration)
+- Bối cảnh: n8n cần đọc vé/chuyến và ghi yêu cầu đổi vé; dùng tài khoản postgres thì n8n có toàn quyền.
+- Các phương án đã cân nhắc: (1) n8n dùng tài khoản postgres; (2) role n8n_doi_ve chỉ SELECT ve, ghe_ngoi, chuyen_xe, tuyen_xe, loai_xe, khach_hang (cấp theo cột, không có ve.ma_truy_cap_hash) và SELECT/INSERT/UPDATE yeu_cau_huy_doi.
+- Quyết định: phương án 2; giới hạn 3 kết nối, statement_timeout 15 giây; không quyền ghi ve, ghe_ngoi, thanh_toan.
+- Lý do: đổi ghế/vé thật phải đi qua API backend để giữ đúng quy tắc khóa ghế và trạng thái; n8n lỡ lộ mật khẩu cũng không sửa được vé.
+- Hệ quả: mật khẩu role n8n khác mật khẩu chính, gửi riêng người làm n8n; user đăng nhập dạng n8n_doi_ve.<mã project>.
+- Người quyết định: Nhã 

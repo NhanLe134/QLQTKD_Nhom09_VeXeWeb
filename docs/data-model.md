@@ -2,7 +2,7 @@
 
 Nguồn chuẩn là RDM trong [RDM_TheoMauNhom.drawio](RDM_TheoMauNhom.drawio): 15 bảng, 26 quan hệ khóa ngoại. Tài liệu này ghi cách RDM được chuyển sang PostgreSQL, gồm các phần RDM không quy định.
 
-Schema thật nằm ở `backend/migrations/versions/0001_initial_schema.py` và `0002_khach_vang_lai.py`. Test `backend/tests/test_rdm_conformance.py` so sánh schema sau migration với RDM.
+Schema thật nằm ở `backend/migrations/versions/0001_initial_schema.py` và `0002_khach_vang_lai.py`. Migration `0003_khoa_data_api.py` chỉ thu hồi quyền, không đổi cấu trúc bảng (mục 12). Test `backend/tests/test_rdm_conformance.py` so sánh schema sau migration với RDM.
 
 **Mọi thay đổi schema phải được duyệt trước khi làm.**
 
@@ -319,3 +319,40 @@ Mọi loại xe hiện có đều 1 tầng. Mã ghế là `A` + số thứ tự 
    - `xe.so_ghe` là sức chứa, `ghe_ngoi.so_ghe` là mã ghế: cùng tên nhưng khác nghĩa.
    - `xe.so_ghe` lặp với `loai_xe.so_cho`.
    - `chuyen_xe.ngay_khoi_hanh` lặp với `gio_di`.
+
+## 12. Môi trường CSDL
+
+| Môi trường | Biến | Ở đâu | Ai dùng |
+|---|---|---|---|
+| Dùng chung | `DATABASE_URL` | PostgreSQL trên Supabase, qua **session pooler** (cổng 5432) | App, Alembic, seed, n8n |
+| Test | `TEST_DATABASE_URL` | PostgreSQL 16 trong Docker trên máy (`compose.yaml`) | Chỉ pytest |
+
+Chuỗi kết nối và mật khẩu thật chỉ nằm trong `backend/.env` (gửi riêng, không commit). Mẫu ở `backend/.env.example`.
+
+### Kết nối tới Supabase (`backend/app/db/connection.py`)
+
+- CSDL không ở máy local (host khác `localhost`, `127.0.0.1`) luôn kết nối bằng SSL (`ssl="require"`: có mã hóa, không xác minh chứng chỉ). Không ghi `sslmode` vào URL vì asyncpg không nhận tham số này.
+- Dùng session pooler vì kết nối trực tiếp của Supabase chỉ có IPv6, còn pooler có IPv4.
+- **Không cần tắt prepared statement cache của asyncpg.** Ở session mode, mỗi kết nối của client gắn với một kết nối server suốt phiên, nên prepared statement vẫn đúng chỗ. Transaction pooler (cổng 6543) đổi kết nối server sau mỗi transaction, làm lỗi `prepared statement ... already exists`, nên backend báo lỗi ngay nếu URL dùng cổng 6543.
+- Pool nhỏ (`pool_size=2`, `max_overflow=3`) và `pool_pre_ping`, vì session pooler giới hạn tổng số kết nối của cả nhóm và n8n, và có thể đóng kết nối nhàn rỗi.
+
+### Chốt an toàn
+
+| Chốt | Ở đâu | Hành vi |
+|---|---|---|
+| Test chỉ chạy trên Docker | `backend/tests/conftest.py`, `db_utils.py` | pytest dừng nếu thiếu `TEST_DATABASE_URL`, host không phải `localhost`/`127.0.0.1`, tên CSDL không kết thúc bằng `_test`, hoặc trùng `DATABASE_URL`. Kiểm tra lại trước mỗi lần DROP/CREATE CSDL test. |
+| Chặn downgrade trên CSDL dùng chung | `backend/migrations/env.py` | `alembic downgrade` (kể cả `--sql`) từ chối chạy, trước khi kết nối, khi `DATABASE_URL` không ở máy local, trừ khi đặt `ALLOW_REMOTE_DOWNGRADE=1`. |
+| Quy ước nhóm | `README.md` | Không chạy downgrade, seed hay xóa dữ liệu trên Supabase; chỉ người phụ trách CSDL chạy migration. |
+
+### Migration `0003` — khóa Data API
+
+Supabase cấp sẵn quyền trên schema `public` cho role `anon` và `authenticated`, nên ai có anon key (thường lộ ở phía trình duyệt) cũng đọc, ghi được bảng qua Data API (REST/GraphQL). Hệ thống này không dùng Data API: frontend chỉ gọi backend.
+
+- Upgrade: thu hồi mọi quyền của hai role trên mọi bảng và sequence trong `public`, kể cả quyền mặc định cho bảng, sequence tạo sau (`ALTER DEFAULT PRIVILEGES`).
+- Downgrade: cấp lại quyền như mặc định của Supabase, tức là mở lại Data API.
+- Role nào không tồn tại thì bỏ qua, nên migration chạy được cả trên PostgreSQL Docker.
+- Không đổi cấu trúc bảng. Backend kết nối bằng role `postgres` nên không bị ảnh hưởng.
+
+Giới hạn:
+- `ALTER DEFAULT PRIVILEGES` chỉ áp dụng cho đối tượng do role chạy migration (`postgres`) tạo ra. Mọi bảng mới phải tạo qua Alembic, không tạo bằng role khác.
+- Security Advisor của Supabase vẫn báo "RLS disabled", vì bảng chưa bật Row Level Security. Data API vẫn bị chặn nhờ REVOKE. Bật RLS là thay đổi riêng, cần nhóm duyệt.
