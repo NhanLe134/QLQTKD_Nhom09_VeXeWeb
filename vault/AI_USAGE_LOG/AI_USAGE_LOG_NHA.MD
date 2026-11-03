@@ -17,8 +17,9 @@
 | **LOG-02** | C2 – Model dữ liệu theo RDM và seed data | Nhiệm vụ: Commit C2 "Model dữ liệu và seed data". (nguyên văn: xem [P-LOG-02](#p-log-02))<br>Tài liệu: backend/CLAUDE.md, vault/00-index.md, code C1; các file nghiệp vụ trong vault đang trống. RDM chính thức (docs/RDM_TheoMauNhom.drawio) chỉ được cung cấp từ lượt 4 | Lần đầu: làm 9 bảng tên tiếng Anh theo danh sách ở prompt lượt 1 và tự chọn cột, không có RDM trong ngữ cảnh; AI thấy vault trống nhưng không hỏi có thiết kế dữ liệu chính thức hay không, chưa đọc vault/00-index.md ở lượt đầu; kết quả 33 passed nhưng sai RDM. Sau khi có RDM: hạ CSDL dev về trống, viết lại model 15 bảng, migration 0001 (14 sequence), seed 120 ghế, test đối chiếu RDM, docs/data-model.md; kết quả 59 passed, dump CSDL dev giống nhau trước và sau khi chạy test. Sai sót trong quá trình: để sót đoạn code nháp trong test_seed.py và tự sửa trước khi chạy; lần so mã băm đầu của pg_dump cho kết quả khác nhau do token ngẫu nhiên, phải so lại bằng diff | [F2 – Giả định ngầm không được nói ra] Đối chiếu với RDM nhóm, phát hiện 9 bảng không khớp, dừng lại trước khi commit, cung cấp RDM và yêu cầu làm lại. Duyệt 4 mục chốt: thanh_toan.ma_don, enum/sinh mã/NULL, giá theo loại xe, sửa CLAUDE.md. Tự chạy lại pytest (59 passed), kiểm tra seed 2 lần giữ 120 ghế<br>Giá trị: Schema khớp 100% RDM (phần thêm ở thanh_toan đã được nhóm xác nhận 03/11/2026), có test đối chiếu tự động. Bài học: luôn đưa thiết kế dữ liệu vào ngữ cảnh; đã ghi thành ràng buộc trong CLAUDE.md |
 | **LOG-03** | C3 – Hỗ trợ khách vãng lai và dữ liệu tuyến Đà Nẵng – Hội An – Huế, xe 4/7/16 chỗ | Đọc backend/CLAUDE.md, vault/00-index.md, docs/data-model.md, vault/01-requirements/business-rules.md, vault/01-requirements/requirements.md, docs/user-stories.md. (nguyên văn: xem [P-LOG-03](#p-log-03))<br>Tài liệu: backend/CLAUDE.md, vault/00-index.md, docs/data-model.md, vault/01-requirements/business-rules.md (BR-BUS-01, 07, 09, 19, 24), vault/01-requirements/requirements.md, docs/user-stories.md; code C2 (migration 0001 đã commit và push, seed cũ giường nằm 36 / limousine 24) | PLAN Scope/Plan/Risks gồm 8 file, kèm 4 câu hỏi cần chốt (hash NULL hay NOT NULL, downgrade khi còn khách vãng lai, tài xế, cách dọn CSDL dev). Đề xuất lưu SHA-256 của mã truy cập ở ve.ma_truy_cap_hash, giải thích vì sao không đặt ở thanh_toan, ghe_ngoi hay một bảng đơn mới. Sau khi duyệt: migration 0002 (user_id NULL, UNIQUE so_dien_thoai, ma_truy_cap_hash NOT NULL; downgrade báo lỗi khi còn khách vãng lai); seed mới (3 loại xe, 6 tuyến, 9 xe, 18 chuyến, 162 ghế, 1 khách vãng lai); cập nhật test và docs/data-model.md; dọn CSDL dev bằng downgrade base → upgrade head → seed 2 lần (số dòng giống nhau); kết quả 72 passed. Sai sót trong quá trình: hàm build_ve trong test truyền ma_truy_cap_hash 2 lần, AI tự phát hiện và sửa trước khi chạy test; script đếm dòng lỗi lần đầu (thiếu PYTHONPATH, rồi lỗi mã hóa cp1252 khi in tiếng Việt), phải chạy lại; tạo nhầm một file tạm rỗng ngoài repo rồi xóa; ghi file đếm dòng tạm vào /tmp thay vì thư mục scratchpad, đã xóa sau khi dùng | Trả lời 4 câu: ma_truy_cap_hash NOT NULL; downgrade dừng và báo lỗi, không tự xóa dữ liệu, test cả 2 trường hợp; TX01 chạy 2 chuyến của Xe A (TU01, TU02), các chuyến khác tai_xe_id NULL; đồng ý dọn CSDL dev. Duyệt PLAN, yêu cầu báo kết quả migrate, seed 2 lần, pytest và số chuyến theo tuyến. Tự chạy `uv run pytest -q`: 72 passed in 54.94s; tự kiểm tra CSDL dev bằng `docker compose exec postgres psql -U vexe -d vexe -c "select count(*) from ghe_ngoi;"`: 162 ghế, khớp seed 6 tuyến × (4 + 7 + 16)<br>Giá trị: CSDL hỗ trợ khách vãng lai theo BR-BUS-01, 07, 19 mà không sửa migration đã push; dữ liệu mẫu đúng phạm vi Đà Nẵng – Hội An – Huế, có sẵn tình huống demo gợi ý ±1 ngày (Đà Nẵng → Hội An chỉ chạy 16/12). Có test bảo vệ: không chồng giờ theo xe và tài xế, downgrade không làm mất dữ liệu |
 | **LOG-04** | C3 – Hỗ trợ khách vãng lai và dữ liệu tuyến Đà Nẵng – Hội An – Huế, xe 4/7/16 chỗ (US-BUS-01, US-BUS-02, US-BUS-03): chuyển nhật ký AI sang cấu trúc mục 7.1 | Chuyển file vault/AI_USAGE_LOG/AI_USAGE_LOG_NHA.MD sang đúng cấu trúc mục 7.1 của vault/00-index.md, GIỮ NGUYÊN file và KHÔNG làm mất nội dung: (nguyên văn: xem [P-LOG-04](#p-log-04))<br>Tài liệu: vault/00-index.md (mục 7.1); vault/AI_USAGE_LOG/AI_USAGE_LOG_NHA.MD (bảng 7 cột, các dòng A-01…A-03 và dòng mẫu A-xx) | Viết script chuyển bảng 7 cột sang 5 cột: đổi ID A-xx → LOG-xx; Context = câu đầu prompt + liên kết P-LOG-xx + "Tài liệu:" nội dung Context cũ; Human Verification = nội dung cũ + "Giá trị:" nội dung Value cũ; đổi tiêu đề P-A-xx → P-LOG-xx; viết lại đoạn giới thiệu đầu file. Sao lưu file gốc trước khi sửa; script tự kiểm tra không mất chữ ở các ô được giữ và mục Prompt chi tiết chỉ khác ở tiêu đề. In bảng đối chiếu trước/sau từng ô và nêu 5 điểm cần xem lại: câu đầu prompt của LOG-01, LOG-02 chỉ là "Đọc backend/CLAUDE.md."; câu trong ô Prompt cũ của LOG-01 bị thay bằng liên kết nên không còn trong file; dòng 211 (nguyên văn prompt cũ) vẫn ghi P-A-02; tự chuyển luôn mục "Mẫu cách điền" sang 5 cột; mục 7.1 ghi vị trí docs/AI_USAGE_LOG khác vị trí thật. Sai sót trong quá trình: lệnh kiểm tra số cột lần đầu lỗi do thoát ký tự regex trong lệnh shell, phải chạy lại bằng awk. Ở lượt ghi dòng này: hỏi lại phạm vi dòng (tránh trùng LOG-03) và bằng chứng kiểm thử trước khi ghi; không tự điền kết quả pytest vì chưa được cung cấp | Yêu cầu chuyển log với quy tắc cụ thể cho từng cột, giữ nguyên file, không mất nội dung, và yêu cầu in bảng đối chiếu trước/sau từng ô để tự kiểm tra. Chọn phạm vi LOG-04 chỉ gồm việc chuyển log (không ghi lại toàn bộ phiên C3). Đọc bảng đối chiếu trước/sau từng ô do AI in ra, xác nhận không mất nội dung.<br>Giá trị: Nhật ký đúng cấu trúc 5 cột của mục 7.1, các dòng cũ giữ nguyên nội dung và có thể đối chiếu từng ô; phát hiện các điểm lệch cần quyết định (câu đầu prompt ít thông tin, câu Prompt cũ của LOG-01, vị trí file khác mục 7.1) (câu đầu prompt của LOG-01, LOG-02 đã được sửa sau đó) |
-| **LOG-05** |  |  |  |  |
-| **LOG-06** |  |  |  |  |
+|**LOG-05** | C4 – Khởi tạo frontend React Vite, router và API client (nền tảng cho US-BUS-00…07) | Nhiệm vụ: Task #4 "Khởi tạo frontend React Vite, router và API client". (nguyên văn: xem P-LOG-05)<br>Tài liệu: frontend/CLAUDE.md, backend/CLAUDE.md, vault/00-index.md, docs/user-stories.md; khung thư mục frontend/src do nhóm trưởng tạo sẵn; backend C1–C3 | PLAN Scope/Plan/Risks: khởi tạo Vite (React + TypeScript) ở thư mục tạm rồi chép cấu hình để giữ cấu trúc src/; Tailwind bản 4 qua plugin Vite; React Router; Vitest + Testing Library; apiClient (get/post, ApiError, lỗi mạng, lỗi 422); layout + header responsive; trang chủ gọi /health; trang "Đang xây dựng", 404; formatCurrency, formatDateTime; backend thêm CORS đọc từ CORS_ORIGINS và tách create_app(). Tự phát hiện: tsc --noEmit ở tsconfig gốc không kiểm tra file nào nhưng vẫn báo pass; @testing-library/react cần thêm @testing-library/dom. Khi thực hiện phát hiện template Vite mới không còn ESLint (dùng oxlint + TypeScript 7), hỏi lại cách lint. Chứng minh luật React Hooks bằng file thử vi phạm (rules-of-hooks báo error, exhaustive-deps chỉ warn), rồi đề xuất nâng exhaustive-deps lên error. Kết quả AI báo: lint 0 lỗi, typecheck exit 0, 26 test frontend, build thành công, 77 test backend. Một lượt ghi log bị bộ lọc của hệ thống dừng giữa chừng, không ghi được file | Trả lời 4 câu: thêm @testing-library/dom; tên hệ thống tạm "VeXe Nhóm 09" trong một hằng số; route tiếng Việt không dấu; định dạng dd/MM/yyyy HH:mm, giá trị sai trả chuỗi rỗng; giữ nhánh git hiện tại. Chọn oxlint + TypeScript 7 theo template thay vì hạ TypeScript để dùng ESLint, kèm điều kiện phải chứng minh luật React Hooks đang bật và typecheck/test/build chạy được với TS 7; yêu cầu in cấu hình oxlint để xem; quyết định exhaustive-deps ở mức error. Tự kiểm tra trên trình duyệt với backend thật: trang chủ hiện "Đã kết nối backend"; menu Tìm chuyến / Tra cứu vé / Đăng nhập ra trang "Đang xây dựng" và đánh dấu mục đang mở; /abc ra trang 404; khổ 375px không vỡ menu; tắt backend thì hiện "Không kết nối được backend"<br>Giá trị: Có khung frontend chạy được, nối được backend thật qua CORS; lint bắt được lỗi React Hooks ở mức chặn; không thêm thư viện ngoài danh sách đã duyệt. Bài học: template công cụ thay đổi theo thời gian, cần đối chiếu và sửa tài liệu (CLAUDE.md) cho khớp thực tế thay vì ép code theo tài liệu cũ |
+| **LOG-06** | C5 – Đăng ký, đăng nhập JWT và phân quyền theo vai trò (US-BUS-00) | Nhiệm vụ: Task #5 "Đăng ký, đăng nhập JWT và phân quyền theo vai trò" — làm cả backend và frontend. (nguyên văn: xem [P-LOG-06](#p-log-06))<br>Tài liệu: backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, vault/01-requirements/business-rules.md (BR-BUS-01 đến 08, 37), docs/user-stories.md (US-BUS-00); code C1–C4 | PLAN Scope/Plan/Risks: backend /register (1 transaction, 3 trường hợp SĐT: mới / khách vãng lai cũ / đã có tài khoản, SELECT … FOR UPDATE), /login, /me; get_current_user, get_optional_user, require_role; JWT HS256 có exp, chặn alg=none, vai trò đọc lại từ CSDL; kiểm tra mật khẩu giả khi sai tên để không lộ tên đăng nhập qua thời gian phản hồi. Frontend: trang /dang-nhap, /dang-ky, AuthContext, Header. Tự nêu rủi ro: chiếm hồ sơ khách vãng lai vì không có OTP; JWT không thu hồi được; 422 lệch quy ước "400 dữ liệu sai"; hỏi 4 câu (nơi lưu token, cách gắn hồ sơ, thư viện pyjwt, tài liệu). Khi thực hiện: 3 lỗi tự sửa trước lần chạy cuối (test_seed thiếu jwt_secret; 2 test Vitest dùng lại một Response; 1 cảnh báo lint); 4 điểm khác PLAN (tách AuthContext thành 3 file vì oxlint; thêm FormField dùng chung; thêm ô "Nhập lại mật khẩu"; đăng ký xong frontend tự gọi /login). Kết quả AI báo: pytest 111 passed, lint 0 lỗi, typecheck 0 lỗi, 70 test frontend, build thành công. Còn tồn đọng: Header chưa tự phát hiện phiên hết hạn (chỉ đăng xuất khi request sau nhận 401). Lượt ghi log bị bộ lọc an toàn dừng giữa chừng (yêu cầu chép nguyên văn prompt), không ghi được file | Kiểm tra PLAN theo 6 điểm (không đổi schema; 1 transaction, đủ 3 trường hợp SĐT; cùng thông báo sai tên/sai mật khẩu; JWT_SECRET bắt buộc; không chặn khách vãng lai; chỉ thêm pyjwt). Trả lời 4 câu: lưu token ở sessionStorage; gắn hồ sơ theo phương án (a); đồng ý pyjwt; tạo docs/API.md. Yêu cầu thêm: sửa quy ước mã lỗi trong backend/CLAUDE.md (422 sai định dạng, 400 sai nghiệp vụ); ghi rủi ro không có OTP vào docs/API.md. Đồng ý 4 điểm khác PLAN. Tự kiểm tra: `uv run pytest -q`: 111 passed; `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`: không lỗi; Swagger: đăng nhập khach_mau rồi gọi /me qua Authorize; trình duyệt: đăng nhập hiện họ tên + Đăng xuất, F5 vẫn giữ phiên, sai mật khẩu báo "Sai tên đăng nhập hoặc mật khẩu", đăng ký mới tự đăng nhập, SĐT trùng báo "Số điện thoại đã được đăng ký", đăng ký bằng SĐT khách vãng lai 0900000004 thành công, lỗi định dạng báo tại ô<br>Giá trị: Khách có thể đăng ký / đăng nhập nhưng không bị bắt buộc (đúng BR-BUS-01); tài khoản mới gắn được vào lịch sử đặt vé vãng lai (BR-BUS-08); có sẵn get_optional_user và require_role cho các task sau; có docs/API.md. Bài học: yêu cầu AI chép lại nguyên văn hội thoại dễ bị bộ lọc an toàn chặn, nên tự lưu prompt thay vì nhờ AI chép lại |
+
 | **LOG-07** |  |  |  |  |
 | **LOG-08** |  |  |  |  |
 | **LOG-09** |  |  |  |  |
@@ -309,8 +310,113 @@ Ghi trực tiếp 1 dòng mới vào bảng trong vault/AI_USAGE_LOG/AI_USAGE_LO
 "LOG-03 đã ghi cho Task C3 (gồm các lượt: lập PLAN, duyệt, cho phép ghi log). Dòng mới nên ghi nội dung gì?" = "LOG-04 = việc chuyển log (Recommended)"
 "Ô Human Verification chỉ được ghi bằng chứng kiểm thử anh TỰ chạy. Anh đã tự chạy gì?" = "Đã chạy uv run pytest -q"
 ```
+### P-LOG-05
+**Lượt 1 – Yêu cầu lập kế hoạch Task #4:**
 
+```text
+Đọc frontend/CLAUDE.md, backend/CLAUDE.md, vault/00-index.md, docs/user-stories.md.
+Nhiệm vụ: Task #4 "Khởi tạo frontend React Vite, router và API client". Chưa làm màn hình nghiệp vụ nào.
+
+Yêu cầu:
+1. Khởi tạo dự án trong frontend/ bằng Vite (React + TypeScript), GIỮ cấu trúc thư mục src/ có sẵn (assets, components, context, hooks, pages, services, utils), xóa .gitkeep ở thư mục nào đã có file thật.
+2. Tailwind CSS (bản mới, cấu hình theo tài liệu chính thức cho Vite), React Router.
+3. Scripts trong package.json: dev, build, lint (ESLint), typecheck (tsc --noEmit), test (Vitest + Testing Library + jsdom).
+4. services/apiClient.ts: đọc VITE_API_URL, hàm get/post dùng chung, ném lỗi kèm nội dung "detail" từ backend; frontend/.env.example có VITE_API_URL=http://127.0.0.1:8000.
+5. Layout chung (header có tên hệ thống và menu: Tìm chuyến, Tra cứu vé, Đăng nhập), responsive từ 375px; route: "/" trang chủ, các route khác là trang tạm "Đang xây dựng"; trang 404.
+6. Trang chủ gọi GET /health và hiện trạng thái kết nối backend (để kiểm tra API client).
+7. utils: formatCurrency (200.000 đ), formatDateTime (giờ Việt Nam) kèm test.
+8. Backend: bật CORS cho origin frontend, đọc từ biến môi trường CORS_ORIGINS (mặc định cho dev: http://localhost:5173, http://127.0.0.1:5173); cập nhật backend/.env.example; thêm test pytest cho CORS. Được phép sửa backend/ cho phần này.
+
+Thư viện đề xuất (tôi đồng ý trước): react-router-dom, tailwindcss + plugin Vite chính thức, vitest, @testing-library/react, @testing-library/jest-dom, jsdom, và các gói ESLint/TypeScript đi kèm template Vite. Thêm gói nào khác phải hỏi.
+
+Gửi PLAN theo mẫu Scope/Plan/Risks và danh sách file. CHƯA VIẾT MÃ.
+```
+**Lượt 2 – Trả lời 4 câu hỏi và duyệt PLAN:**
+
+```text
+Trả lời 4 câu:
+1. Đồng ý thêm @testing-library/dom làm devDependency.
+2. Tên hệ thống tạm là "VeXe Nhóm 09", đặt trong MỘT hằng số dùng chung (ví dụ src/utils/constants.ts) để sau đổi một chỗ.
+3. Route tiếng Việt không dấu: /tim-chuyen, /tra-cuu-ve, /dang-nhap.
+4. Đồng ý dd/MM/yyyy HH:mm; giá trị không hợp lệ trả chuỗi rỗng.
+Giữ nhánh git hiện tại. Duyệt PLAN, thực hiện. Báo kết quả thật của npm run lint, npm run typecheck, npm test, npm run build và uv run pytest -q.
+```
+**Lượt 3 – Chọn cách lint (hộp chọn của AI):**
+
+```text
+"Template Vite mới nhất (react-ts) đã bỏ ESLint … Chọn cách lint nào?" = "oxlint + TS 7 (template)"
+
+Chọn oxlint + TS 7 theo template. Điều kiện:
+1. Cấu hình oxlint phải bật nhóm luật React Hooks (rules-of-hooks, exhaustive-deps); in ra cấu hình để tôi xem.
+2. Chứng minh npm run typecheck, npm test (Vitest) và npm run build chạy được với TypeScript 7. Nếu không chạy được thì dừng lại và báo, tôi sẽ chuyển sang ESLint + TS 6.0.
+3. Sửa frontend/CLAUDE.md: thay "ESLint" bằng "oxlint (theo template Vite)" ở phần ngăn xếp và quy ước.
+```
+**Lượt 4 – Yêu cầu chứng minh luật React Hooks:**
+
+```text
+In ra phần cấu hình oxlint đang bật, chứng minh có luật rules-of-hooks và exhaustive-deps (React Hooks). Nếu chưa bật thì bật lên và chạy lại npm run lint.
+```
+**Lượt 5 – Nâng exhaustive-deps lên error:**
+
+```text
+Đồng ý: ghi "react/exhaustive-deps": "error" vào frontend/.oxlintrc.json. Nếu có chỗ buộc phải tắt luật thì chỉ tắt đúng dòng đó, kèm chú thích lý do bằng tiếng Việt. Chạy lại npm run lint và báo kết quả.
+```
+**Lượt 6 – Yêu cầu ghi log (bị dừng giữa chừng, không ghi được file):**
+
+```text
+Ghi log cho Task #4 vào 2 file (được phép theo CLAUDE.md), không sửa dòng cũ: … (LOG-05 và các D-xx của Task #4)
+```
 ---
+
+### P-LOG-06
+
+**Lượt 1 – Yêu cầu lập kế hoạch Task #5:**
+
+```text
+Đọc backend/CLAUDE.md, frontend/CLAUDE.md, vault/00-index.md, docs/data-model.md, vault/01-requirements/business-rules.md (BR-BUS-01 đến 08, 37), docs/user-stories.md (US-BUS-00).
+Nhiệm vụ: Task #5 "Đăng ký, đăng nhập JWT và phân quyền theo vai trò" — làm cả backend và frontend. KHÔNG đổi schema.
+
+BACKEND (tiền tố /api/v1/auth):
+- POST /register: chỉ tạo tài khoản KHÁCH (BR-BUS-02). Nhận ten_dang_nhap, mat_khau, ho_ten, so_dien_thoai, email (tùy chọn). Trong 1 transaction:
+  + Nếu đã có khach_hang cùng SĐT và user_id NULL (khách vãng lai cũ) → tạo tai_khoan rồi GẮN vào hồ sơ đó (BR-BUS-08).
+  + Nếu khach_hang cùng SĐT đã có tài khoản → 409 "Số điện thoại đã được đăng ký".
+  + Chưa có → tạo tai_khoan + khach_hang mới.
+  Trùng ten_dang_nhap → 409 "Tên đăng nhập đã được sử dụng". Mật khẩu ≥ 8 ký tự, SĐT 10 số bắt đầu bằng 0 (BR-BUS-03, 04).
+- POST /login: ten_dang_nhap + mat_khau → {access_token, token_type, vai_tro, ho_ten}. Sai tên hoặc sai mật khẩu đều 401 "Sai tên đăng nhập hoặc mật khẩu" (BR-BUS-06).
+- GET /me: thông tin tài khoản + hồ sơ khách hàng.
+- Dependency: get_current_user (bắt buộc), get_optional_user (khách vãng lai dùng được, cho các task sau), require_role(...). Token JWT hết hạn theo ACCESS_TOKEN_MINUTES (BR-BUS-05); khóa từ JWT_SECRET (bắt buộc, không mặc định). Không log mật khẩu/token.
+- Thư viện: đề xuất pyjwt, hỏi tôi trước khi thêm.
+- Test pytest: đăng ký mới; đăng ký gắn vào khách vãng lai cũ (thấy cùng khach_hang_id); SĐT đã có tài khoản 409; trùng tên 409; sai định dạng 422; đăng nhập đúng; sai tên và sai mật khẩu cùng 401 cùng thông báo; /me thiếu/sai/hết hạn token 401; require_role sai vai trò 403; mật khẩu lưu dạng hash.
+
+FRONTEND:
+- Trang /dang-nhap và /dang-ky: form có kiểm tra phía client (báo lỗi sớm), hiển thị lỗi từ backend nguyên văn.
+- AuthContext: lưu phiên đăng nhập, gắn token vào mọi request qua apiClient, tự đăng xuất khi gặp 401. Đề xuất nơi lưu token (localStorage / sessionStorage / bộ nhớ) kèm rủi ro, tôi chọn.
+- Header: chưa đăng nhập hiện "Đăng nhập"; đã đăng nhập hiện họ tên + "Đăng xuất".
+- KHÔNG chặn khách vãng lai ở bất kỳ trang nào (BR-BUS-01).
+- Test Vitest cho form và AuthContext.
+
+Gửi PLAN theo mẫu Scope/Plan/Risks và danh sách file. CHƯA VIẾT MÃ.
+```
+
+**Lượt 2 – Trả lời 4 câu hỏi và duyệt PLAN:**
+
+```text
+Trả lời 4 câu:
+1. Lưu token ở sessionStorage.
+2. Phương án (a): cập nhật ho_ten, cập nhật email nếu có nhập, ngay_dang_ky = thời điểm đăng ký.
+3. Đồng ý thêm pyjwt.
+4. Có: tạo docs/API.md cho 3 endpoint auth (request, response, mã lỗi, ví dụ), các task sau sẽ bổ sung tiếp. Log tôi sẽ yêu cầu riêng sau khi xong.
+Bổ sung:
+- Sửa quy ước mã lỗi trong backend/CLAUDE.md: 422 = sai định dạng dữ liệu (Pydantic), 400 = sai quy tắc nghiệp vụ.
+- Rủi ro chiếm hồ sơ khách vãng lai (không có OTP): chấp nhận trong phạm vi đồ án, ghi vào mục rủi ro của docs/API.md ở endpoint /register.
+Duyệt PLAN, thực hiện. Báo kết quả thật của uv run pytest -q, npm run lint, npm run typecheck, npm test, npm run build.
+```
+
+**Lượt 3 – Yêu cầu ghi log (bị bộ lọc an toàn dừng, không ghi được file):**
+
+```text
+Chỉ ghi vào vault/AI_USAGE_LOG/AI_USAGE_LOG_NHA.MD, không sửa dòng cũ: … (LOG-06 và mục P-LOG-06)
+```
 
 ## Mẫu cách điền (XÓA mục này trước khi nộp — đây chỉ là ví dụ định dạng, không phải lượt thật)
 

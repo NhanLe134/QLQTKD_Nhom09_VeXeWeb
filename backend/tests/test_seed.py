@@ -333,7 +333,12 @@ async def test_driver_name_is_stored_with_operator(session_factory):
 
 @pytest.mark.parametrize("password", [None, ""])
 def test_seed_requires_password_from_environment(password):
-    settings = Settings(_env_file=None, database_url="x", seed_user_password=password)
+    settings = Settings(
+        _env_file=None,
+        database_url="x",
+        jwt_secret="khoa-test-chi-dung-trong-pytest-du-32-ky-tu",
+        seed_user_password=password,
+    )
 
     with pytest.raises(ValueError, match="SEED_USER_PASSWORD"):
         require_seed_password(settings)

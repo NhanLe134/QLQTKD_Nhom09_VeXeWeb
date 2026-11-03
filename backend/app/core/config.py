@@ -16,6 +16,10 @@ class Settings(BaseSettings):
 
     database_url: str
     seat_hold_minutes: int = Field(default=5, gt=0)
+    # Khóa ký JWT: bắt buộc, không có giá trị mặc định; HS256 cần khóa đủ dài
+    jwt_secret: str = Field(min_length=32)
+    # Phiên đăng nhập hết hạn sau 60 phút (BR-BUS-05)
+    access_token_minutes: int = Field(default=60, gt=0)
     seed_user_password: str | None = None
     # NoDecode: đọc CORS_ORIGINS dạng "a,b" thay vì bắt buộc chuỗi JSON
     cors_origins: Annotated[list[str], NoDecode] = Field(

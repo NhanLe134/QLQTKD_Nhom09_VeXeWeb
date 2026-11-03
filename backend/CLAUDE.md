@@ -14,7 +14,7 @@
   - `backend/tests/` — pytest
 
 ## Quy ước
-- Endpoint có tiền tố `/api/v1`. Lỗi trả JSON `{"detail": "..."}`; mã lỗi: 400 dữ liệu sai, 401 chưa xác thực, 403 sai quyền, 404 không tìm thấy, 409 xung đột (ghế đã bị giữ), 410 giữ chỗ đã hết hạn.
+- Endpoint có tiền tố `/api/v1`. Lỗi trả JSON `{"detail": "..."}`; mã lỗi: 422 sai định dạng dữ liệu (Pydantic kiểm tra), 400 sai quy tắc nghiệp vụ, 401 chưa xác thực, 403 sai quyền, 404 không tìm thấy, 409 xung đột (ghế đã bị giữ), 410 giữ chỗ đã hết hạn.
 - Router chỉ nhận/trả dữ liệu; logic nghiệp vụ nằm trong `services/`.
 - Thông báo lỗi cho người dùng bằng tiếng Việt; tên biến, hàm bằng tiếng Anh (snake_case); tên bảng/cột theo snake_case tiếng Việt của RDM.
 - Thời gian lưu UTC trong CSDL; tiền tệ VND lưu kiểu NUMERIC(12,0).

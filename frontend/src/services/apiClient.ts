@@ -15,6 +15,19 @@ export class ApiError extends Error {
   }
 }
 
+let authToken: string | null = null
+let unauthorizedHandler: (() => void) | null = null
+
+/** Token gắn vào header Authorization của mọi request; null là khách vãng lai. */
+export function setAuthToken(token: string | null): void {
+  authToken = token
+}
+
+/** Gọi khi request có gửi token nhận 401 (token sai hoặc hết hạn). */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
+}
+
 function getBaseUrl(): string {
   const baseUrl = import.meta.env.VITE_API_URL
   if (!baseUrl) {
@@ -44,9 +57,14 @@ async function readDetail(response: Response): Promise<string> {
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const url = `${getBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`
-  const init: RequestInit = { method, headers: { Accept: 'application/json' } }
+  const sentToken = authToken
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (sentToken) {
+    headers.Authorization = `Bearer ${sentToken}`
+  }
+  const init: RequestInit = { method, headers }
   if (body !== undefined) {
-    init.headers = { ...init.headers, 'Content-Type': 'application/json' }
+    headers['Content-Type'] = 'application/json'
     init.body = JSON.stringify(body)
   }
 
@@ -57,6 +75,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(0, NETWORK_ERROR_MESSAGE)
   }
 
+  // Chỉ xử lý 401 của request có gửi token: đăng nhập sai (không gửi token) không phải phiên hết hạn.
+  // Bỏ qua nếu token đã đổi trong lúc chờ (người dùng vừa đăng nhập lại).
+  if (response.status === 401 && sentToken && sentToken === authToken) {
+    unauthorizedHandler?.()
+  }
   if (!response.ok) {
     throw new ApiError(response.status, await readDetail(response))
   }

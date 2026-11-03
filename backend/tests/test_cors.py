@@ -12,6 +12,7 @@ def client():
     settings = Settings(
         _env_file=None,
         database_url="postgresql+asyncpg://user:pass@db.test:5432/test",
+        jwt_secret="khoa-test-chi-dung-trong-pytest-du-32-ky-tu",
         cors_origins=[ALLOWED_ORIGIN],
     )
     transport = ASGITransport(app=create_app(settings))

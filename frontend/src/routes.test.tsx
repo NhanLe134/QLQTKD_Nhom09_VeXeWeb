@@ -2,11 +2,16 @@ import { render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import AuthProvider from './context/AuthProvider'
 import { routes } from './routes'
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] })
-  return render(<RouterProvider router={router} />)
+  return render(
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>,
+  )
 }
 
 beforeEach(() => {
@@ -34,13 +39,21 @@ describe('routes', () => {
   it.each([
     ['/tim-chuyen', 'Tìm chuyến'],
     ['/tra-cuu-ve', 'Tra cứu vé'],
-    ['/dang-nhap', 'Đăng nhập'],
   ])('%s hiện trang tạm "Đang xây dựng"', (path, title) => {
     renderAt(path)
 
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
     expect(screen.getByText('Đang xây dựng.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: title })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it.each([
+    ['/dang-nhap', 'Đăng nhập'],
+    ['/dang-ky', 'Đăng ký'],
+  ])('%s mở được khi chưa đăng nhập', (path, title) => {
+    renderAt(path)
+
+    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument()
   })
 
   it('đường dẫn lạ hiện trang 404', () => {

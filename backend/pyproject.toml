@@ -9,6 +9,7 @@ dependencies = [
     "asyncpg",
     "fastapi",
     "pydantic-settings",
+    "pyjwt>=2.15.1",
     "sqlalchemy[asyncio]",
     "uvicorn",
 ]

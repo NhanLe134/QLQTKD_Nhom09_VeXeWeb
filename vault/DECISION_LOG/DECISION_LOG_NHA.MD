@@ -213,3 +213,54 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 **Lý do:** tránh phức tạp khi tạo Pull Request; luồng đặt vé cần frontend và backend đi cùng nhau.
 **Hệ quả:** mô tả Pull Request phải ghi rõ gồm cả frontend và backend.
 **Người quyết định:** Nhã 
+### D-24: Lưu token đăng nhập ở sessionStorage
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: frontend cần giữ token JWT để gắn vào các request.
+- Các phương án đã cân nhắc: (1) localStorage; (2) sessionStorage; (3) chỉ giữ trong bộ nhớ; (4) cookie httpOnly.
+- Quyết định: sessionStorage.
+- Lý do: F5 vẫn giữ phiên nên không đứt luồng đặt vé dài (giữ ghế, chờ chuyển khoản); tự xóa khi đóng tab, hợp với hạn 60 phút; ít rủi ro hơn localStorage trên máy dùng chung. Cookie httpOnly an toàn nhất nhưng phải sửa backend (Set-Cookie, chống CSRF, CORS credentials), ngoài phạm vi task.
+- Hệ quả: mở tab mới phải đăng nhập lại; token vẫn đọc được nếu trang bị XSS (giảm thiểu bằng việc không chèn HTML thô).
+- Người quyết định: Nhã 
+
+### D-25: Gắn tài khoản mới vào hồ sơ khách vãng lai cũ theo phương án (a)
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: BR-BUS-08 cho khách vãng lai đăng ký bằng SĐT cũ để thấy vé cũ, nhưng vault chưa nói cách xử lý thông tin hồ sơ.
+- Các phương án đã cân nhắc: (a) cập nhật ho_ten, cập nhật email nếu có nhập, ngay_dang_ky = lúc đăng ký; (b) giữ nguyên hồ sơ cũ, chỉ gắn user_id.
+- Quyết định: phương án (a).
+- Lý do: thông tin khách nhập lúc đăng ký là mới và chính xác nhất; ngay_dang_ky phản ánh đúng thời điểm có tài khoản.
+- Hệ quả: hồ sơ cũ bị cập nhật họ tên; khach_hang_id giữ nguyên nên vé cũ vẫn gắn đúng.
+- Người quyết định: Nhã 
+
+### D-26: Dùng thư viện pyjwt (HS256)
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: backend cần tạo và kiểm tra JWT.
+- Các phương án đã cân nhắc: (1) pyjwt; (2) python-jose.
+- Quyết định: pyjwt, chỉ chấp nhận thuật toán HS256, bắt buộc có exp và sub.
+- Lý do: nhẹ, đủ cho HS256, được bảo trì tốt; python-jose ít được bảo trì.
+- Hệ quả: thêm 1 thư viện backend; chặn được token khai alg=none.
+- Người quyết định: Nhã 
+### D-27: Quy ước mã lỗi 422 và 400
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: backend/CLAUDE.md ghi "400 dữ liệu sai", nhưng FastAPI mặc định trả 422 khi dữ liệu sai định dạng.
+- Các phương án đã cân nhắc: (1) ép mọi lỗi dữ liệu về 400; (2) 422 cho sai định dạng, 400 cho sai quy tắc nghiệp vụ.
+- Quyết định: phương án 2; sửa backend/CLAUDE.md cho khớp.
+- Lý do: giữ hành vi mặc định của FastAPI, tách rõ lỗi định dạng và lỗi nghiệp vụ.
+- Hệ quả: detail của 422 là tiếng Anh nên frontend hiện thông báo chung; frontend phải kiểm tra định dạng trước khi gửi.
+- Người quyết định: Nhã
+### D-28: Chấp nhận rủi ro chiếm hồ sơ khách vãng lai do không có OTP
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: ai biết SĐT của khách vãng lai có thể đăng ký bằng số đó và xem vé cũ của họ, vì hệ thống không xác minh SĐT.
+- Các phương án đã cân nhắc: (1) xác minh SĐT bằng OTP; (2) chấp nhận rủi ro trong phạm vi đồ án.
+- Quyết định: phương án 2; ghi rủi ro vào docs/API.md (endpoint /register).
+- Lý do: OTP cần dịch vụ SMS bên ngoài, ngoài phạm vi và thời gian đồ án; đây là lỗ hổng của quy tắc BR-BUS-08, không phải lỗi mã.
+- Hệ quả: hướng phát triển: xác minh SĐT bằng OTP trước khi gắn hồ sơ.
+- Người quyết định: Nhã
+
+### D-29: Đăng ký xong frontend tự gọi /login
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: backend /register không trả token.
+- Các phương án đã cân nhắc: (1) bắt khách tự đăng nhập lại sau khi đăng ký; (2) /register trả token; (3) frontend tự gọi /login sau khi đăng ký thành công.
+- Quyết định: phương án 3.
+- Lý do: khách đỡ một bước; backend vẫn tách bạch đăng ký và đăng nhập.
+- Hệ quả: đăng ký thành công thì vào thẳng trang chủ ở trạng thái đã đăng nhập.
+- Người quyết định: Nhã 

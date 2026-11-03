@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError, get, post } from './apiClient'
+import { ApiError, get, post, setAuthToken, setUnauthorizedHandler } from './apiClient'
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -81,5 +81,60 @@ describe('post', () => {
       body: '{"a":1}',
       headers: { 'Content-Type': 'application/json' },
     })
+  })
+})
+
+describe('token đăng nhập', () => {
+  it('không gửi Authorization khi chưa đăng nhập', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, {}))
+
+    await get('/x')
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init?.headers).not.toHaveProperty('Authorization')
+  })
+
+  it('gắn Bearer token vào mọi request', async () => {
+    setAuthToken('abc.def.ghi')
+    fetchMock.mockImplementation(async () => jsonResponse(200, {}))
+
+    await get('/x')
+    await post('/y', { a: 1 })
+
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(init?.headers).toMatchObject({ Authorization: 'Bearer abc.def.ghi' })
+    }
+  })
+
+  it('gọi handler khi request có token nhận 401', async () => {
+    const onUnauthorized = vi.fn()
+    setUnauthorizedHandler(onUnauthorized)
+    setAuthToken('het-han')
+    fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn' }))
+
+    await expect(get('/x')).rejects.toMatchObject({ status: 401 })
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+  })
+
+  it('không gọi handler khi request không có token nhận 401 (đăng nhập sai)', async () => {
+    const onUnauthorized = vi.fn()
+    setUnauthorizedHandler(onUnauthorized)
+    fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Sai tên đăng nhập hoặc mật khẩu' }))
+
+    await expect(post('/login', {})).rejects.toMatchObject({ detail: 'Sai tên đăng nhập hoặc mật khẩu' })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  it('không gọi handler khi token đã đổi trong lúc chờ phản hồi', async () => {
+    const onUnauthorized = vi.fn()
+    setUnauthorizedHandler(onUnauthorized)
+    setAuthToken('token-cu')
+    fetchMock.mockImplementation(async () => {
+      setAuthToken('token-moi')
+      return jsonResponse(401, { detail: 'x' })
+    })
+
+    await expect(get('/x')).rejects.toMatchObject({ status: 401 })
+    expect(onUnauthorized).not.toHaveBeenCalled()
   })
 })
