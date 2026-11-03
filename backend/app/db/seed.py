@@ -6,7 +6,7 @@ giữ nguyên trạng thái).
 """
 
 import asyncio
-from datetime import UTC, date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -56,12 +56,18 @@ USER_KHACH = format_id(TAI_KHOAN_ID, 1)
 USER_NHA_XE = format_id(TAI_KHOAN_ID, 2)
 USER_TAI_XE = format_id(TAI_KHOAN_ID, 3)
 KHACH_HANG = format_id(KHACH_HANG_ID, 1)
+KHACH_VANG_LAI = format_id(KHACH_HANG_ID, 2)
 NHA_XE = format_id(NHA_XE_ID, 1)
 TAI_XE = format_id(TAI_XE_ID, 1)
-TUYEN_DA_NANG_QUY_NHON = format_id(TUYEN_XE_ID, 1)
-TUYEN_SAI_GON_DA_LAT = format_id(TUYEN_XE_ID, 2)
-LOAI_GIUONG_NAM_36 = format_id(LOAI_XE_ID, 1)
-LOAI_LIMOUSINE_24 = format_id(LOAI_XE_ID, 2)
+TUYEN_DA_NANG_HUE = format_id(TUYEN_XE_ID, 1)
+TUYEN_HUE_DA_NANG = format_id(TUYEN_XE_ID, 2)
+TUYEN_DA_NANG_HOI_AN = format_id(TUYEN_XE_ID, 3)
+TUYEN_HOI_AN_DA_NANG = format_id(TUYEN_XE_ID, 4)
+TUYEN_HOI_AN_HUE = format_id(TUYEN_XE_ID, 5)
+TUYEN_HUE_HOI_AN = format_id(TUYEN_XE_ID, 6)
+LOAI_XE_4_CHO = format_id(LOAI_XE_ID, 1)
+LOAI_XE_7_CHO = format_id(LOAI_XE_ID, 2)
+LOAI_XE_16_CHO = format_id(LOAI_XE_ID, 3)
 TEN_NHA_XE = "Nhà Xe Mẫu"
 
 TAI_KHOAN = [
@@ -92,6 +98,15 @@ KHACH_HANG_ROWS = [
         "ho_ten": "Khách Mẫu",
         "email": "khach@vexe.example",
         "so_dien_thoai": "0900000001",
+        "ngay_dang_ky": REGISTERED_AT,
+    },
+    # Khách vãng lai: không có tài khoản, nhận diện bằng số điện thoại
+    {
+        "khach_hang_id": KHACH_VANG_LAI,
+        "user_id": None,
+        "ho_ten": "Khách Vãng Lai Mẫu",
+        "email": None,
+        "so_dien_thoai": "0900000004",
         "ngay_dang_ky": REGISTERED_AT,
     },
 ]
@@ -129,98 +144,85 @@ CHI_TIET_TAI_XE = [
     },
 ]
 
+
+def route(
+    tuyen_xe_id: str, diem_di: str, diem_den: str, km: int, trung_gian: str | None
+) -> dict[str, Any]:
+    return {
+        "tuyen_xe_id": tuyen_xe_id,
+        "nha_xe_id": NHA_XE,
+        "ten_tuyen": f"{diem_di} - {diem_den}",
+        "diem_di": diem_di,
+        "diem_den": diem_den,
+        "quang_duong": f"{km} km",
+        "diem_trung_gian": trung_gian,
+    }
+
+
+# Điểm trung gian theo thứ tự trên tuyến, cách nhau bằng ";" (BR-BUS-24).
+# Quãng đường là số ước lượng cho dữ liệu mẫu.
 TUYEN_XE = [
-    {
-        "tuyen_xe_id": TUYEN_DA_NANG_QUY_NHON,
-        "nha_xe_id": NHA_XE,
-        "ten_tuyen": "Đà Nẵng - Quy Nhơn",
-        "diem_di": "Đà Nẵng",
-        "diem_den": "Quy Nhơn",
-        "quang_duong": "300 km",
-        "diem_trung_gian": "Tam Kỳ; Quảng Ngãi",
-    },
-    {
-        "tuyen_xe_id": TUYEN_SAI_GON_DA_LAT,
-        "nha_xe_id": NHA_XE,
-        "ten_tuyen": "Sài Gòn - Đà Lạt",
-        "diem_di": "Sài Gòn",
-        "diem_den": "Đà Lạt",
-        "quang_duong": "300 km",
-        "diem_trung_gian": "Bảo Lộc",
-    },
+    route(TUYEN_DA_NANG_HUE, "Đà Nẵng", "Huế", 100, "Lăng Cô"),
+    route(TUYEN_HUE_DA_NANG, "Huế", "Đà Nẵng", 100, "Lăng Cô"),
+    route(TUYEN_DA_NANG_HOI_AN, "Đà Nẵng", "Hội An", 30, None),
+    route(TUYEN_HOI_AN_DA_NANG, "Hội An", "Đà Nẵng", 30, None),
+    route(TUYEN_HOI_AN_HUE, "Hội An", "Huế", 130, "Đà Nẵng; Lăng Cô"),
+    route(TUYEN_HUE_HOI_AN, "Huế", "Hội An", 130, "Lăng Cô; Đà Nẵng"),
 ]
 
 LOAI_XE = [
     {
-        "loai_xe_id": LOAI_GIUONG_NAM_36,
+        "loai_xe_id": LOAI_XE_4_CHO,
         "ngay_cap_nhat_gia": date(2026, 11, 1),
-        "so_cho": 36,
-        "gia_ve": Decimal(250_000),
+        "so_cho": 4,
+        "gia_ve": Decimal(200_000),
     },
     {
-        "loai_xe_id": LOAI_LIMOUSINE_24,
+        "loai_xe_id": LOAI_XE_7_CHO,
         "ngay_cap_nhat_gia": date(2026, 11, 1),
-        "so_cho": 24,
-        "gia_ve": Decimal(320_000),
+        "so_cho": 7,
+        "gia_ve": Decimal(150_000),
+    },
+    {
+        "loai_xe_id": LOAI_XE_16_CHO,
+        "ngay_cap_nhat_gia": date(2026, 11, 1),
+        "so_cho": 16,
+        "gia_ve": Decimal(100_000),
     },
 ]
 
 CHI_TIET_LOAI_XE = [
     {
         "nha_xe_id": NHA_XE,
-        "loai_xe_id": LOAI_GIUONG_NAM_36,
-        "ten_loai_xe": "Giường nằm 36 chỗ",
+        "loai_xe_id": item["loai_xe_id"],
+        "ten_loai_xe": f"Xe {item['so_cho']} chỗ",
         "ten_nha_xe": TEN_NHA_XE,
-    },
-    {
-        "nha_xe_id": NHA_XE,
-        "loai_xe_id": LOAI_LIMOUSINE_24,
-        "ten_loai_xe": "Limousine 24 chỗ",
-        "ten_nha_xe": TEN_NHA_XE,
-    },
+    }
+    for item in LOAI_XE
 ]
 
-# Tầng của từng loại xe, theo quy ước mã ghế trong docs/data-model.md
-SEAT_FLOORS = {LOAI_GIUONG_NAM_36: ("A", "B"), LOAI_LIMOUSINE_24: ("A",)}
 SO_CHO = {item["loai_xe_id"]: item["so_cho"] for item in LOAI_XE}
 
-# Mỗi chuyến một xe: (số thứ tự, tuyến, loại xe, biển số, giờ đi, số giờ chạy).
+# Mỗi loại xe có 3 xe A, B, C; mỗi xe chạy một vòng đi - về trong bảng dưới nên
+# không xe nào có 2 chuyến chồng giờ. Loại xe sau chạy muộn hơn loại trước 1 giờ.
+# (xe, tuyến, ngày, giờ đi theo giờ Việt Nam, số phút chạy)
 # Ngày cố định: dùng now() thì chạy seed vào hôm khác sẽ sinh thêm chuyến.
-# Chuyến 06:00 giờ Việt Nam là 23:00 UTC hôm trước, ngay_khoi_hanh vẫn là ngày Việt Nam.
-CHUYEN_XE_MAU = [
-    (
-        1,
-        TUYEN_DA_NANG_QUY_NHON,
-        LOAI_GIUONG_NAM_36,
-        "43B-000.01",
-        datetime(2026, 12, 15, 6, 0, tzinfo=VIETNAM_TZ),
-        6,
-    ),
-    (
-        2,
-        TUYEN_DA_NANG_QUY_NHON,
-        LOAI_LIMOUSINE_24,
-        "43B-000.02",
-        datetime(2026, 12, 15, 20, 0, tzinfo=VIETNAM_TZ),
-        6,
-    ),
-    (
-        3,
-        TUYEN_SAI_GON_DA_LAT,
-        LOAI_GIUONG_NAM_36,
-        "51B-000.01",
-        datetime(2026, 12, 16, 8, 0, tzinfo=VIETNAM_TZ),
-        7,
-    ),
-    (
-        4,
-        TUYEN_SAI_GON_DA_LAT,
-        LOAI_LIMOUSINE_24,
-        "51B-000.02",
-        datetime(2026, 12, 16, 22, 0, tzinfo=VIETNAM_TZ),
-        7,
-    ),
+# Đà Nẵng → Hội An chỉ chạy ngày 16/12 để demo gợi ý chuyến ±1 ngày.
+VONG_CHAY = [
+    ("A", TUYEN_DA_NANG_HUE, date(2026, 12, 15), time(6, 0), 150),
+    ("A", TUYEN_HUE_DA_NANG, date(2026, 12, 15), time(13, 0), 150),
+    ("B", TUYEN_HOI_AN_HUE, date(2026, 12, 15), time(7, 0), 210),
+    ("B", TUYEN_HUE_HOI_AN, date(2026, 12, 15), time(14, 0), 210),
+    ("C", TUYEN_HOI_AN_DA_NANG, date(2026, 12, 15), time(8, 0), 60),
+    ("C", TUYEN_DA_NANG_HOI_AN, date(2026, 12, 16), time(8, 0), 60),
 ]
+XE_TRONG_LOAI = ("A", "B", "C")
+# Chỉ có một tài xế mẫu: chạy 2 chuyến của xe A loại 4 chỗ, chuyến khác chưa phân công
+XE_CO_TAI_XE = (LOAI_XE_4_CHO, "A")
+
+
+def xe_number(loai_index: int, xe: str) -> int:
+    return loai_index * len(XE_TRONG_LOAI) + XE_TRONG_LOAI.index(xe) + 1
 
 
 def require_seed_password(settings: Settings) -> str:
@@ -229,53 +231,60 @@ def require_seed_password(settings: Settings) -> str:
     return settings.seed_user_password
 
 
-def build_seat_codes(so_cho: int, floors: tuple[str, ...]) -> list[str]:
-    seats_per_floor = so_cho // len(floors)
-    return [
-        f"{floor}{number:02d}"
-        for floor in floors
-        for number in range(1, seats_per_floor + 1)
-    ]
+def build_seat_codes(so_cho: int) -> list[str]:
+    # Xe 1 tầng: A01…Ann, theo quy ước mã ghế trong docs/data-model.md
+    return [f"A{number:02d}" for number in range(1, so_cho + 1)]
 
 
 def build_xe_rows() -> list[dict[str, Any]]:
     return [
         {
-            "xe_id": format_id(XE_ID, number),
+            "xe_id": format_id(XE_ID, xe_number(loai_index, xe)),
             "nha_xe_id": NHA_XE,
-            "loai_xe_id": loai_xe_id,
+            "loai_xe_id": loai["loai_xe_id"],
             "trang_thai": TrangThaiXe.HOAT_DONG,
-            "so_ghe": str(SO_CHO[loai_xe_id]),
-            "bien_so_xe": bien_so_xe,
+            "so_ghe": str(loai["so_cho"]),
+            "bien_so_xe": f"43B-{loai_index + 1:03d}.{XE_TRONG_LOAI.index(xe) + 1:02d}",
         }
-        for number, _, loai_xe_id, bien_so_xe, _, _ in CHUYEN_XE_MAU
+        for loai_index, loai in enumerate(LOAI_XE)
+        for xe in XE_TRONG_LOAI
     ]
 
 
 def build_chuyen_xe_rows() -> list[dict[str, Any]]:
-    return [
-        {
-            "chuyen_xe_id": format_id(CHUYEN_XE_ID, number),
-            "xe_id": format_id(XE_ID, number),
-            "tuyen_xe_id": tuyen_xe_id,
-            "tai_xe_id": TAI_XE,
-            "ngay_khoi_hanh": departure.date(),
-            "gio_di": departure.astimezone(UTC),
-            "gio_den": (departure + timedelta(hours=hours)).astimezone(UTC),
-            "trang_thai": TrangThaiChuyenXe.MO_BAN,
-        }
-        for number, tuyen_xe_id, _, _, departure, hours in CHUYEN_XE_MAU
-    ]
+    trips = []
+    for loai_index, loai in enumerate(LOAI_XE):
+        for xe, tuyen_xe_id, ngay, gio, minutes in VONG_CHAY:
+            departure = datetime.combine(ngay, gio, VIETNAM_TZ) + timedelta(
+                hours=loai_index
+            )
+            has_driver = (loai["loai_xe_id"], xe) == XE_CO_TAI_XE
+            trips.append(
+                {
+                    "chuyen_xe_id": format_id(CHUYEN_XE_ID, len(trips) + 1),
+                    "xe_id": format_id(XE_ID, xe_number(loai_index, xe)),
+                    "tuyen_xe_id": tuyen_xe_id,
+                    "tai_xe_id": TAI_XE if has_driver else None,
+                    # Chuyến 06:00 giờ Việt Nam là 23:00 UTC hôm trước,
+                    # ngay_khoi_hanh vẫn là ngày Việt Nam
+                    "ngay_khoi_hanh": departure.date(),
+                    "gio_di": departure.astimezone(UTC),
+                    "gio_den": (departure + timedelta(minutes=minutes)).astimezone(UTC),
+                    "trang_thai": TrangThaiChuyenXe.MO_BAN,
+                }
+            )
+    return trips
 
 
 def build_ghe_rows() -> list[dict[str, Any]]:
+    loai_by_xe = {row["xe_id"]: row["loai_xe_id"] for row in build_xe_rows()}
     seats = []
-    for number, _, loai_xe_id, _, _, _ in CHUYEN_XE_MAU:
-        for so_ghe in build_seat_codes(SO_CHO[loai_xe_id], SEAT_FLOORS[loai_xe_id]):
+    for trip in build_chuyen_xe_rows():
+        for so_ghe in build_seat_codes(SO_CHO[loai_by_xe[trip["xe_id"]]]):
             seats.append(
                 {
                     "ghe_id": format_id(GHE_ID, len(seats) + 1),
-                    "chuyen_xe_id": format_id(CHUYEN_XE_ID, number),
+                    "chuyen_xe_id": trip["chuyen_xe_id"],
                     "so_ghe": so_ghe,
                     "trang_thai": TrangThaiGhe.TRONG,
                 }

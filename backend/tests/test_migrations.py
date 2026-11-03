@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.db import ids
-from app.db.seed import KHACH_HANG, seed_database
+from app.db.seed import KHACH_HANG, KHACH_VANG_LAI, seed_database
 from app.models import (
     ChuyenXe,
     GheNgoi,
@@ -81,6 +81,74 @@ def test_models_match_migration(migrated_database_url, alembic_config):
     command.check(alembic_config)
 
 
+async def _read_guest_schema(url: URL) -> dict:
+    def read(connection):
+        inspector = inspect(connection)
+        user_id = next(
+            column
+            for column in inspector.get_columns("khach_hang")
+            if column["name"] == "user_id"
+        )
+        return {
+            "user_id_nullable": user_id["nullable"],
+            "khach_hang_unique": {
+                item["name"] for item in inspector.get_unique_constraints("khach_hang")
+            },
+            "ve_columns": {column["name"] for column in inspector.get_columns("ve")},
+        }
+
+    engine = create_async_engine(url, poolclass=NullPool)
+    async with engine.connect() as connection:
+        schema = await connection.run_sync(read)
+    await engine.dispose()
+    return schema
+
+
+def guest_schema(url: URL) -> dict:
+    return asyncio.run(_read_guest_schema(url))
+
+
+async def _seed(url: URL) -> None:
+    engine = create_async_engine(url, poolclass=NullPool)
+    async with AsyncSession(engine) as session, session.begin():
+        await seed_database(session, "mat-khau-test")
+    await engine.dispose()
+
+
+def test_0002_upgrade_adds_guest_support(migrated_database_url):
+    assert guest_schema(migrated_database_url) == {
+        "user_id_nullable": True,
+        "khach_hang_unique": {"uq_khach_hang_user_id", "uq_khach_hang_so_dien_thoai"},
+        "ve_columns": set(RDM_COLUMNS["ve"]),
+    }
+
+
+def test_0002_downgrade_restores_0001_and_upgrades_again(
+    migrated_database_url, alembic_config
+):
+    command.downgrade(alembic_config, "0001")
+
+    schema = guest_schema(migrated_database_url)
+    assert schema["user_id_nullable"] is False
+    assert schema["khach_hang_unique"] == {"uq_khach_hang_user_id"}
+    assert "ma_truy_cap_hash" not in schema["ve_columns"]
+
+    command.upgrade(alembic_config, "head")
+    assert guest_schema(migrated_database_url)["user_id_nullable"] is True
+
+
+def test_0002_downgrade_stops_when_guest_customers_exist(
+    migrated_database_url, alembic_config
+):
+    asyncio.run(_seed(migrated_database_url))
+
+    with pytest.raises(RuntimeError, match="khách vãng lai"):
+        command.downgrade(alembic_config, "0001")
+
+    # Không xóa dữ liệu, schema vẫn ở 0002
+    assert guest_schema(migrated_database_url)["user_id_nullable"] is True
+
+
 @pytest.fixture
 async def seeded_factory(session_factory):
     async with session_factory() as session, session.begin():
@@ -101,7 +169,7 @@ def build_ve(seat: GheNgoi, ve_id: str, **fields) -> Ve:
         ngay_dat=NOW,
         gia_ve=Decimal(250_000),
         ma_don="DH00000001",
-        **fields,
+        **{"ma_truy_cap_hash": "0" * 64, **fields},
     )
 
 
@@ -188,6 +256,43 @@ async def test_account_has_only_one_customer_profile(seeded_factory):
             await session.flush()
 
 
+async def test_guest_customer_has_no_account(seeded_factory):
+    async with seeded_factory() as session:
+        guest = await session.get(KhachHang, KHACH_VANG_LAI)
+        session.add(
+            KhachHang(
+                khach_hang_id="KH99999999",
+                ho_ten="Vãng Lai Khác",
+                so_dien_thoai="0900000009",
+                ngay_dang_ky=NOW,
+            )
+        )
+
+        await session.flush()
+
+    assert guest.user_id is None
+
+
+async def test_customer_phone_is_unique(seeded_factory):
+    async with seeded_factory() as session:
+        phone = await session.scalar(
+            select(KhachHang.so_dien_thoai).where(
+                KhachHang.khach_hang_id == KHACH_VANG_LAI
+            )
+        )
+        session.add(
+            KhachHang(
+                khach_hang_id="KH99999999",
+                ho_ten="Trùng Số",
+                so_dien_thoai=phone,
+                ngay_dang_ky=NOW,
+            )
+        )
+
+        with pytest.raises(IntegrityError, match="uq_khach_hang_so_dien_thoai"):
+            await session.flush()
+
+
 async def test_license_plate_is_unique(seeded_factory):
     async with seeded_factory() as session:
         xe = await session.scalar(select(Xe).limit(1))
@@ -198,7 +303,7 @@ async def test_license_plate_is_unique(seeded_factory):
             )
 
 
-async def test_ticket_requires_logged_in_customer(seeded_factory):
+async def test_ticket_requires_customer_profile(seeded_factory):
     async with seeded_factory() as session:
         seat = await first_seat(session)
         ve = build_ve(seat, "VE99999999")
@@ -206,6 +311,15 @@ async def test_ticket_requires_logged_in_customer(seeded_factory):
         session.add(ve)
 
         with pytest.raises(IntegrityError, match="khach_hang_id"):
+            await session.flush()
+
+
+async def test_ticket_requires_access_code_hash(seeded_factory):
+    async with seeded_factory() as session:
+        seat = await first_seat(session)
+        session.add(build_ve(seat, "VE99999999", ma_truy_cap_hash=None))
+
+        with pytest.raises(IntegrityError, match="ma_truy_cap_hash"):
             await session.flush()
 
 

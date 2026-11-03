@@ -89,3 +89,64 @@
 - **Lý do:** Mỗi vé luôn gắn với một khách hàng có tài khoản.
 - **Hệ quả:** Đặt vé phải đi qua đăng nhập. CSDL từ chối vé không có `khach_hang_id`.
 - **Người quyết định:** Nhã (AI đề xuất phương án)
+- **Trạng thái:** ĐÃ ĐƯỢC THAY THẾ bởi D-10 (03/11/2026, task #3): khách vãng lai được đặt vé. Nội dung trên giữ nguyên để lưu lịch sử.
+
+### D-10: Cho phép khách vãng lai, nhận diện khách bằng số điện thoại
+
+- **Ngày · Commit:** 03/11/2026 Task #3 – feat: ho tro khach vang lai va du lieu tuyen Da Nang Hoi An Hue xe 4 7 16 cho
+- **Bối cảnh:** Quyết định nghiệp vụ ngày 03/11 (BR-BUS-01, 07, 08) cho khách đặt vé không cần tài khoản, khác với D-09. RDM bắt buộc `KhachHang.UserID`. Migration `0001` đã commit và push.
+- **Các phương án đã cân nhắc:** (1) Giữ D-09, bắt buộc đăng nhập; (2) cho `khach_hang.user_id` NULL và đặt `so_dien_thoai` UNIQUE, qua migration mới `0002`; (3) tạo tài khoản ẩn cho mỗi khách vãng lai.
+- **Quyết định:** Chọn phương án 2, làm bằng migration `0002`, không sửa `0001`. `ve.khach_hang_id` vẫn NOT NULL: khách vãng lai cũng có hồ sơ `khach_hang`. **Quyết định này thay cho D-09.**
+- **Lý do:** Đúng quy tắc nghiệp vụ mới, thay đổi schema ít nhất. Khách đặt lại bằng cùng số điện thoại thì dùng lại hồ sơ cũ; sau này đăng ký bằng số đó thì tài khoản được gắn vào hồ sơ cũ. Không sửa migration đã push để các máy khác không bị lệch schema.
+- **Hệ quả:** Service đặt vé và đăng ký (C5, C9) phải tìm hồ sơ theo số điện thoại trước khi tạo mới. Thành viên đã chạy `0001` phải `upgrade head` và dọn seed cũ. Ghi trong `docs/data-model.md` mục 7.
+- **Người quyết định:** Nhã (AI đề xuất phương án)
+
+### D-11: Mã truy cập đơn lưu dạng hash SHA-256 ở ve.ma_truy_cap_hash, NOT NULL
+
+- **Ngày · Commit:** 03/11/2026 · Task #3 – feat: ho tro khach vang lai va du lieu tuyen Da Nang Hoi An Hue xe 4 7 16 cho"
+- **Bối cảnh:** BR-BUS-19: mã đơn dễ đoán, nên khi giữ ghế cần cấp cho đơn một mã truy cập ngẫu nhiên. RDM không có bảng đơn.
+- **Các phương án đã cân nhắc:** Nơi lưu: (1) `ve`, cùng giá trị cho mọi vé cùng `ma_don`; (2) `thanh_toan`; (3) `ghe_ngoi`; (4) bảng đơn mới. Cách lưu: mã gốc, Argon2 hoặc SHA-256. Ràng buộc: NULL hay NOT NULL.
+- **Quyết định:** Thêm `ve.ma_truy_cap_hash VARCHAR(64) NOT NULL`, lưu SHA-256 (hex) của mã; không lưu mã gốc; không tạo bảng đơn mới.
+- **Lý do:** Đơn trong RDM chính là nhóm vé cùng `ma_don`, đã có index. `thanh_toan` chỉ có ở bước trả tiền, còn mã cần ngay từ lúc giữ ghế; ghế được dùng lại sau khi vé hủy; bảng mới là thay đổi lớn ngoài RDM. Mã ngẫu nhiên đủ dài nên băm nhanh SHA-256 là đủ an toàn, không cần Argon2. NOT NULL vì đơn nào cũng có mã, kể cả đơn của khách đã đăng nhập.
+- **Hệ quả:** CSDL không chặn được việc các vé cùng đơn có hash khác nhau; service giữ ghế phải tạo mọi vé của đơn trong một transaction. Mã gốc chỉ trả cho khách một lần, không ghi log. Migration chỉ chạy được khi bảng `ve` còn trống.
+- **Người quyết định:** Nhã (AI đề xuất phương án)
+
+### D-12: Downgrade 0002 dừng và báo lỗi khi còn khách vãng lai
+
+- **Ngày · Commit:** 03/11/2026 · Task #3 – feat: ho tro khach vang lai va du lieu tuyen Da Nang Hoi An Hue xe 4 7 16 cho"
+- **Bối cảnh:** Downgrade phải khôi phục `khach_hang.user_id NOT NULL`, việc này không làm được khi đang có khách vãng lai.
+- **Các phương án đã cân nhắc:** (1) Tự xóa khách vãng lai rồi downgrade; (2) dừng và báo lỗi rõ ràng.
+- **Quyết định:** Chọn phương án 2; test cả trường hợp không có và có khách vãng lai.
+- **Lý do:** Không tự xóa dữ liệu; khách vãng lai có thể đã có vé, mà khóa ngoại là RESTRICT.
+- **Hệ quả:** Muốn downgrade trên CSDL có khách vãng lai thì phải xử lý dữ liệu đó bằng tay trước.
+- **Người quyết định:** Nhã (AI đề xuất phương án)
+
+### D-13: Dữ liệu mẫu chỉ có một tài xế; Đà Nẵng → Hội An chỉ chạy ngày 16/12
+
+- **Ngày · Commit:** 03/11/2026 · Task #3 – feat: ho tro khach vang lai va du lieu tuyen Da Nang Hoi An Hue xe 4 7 16 cho"
+- **Bối cảnh:** Yêu cầu giữ 3 tài khoản mẫu, nhưng mỗi tài xế cần một tài khoản. Mỗi tuyến có 3 chuyến (xe 4, 7, 16 chỗ), và không xe hay tài xế nào được chạy 2 chuyến chồng giờ.
+- **Các phương án đã cân nhắc:** (1) Thêm tài khoản tài xế để chuyến nào cũng có tài xế; (2) giữ 1 tài xế, các chuyến khác để `tai_xe_id` NULL (cột này đã cho phép NULL).
+- **Quyết định:** Chọn phương án 2. TX01 chạy 2 chuyến của Xe A loại 4 chỗ (TU01 06:00, TU02 13:00 ngày 15/12). Mỗi xe chạy một vòng đi – về. Tuyến Đà Nẵng → Hội An chỉ có chuyến ngày 16/12 để demo gợi ý ±1 ngày.
+- **Lý do:** Giữ đúng 3 tài khoản mẫu; phần tài xế ngoài phạm vi luồng đặt vé.
+- **Hệ quả:** 16/18 chuyến chưa phân công tài xế. Có test kiểm tra không chồng giờ theo xe và theo tài xế.
+- **Người quyết định:** Nhã (AI đề xuất phương án)
+
+### D-14: Dọn CSDL dev bằng downgrade base → upgrade head → seed
+
+- **Ngày · Commit:** 03/11/2026 · Task #3 – feat: ho tro khach vang lai va du lieu tuyen Da Nang Hoi An Hue xe 4 7 16 cho"
+- **Bối cảnh:** Seed mới dùng lại các mã cố định của seed cũ (ví dụ `LX00000001`), mà seed dùng `on_conflict_do_nothing`. Nếu không dọn thì CSDL dev vẫn giữ loại xe 36/24 chỗ cũ. CSDL dev chỉ có dữ liệu mẫu (0 vé, 0 thanh toán).
+- **Các phương án đã cân nhắc:** (1) `alembic downgrade base` → `upgrade head` → seed; (2) viết script xóa dữ liệu cũ theo mã; (3) `docker compose down -v`.
+- **Quyết định:** Chọn phương án 1. Đã chạy ngày 03/11/2026: seed 2 lần cho cùng số dòng.
+- **Lý do:** Đơn giản, dùng chính migration đã có; không xóa volume Docker.
+- **Hệ quả:** Thành viên khác cần chạy đúng 3 lệnh này trên máy mình sau khi pull.
+- **Người quyết định:** Nhã (AI đề xuất phương án)
+
+### D-15: Dữ liệu mẫu tuyến Đà Nẵng / Hội An / Huế, xe 4/7/16 chỗ, giá theo loại xe
+
+- **Ngày · Commit:** 03/11/2026 · Task #3 – feat: ho tro khach vang lai va du lieu tuyen Da Nang Hoi An Hue xe 4 7 16 cho"
+- **Bối cảnh:** BR-BUS-09 chốt phạm vi tuyến giữa Đà Nẵng, Hội An, Huế và loại xe 4, 7, 16 chỗ. Seed cũ (Đà Nẵng – Quy Nhơn, Sài Gòn – Đà Lạt; giường nằm 36, limousine 24) không còn đúng phạm vi.
+- **Các phương án đã cân nhắc:** (1) Giữ seed cũ; (2) thay bằng dữ liệu đúng phạm vi mới, giá theo loại xe như RDM; (3) đặt giá riêng theo tuyến (phải sửa RDM).
+- **Quyết định:** Chọn phương án 2. 6 tuyến 2 chiều: Đà Nẵng ⇄ Huế (trung gian Lăng Cô), Đà Nẵng ⇄ Hội An (không có trung gian), Hội An ⇄ Huế (trung gian Đà Nẵng; Lăng Cô, ghi theo thứ tự trên tuyến). 3 loại xe: 4 chỗ 200.000đ, 7 chỗ 150.000đ, 16 chỗ 100.000đ mỗi ghế. Ghế 1 tầng A01…An.
+- **Lý do:** Đúng phạm vi BR-BUS-09, 24; giữ giá theo loại xe theo RDM (D-07), không cần đổi schema.
+- **Hệ quả:** Seed có 6 tuyến, 3 loại xe, 9 xe, 18 chuyến, 162 ghế. Cùng loại xe có cùng giá trên tuyến ngắn (Đà Nẵng – Hội An) và tuyến dài (Hội An – Huế), đã ghi ở mục "Vấn đề RDM cần nhóm xem lại" trong `docs/data-model.md`. Quy ước mã ghế 2 tầng A/B cũ bị bỏ.
+- **Người quyết định:** Nhã (AI đề xuất phương án)

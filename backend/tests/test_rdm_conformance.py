@@ -13,6 +13,7 @@ V10 = "VARCHAR(10)"
 V12 = "VARCHAR(12)"
 V20 = "VARCHAR(20)"
 V50 = "VARCHAR(50)"
+V64 = "VARCHAR(64)"
 V100 = "VARCHAR(100)"
 V150 = "VARCHAR(150)"
 V200 = "VARCHAR(200)"
@@ -130,6 +131,7 @@ RDM_COLUMNS = {
         "diem_tra": V150,
         "ho_ten": V200,
         "ma_don": V10,
+        "ma_truy_cap_hash": V64,  # ngoài RDM, migration 0002, đã được nhóm xác nhận
         "trang_thai_ve": V20,
     },
     "thanh_toan": {
@@ -219,6 +221,7 @@ RDM_FOREIGN_KEYS = {
 }
 
 NULLABLE_COLUMNS = {
+    ("khach_hang", "user_id"),  # khách vãng lai, migration 0002, đã được nhóm xác nhận
     ("khach_hang", "email"),
     ("khach_hang", "anh_dai_dien_url"),
     ("nha_xe", "email"),

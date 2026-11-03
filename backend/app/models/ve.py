@@ -63,6 +63,9 @@ class Ve(Base):
     ho_ten: Mapped[str | None] = mapped_column(String(200))
     # Các vé cùng một lần đặt dùng chung ma_don
     ma_don: Mapped[str] = mapped_column(String(10), index=True)
+    # SHA-256 (hex) của mã truy cập đơn, cùng giá trị cho mọi vé cùng ma_don;
+    # không lưu mã gốc (migration 0002, đã được nhóm xác nhận)
+    ma_truy_cap_hash: Mapped[str] = mapped_column(String(64))
     trang_thai_ve: Mapped[TrangThaiVe] = mapped_column(
         enum_type(TrangThaiVe, "trang_thai_ve"), default=TrangThaiVe.GIU_CHO
     )

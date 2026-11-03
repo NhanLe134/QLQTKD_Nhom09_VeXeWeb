@@ -2,7 +2,7 @@
 
 Nguồn chuẩn là RDM trong [RDM_TheoMauNhom.drawio](RDM_TheoMauNhom.drawio): 15 bảng, 26 quan hệ khóa ngoại. Tài liệu này ghi cách RDM được chuyển sang PostgreSQL, gồm các phần RDM không quy định.
 
-Schema thật nằm ở `backend/migrations/versions/0001_initial_schema.py`. Test `backend/tests/test_rdm_conformance.py` so sánh schema sau migration với RDM.
+Schema thật nằm ở `backend/migrations/versions/0001_initial_schema.py` và `0002_khach_vang_lai.py`. Test `backend/tests/test_rdm_conformance.py` so sánh schema sau migration với RDM.
 
 **Mọi thay đổi schema phải được duyệt trước khi làm.**
 
@@ -35,7 +35,7 @@ Schema thật nằm ở `backend/migrations/versions/0001_initial_schema.py`. Te
 | RDM | Kiểu RDM | Khóa | CSDL | Kiểu CSDL | NULL |
 |---|---|---|---|---|---|
 | KhachHangID | varchar(10) | PK | `khach_hang_id` | VARCHAR(10) |  |
-| UserID | varchar(10) | FK | `user_id` | VARCHAR(10) |  |
+| UserID | varchar(10) | FK | `user_id` | VARCHAR(10) | có (khách vãng lai, mục 7) |
 | HoTen | nvarchar(100) |  | `ho_ten` | VARCHAR(100) |  |
 | Email | varchar(100) |  | `email` | VARCHAR(100) | có |
 | SoDienThoai | varchar(10) |  | `so_dien_thoai` | VARCHAR(10) |  |
@@ -162,6 +162,7 @@ Schema thật nằm ở `backend/migrations/versions/0001_initial_schema.py`. Te
 | DiemTra | nvarchar(150) |  | `diem_tra` | VARCHAR(150) | có |
 | Hoten | nvarchar(200) |  | `ho_ten` | VARCHAR(200) | có |
 | MaDon | varchar(10) |  | `ma_don` | VARCHAR(10) |  |
+| *(không có)* | | | `ma_truy_cap_hash` | VARCHAR(64) |  |
 | TrangThaiVe | nvarchar(20) |  | `trang_thai_ve` | VARCHAR(20) |  |
 
 ### ThanhToan → `thanh_toan`
@@ -252,12 +253,13 @@ Ký hiệu: PK là khóa chính, FK là khóa ngoại. Cột "NULL" ghi "có" kh
 | Bảng | Ràng buộc | Mục đích |
 |---|---|---|
 | `tai_khoan` | UNIQUE `ten_dang_nhap` | Không trùng tên đăng nhập |
-| `khach_hang`, `nha_xe`, `tai_xe` | UNIQUE `user_id` | Mỗi tài khoản có một hồ sơ |
+| `khach_hang`, `nha_xe`, `tai_xe` | UNIQUE `user_id` | Mỗi tài khoản có một hồ sơ (nhiều khách vãng lai `user_id` NULL vẫn hợp lệ) |
+| `khach_hang` | UNIQUE `so_dien_thoai` | Nhận diện khách bằng số điện thoại (mục 7) |
 | `xe` | UNIQUE `bien_so_xe` | Không trùng biển số |
 | `ghe_ngoi` | UNIQUE (`chuyen_xe_id`, `so_ghe`) | Không trùng ghế trong một chuyến |
 | `ghe_ngoi` | CHECK `(trang_thai = 'GIU_CHO') = (han_giu_cho IS NOT NULL)` | Chỉ ghế đang giữ mới có hạn giữ |
 | `ve` | UNIQUE `ghe_id` WHERE `trang_thai_ve <> 'DA_HUY'` | Mỗi ghế có tối đa một vé chưa hủy |
-| `ve` | `khach_hang_id` NOT NULL | Bắt buộc đăng nhập để đặt vé |
+| `ve` | `khach_hang_id` NOT NULL | Mỗi vé gắn một hồ sơ khách hàng, kể cả khách vãng lai |
 | `loai_xe`, `ve`, `thanh_toan`, `nop_tien_mat`, `yeu_cau_huy_doi` | CHECK tiền không âm | Chặn số tiền sai |
 | Mọi khóa ngoại | `ON DELETE RESTRICT` | Giữ lịch sử |
 
@@ -273,29 +275,44 @@ Các thay đổi sau ở `thanh_toan` **đã được nhóm xác nhận ngày 03
 
 Đi kèm trong migration: CHECK `ve_id IS NOT NULL OR ma_don IS NOT NULL`, để mỗi thanh toán luôn gắn với một vé hoặc một đơn.
 
-## 7. Quy ước thời gian
+## 7. Thay đổi của migration `0002` (khách vãng lai)
+
+Các thay đổi sau **đã được nhóm xác nhận ngày 03/11/2026** và nằm trong migration `0002`. Lý do: khách đặt vé không cần tài khoản (BR-BUS-01) và được nhận diện bằng số điện thoại (BR-BUS-07, 08).
+
+1. **`khach_hang.user_id` cho phép NULL.** `user_id` NULL là khách vãng lai. Khi khách này đăng ký bằng đúng số điện thoại, tài khoản mới được gắn vào hồ sơ cũ.
+2. **`khach_hang.so_dien_thoai` là UNIQUE.** Khách vãng lai đặt lại bằng cùng số điện thoại thì dùng lại hồ sơ cũ, không tạo hồ sơ mới.
+3. **Thêm `ve.ma_truy_cap_hash VARCHAR(64) NOT NULL`** (BR-BUS-19). Vì mã đơn dễ đoán, khi giữ ghế hệ thống cấp cho đơn một mã truy cập ngẫu nhiên. Chỉ người có mã này, hoặc tài khoản sở hữu đơn, mới thao tác tiếp được trên đơn.
+   - CSDL chỉ lưu SHA-256 (hex, 64 ký tự) của mã, không lưu mã gốc. Mã gốc chỉ trả cho khách một lần và không ghi vào log.
+   - Dùng SHA-256 thay vì Argon2 vì mã là chuỗi ngẫu nhiên đủ dài, không đoán dò được như mật khẩu. Băm nhanh giúp kiểm tra mỗi request không tốn thời gian. Khi so sánh dùng `hmac.compare_digest`.
+   - Đặt ở `ve` vì RDM không có bảng đơn: đơn là nhóm vé cùng `ma_don`, và `ve.ma_don` đã có index. Không đặt ở `thanh_toan` vì dòng thanh toán chỉ có ở bước trả tiền, còn mã phải có ngay từ lúc giữ ghế. Mọi vé cùng `ma_don` lưu **cùng một giá trị**.
+
+Downgrade `0002` dừng và báo lỗi khi vẫn còn khách vãng lai (`user_id` NULL), không tự xóa dữ liệu.
+
+## 8. Quy ước thời gian
 
 - Cột `TIMESTAMPTZ` lưu UTC.
 - `chuyen_xe.ngay_khoi_hanh` lưu **ngày theo giờ Việt Nam**. Ví dụ chuyến 06:00 ngày 15/12 giờ Việt Nam có `gio_di` là 23:00 UTC ngày 14/12, còn `ngay_khoi_hanh` vẫn là 15/12.
 
-## 8. Quy ước mã ghế
+## 9. Quy ước mã ghế
 
-CSDL không lưu hàng, cột, tầng của ghế; frontend suy ra tầng từ `ghe_ngoi.so_ghe`.
+Mọi loại xe hiện có đều 1 tầng. Mã ghế là `A` + số thứ tự 2 chữ số, từ `A01` đến số chỗ của xe. Mỗi chuyến có số ghế bằng `loai_xe.so_cho`. CSDL không lưu hàng, cột của ghế.
 
-| Loại xe | `so_cho` | Tầng dưới | Tầng trên |
+| Loại xe | `so_cho` | Giá mỗi ghế | Mã ghế |
 |---|---|---|---|
-| Giường nằm | 36 | A01–A18 | B01–B18 |
-| Limousine | 24 | A01–A24 | Không có |
+| Xe 4 chỗ | 4 | 200.000đ | A01–A04 |
+| Xe 7 chỗ | 7 | 150.000đ | A01–A07 |
+| Xe 16 chỗ | 16 | 100.000đ | A01–A16 |
 
-## 9. Rủi ro
+## 10. Rủi ro
 
-- **Giá theo loại xe (đã chấp nhận theo RDM):** giá nằm ở `loai_xe.gia_ve`, nên cùng loại xe có cùng giá trên mọi tuyến. Xem thêm mục 10.
+- **Giá theo loại xe (đã chấp nhận theo RDM):** giá nằm ở `loai_xe.gia_ve`, nên cùng loại xe có cùng giá trên mọi tuyến. Xem thêm mục 11.
 - **Thiếu trạng thái trung gian:** hai cột của `ve` không phân biệt "đang giữ ghế" với "đã nhập thông tin, chờ chuyển khoản". Vé vẫn là GIU_CHO trong thời gian chờ, nên ghế hết hạn theo `SEAT_HOLD_MINUTES`. Phần thanh toán phải xử lý trường hợp khách chuyển khoản sau khi ghế đã hết hạn.
-- **Sơ đồ ghế:** CSDL chỉ có `so_do_ghe_ngoi_url` và quy ước mã ghế ở mục 8, không có vị trí hàng, cột.
+- **Sơ đồ ghế:** CSDL chỉ có `so_do_ghe_ngoi_url` và quy ước mã ghế ở mục 9, không có vị trí hàng, cột.
+- **Mã truy cập trong một đơn:** CSDL không chặn được việc các vé cùng `ma_don` có `ma_truy_cap_hash` khác nhau. Service giữ ghế phải tạo mọi vé của đơn trong cùng một transaction, với cùng một hash.
 
-## 10. Vấn đề RDM cần nhóm xem lại
+## 11. Vấn đề RDM cần nhóm xem lại
 
-1. **Giá theo loại xe:** giường nằm trên Đà Nẵng – Quy Nhơn và Sài Gòn – Đà Lạt buộc phải cùng giá. Muốn giá khác theo tuyến hoặc chuyến thì cần sửa RDM.
+1. **Giá theo loại xe:** xe 16 chỗ trên Đà Nẵng – Hội An (khoảng 30 km) và Hội An – Huế (khoảng 130 km) buộc phải cùng giá. Muốn giá khác theo tuyến hoặc chuyến thì cần sửa RDM.
 2. **Dữ liệu chéo không được CSDL chặn:** vì RDM chỉ có khóa ngoại đơn, `ve.ghe_id` có thể trỏ tới ghế của chuyến khác `ve.chuyen_xe_id`. Xe, tuyến và tài xế của một chuyến cũng có thể thuộc các nhà xe khác nhau. Hiện phải kiểm tra ở tầng service.
 3. **Thiếu tên nhà xe và tài xế:** `nha_xe` không có cột tên; tên chỉ nằm ở `chi_tiet_loai_xe.ten_nha_xe`, nên nhà xe chưa có loại xe sẽ không có tên. `tai_xe` cũng không có cột tên; tên chỉ nằm ở `chi_tiet_tai_xe.ho_ten`, nên tài xế chưa gắn nhà xe sẽ không có tên.
 4. **Cột trùng nghĩa:**

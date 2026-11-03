@@ -22,12 +22,14 @@ class KhachHang(Base):
     __tablename__ = "khach_hang"
 
     khach_hang_id: Mapped[str] = mapped_column(String(10), primary_key=True)
-    user_id: Mapped[str] = mapped_column(
+    # NULL là khách vãng lai (migration 0002, đã được nhóm xác nhận)
+    user_id: Mapped[str | None] = mapped_column(
         ForeignKey("tai_khoan.user_id", ondelete="RESTRICT"), unique=True
     )
     ho_ten: Mapped[str] = mapped_column(String(100))
     email: Mapped[str | None] = mapped_column(String(100))
-    so_dien_thoai: Mapped[str] = mapped_column(String(10))
+    # Nhận diện khách bằng số điện thoại (BR-BUS-07)
+    so_dien_thoai: Mapped[str] = mapped_column(String(10), unique=True)
     ngay_dang_ky: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     anh_dai_dien_url: Mapped[str | None] = mapped_column(String(100))
 
