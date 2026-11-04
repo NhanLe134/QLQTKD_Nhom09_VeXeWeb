@@ -366,10 +366,10 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
 - Bối cảnh: tài khoản NHA_XE, TAI_XE, ADMIN không có hồ sơ khach_hang.
 - Các phương án đã cân nhắc: (1) trả 403; (2) coi như khách vãng lai.
-- Quyết định: 403 "Bạn không có quyền thực hiện thao tác này" (get_optional_customer).
+- Quyết định: 403 "Bạn không có quyền thực hiện thao tác này" (get_optional_customer).s
 - Lý do: các vai trò này không phải khách đi xe; tránh tạo vé gắn sai chủ.
 - Hệ quả: nhân viên nhà xe muốn đặt vé thì đăng xuất và đặt như khách.
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã 
 
 ### D-42: Mỗi tab trình duyệt một đơn đang giữ (sessionStorage), backend chặn theo SĐT
 - Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
@@ -378,7 +378,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2; sửa chữ BR-BUS-18 thành "mỗi tab trình duyệt".
 - Lý do: thống nhất với D-24; chặn quan trọng nằm ở backend (theo SĐT), không phụ thuộc trình duyệt.
 - Hệ quả: đóng tab là mất mã truy cập đơn đang giữ; đơn tự hết hạn sau 5 phút.
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã
 
 ### D-43: Thứ tự khóa cố định khi giữ ghế (khách hàng → ghế theo ghe_id)
 - Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
@@ -387,7 +387,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2; tạo hồ sơ khách vãng lai bằng INSERT … ON CONFLICT DO NOTHING.
 - Lý do: không deadlock; không bán trùng ghế; 2 request cùng SĐT không tạo được 2 đơn.
 - Hệ quả: có 2 test đồng thời thật trên PostgreSQL; task #9–#12 phải giữ cùng thứ tự khóa.
-- Người quyết định: Nhã (AI đề xuất phương án)
+- Người quyết định: Nhã 
 ### D-44: Chuyển CSDL dùng chung từ Docker sang Supabase (thay thế D-01)
 - Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
 - Bối cảnh: luồng đổi vé làm bằng n8n cần kết nối tới CSDL; mỗi thành viên chạy Docker riêng thì dữ liệu không chung và n8n không với tới được.
@@ -431,4 +431,84 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 2; giới hạn 3 kết nối, statement_timeout 15 giây; không quyền ghi ve, ghe_ngoi, thanh_toan.
 - Lý do: đổi ghế/vé thật phải đi qua API backend để giữ đúng quy tắc khóa ghế và trạng thái; n8n lỡ lộ mật khẩu cũng không sửa được vé.
 - Hệ quả: mật khẩu role n8n khác mật khẩu chính, gửi riêng người làm n8n; user đăng nhập dạng n8n_doi_ve.<mã project>.
+- Người quyết định: Nhã 
+### D-48: Trạng thái đơn tính từ dữ liệu hiện có, không lưu lý do hủy
+- Ngày: 04/11/2026 · Commit: Task #8 – feat: nha ghe khi het han hoac khach huy va man hinh dat ve that bai
+- Bối cảnh: bảng ve không có cột lý do hay thời điểm hủy; sau khi job nhả ghế, đơn hết hạn và đơn khách hủy giống hệt nhau (vé DA_HUY, ghế TRONG).
+- Các phương án đã cân nhắc: (A) DA_HUY luôn báo "Đơn đặt vé đã bị hủy"; (B) như A nhưng dùng câu trung tính; (C) thêm cột lý do hủy vào ve (đổi schema).
+- Quyết định: phương án B — "Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ". HET_HAN chỉ có khi vé còn GIU_CHO đã quá hạn (trước khi job chạy). Tab đang mở vẫn báo đúng lý do vì frontend biết tại chỗ (khách bấm hủy / đồng hồ về 0).
+- Lý do: phương án A báo "đã bị hủy" cho khách không hề bấm hủy; C là đổi schema, cần nhóm duyệt và không cần thiết cho luồng đặt vé.
+- Hệ quả: khi mở lại trang sau một lúc, khách không biết chính xác đơn bị hủy hay hết giờ; giới hạn ghi trong docs/API.md.
+- Người quyết định: Nhã (AI phát hiện khoảng trống và đề xuất 3 phương án)
+
+### D-49: Job nhả ghế chạy nền trong FastAPI, an toàn khi nhiều instance
+- Ngày: 04/11/2026 · Commit: Task #8 – feat: nha ghe khi het han hoac khach huy va man hinh dat ve that bai
+- Bối cảnh: BR-BUS-17 yêu cầu tự nhả ghế sau 5 phút; nhiều thành viên chạy backend cùng lúc trên một Supabase (D-44).
+- Các phương án đã cân nhắc: (1) thêm thư viện lập lịch hoặc cron riêng; (2) vòng lặp asyncio trong lifespan, mỗi đơn một transaction với FOR UPDATE SKIP LOCKED.
+- Quyết định: phương án 2; chu kỳ RELEASE_JOB_INTERVAL_SECONDS (mặc định 30), tắt được bằng RELEASE_JOB_ENABLED; lỗi một vòng chỉ ghi log, job chạy tiếp.
+- Lý do: không thêm thư viện; seat_available(now) đã coi ghế quá hạn là trống nên job chỉ dọn dẹp cho CSDL khớp thực tế; SKIP LOCKED giúp job không chờ request đang giữ ghế và không nhả trùng khi nhiều job chạy.
+- Hệ quả: mỗi backend đang chạy tốn thêm vài truy vấn mỗi 30 giây trên pool nhỏ; ai không cần có thể tắt job; task #11 (thanh toán) phải khóa theo cùng thứ tự để không tranh chấp với job.
+- Người quyết định: Nhã (AI đề xuất cách cài đặt)
+
+### D-50: Job nhả ghế dùng giờ của CSDL, không dùng giờ máy
+- Ngày: 04/11/2026 · Commit: Task #8 – feat: nha ghe khi het han hoac khach huy va man hinh dat ve that bai
+- Bối cảnh: mỗi job chạy trên máy một thành viên; get_now() trả giờ của máy đó, các máy có thể lệch nhau.
+- Các phương án đã cân nhắc: (1) dùng get_now() như các phần khác; (2) job lấy giờ CSDL bằng SELECT now(), cảnh báo khi giờ máy lệch quá 5 giây.
+- Quyết định: phương án 2.
+- Lý do: máy có đồng hồ chạy nhanh sẽ nhả ghế của khách khác khi họ còn thời gian giữ; mọi máy dùng chung một CSDL nên dùng chung một đồng hồ.
+- Hệ quả: request giữ ghế vẫn đặt han_giu_cho theo get_now() của máy, nên máy thành viên cần bật đồng bộ giờ tự động (ghi trong docs/API.md).
+- Người quyết định: Nhã (rủi ro do Nhã phát hiện khi rà soát PLAN; AI cài đặt)
+
+### D-51: Hủy đơn đã quá hạn vẫn nhả ghế và trả 200
+- Ngày: 04/11/2026 · Commit: Task #8 – feat: nha ghe khi het han hoac khach huy va man hinh dat ve that bai
+- Bối cảnh: khách bấm hủy đúng lúc đơn vừa quá hạn nhưng job chưa chạy (trạng thái HET_HAN).
+- Các phương án đã cân nhắc: (1) trả 410 vì đơn đã hết hạn; (2) gọi release_booking, trả 200 với trang_thai_don = DA_HUY.
+- Quyết định: phương án 2.
+- Lý do: kết quả khách muốn (ghế được trả) đã đạt; nhả ngay giúp CSDL sạch, không phải chờ job.
+- Hệ quả: endpoint hủy chỉ trả lỗi 400 cho đơn đã xác nhận và 404 khi sai quyền.
+- Người quyết định: Nhã 
+
+### D-52: Hộp xác nhận hủy nằm trong trang, dùng chung cho mọi nút hủy
+- Ngày: 04/11/2026 · Commit: Task #8 – feat: nha ghe khi het han hoac khach huy va man hinh dat ve that bai
+- Bối cảnh: có 2 nơi hủy đơn: nút "Hủy đặt vé" ở trang đặt vé và nút "Hủy đơn cũ" ở trang sơ đồ ghế.
+- Các phương án đã cân nhắc: (1) window.confirm của trình duyệt; (2) component CancelBookingButton với hộp xác nhận trong trang, dùng chung cả 2 nơi.
+- Quyết định: phương án 2; nút "Hủy đơn cũ" hiện cho mọi đơn đang giữ, kể cả cùng chuyến.
+- Lý do: hộp của trình duyệt không chỉnh giao diện được và khó test; dùng chung một component cho hành vi nhất quán.
+- Hệ quả: task #9–#11 dùng lại CancelBookingButton ở các bước sau.
+- Người quyết định: Nhã 
+
+### D-53: Lỗi trả kèm khóa "truong" để báo đúng ô (quy ước từ task #9)
+- Ngày: 04/11/2026 · Commit: Task #9 – feat: them thong tin nguoi dat, hanh khach va diem don tra theo tuyen
+- Bối cảnh: form có nhiều hành khách và 2 điểm đón/trả; lỗi 422 mặc định của Pydantic là mảng tiếng Anh, frontend chỉ hiện được thông báo chung.
+- Các phương án đã cân nhắc: (1) frontend tự đọc "loc" trong mảng lỗi Pydantic; (2) endpoint trả {"detail": "<tiếng Việt>", "truong": "hanh_khach[1].so_dien_thoai"} cho cả 400 và 422.
+- Quyết định: phương án 2; hanh_khach[i] đánh số từ 0 theo vị trí trong mảng gửi lên; áp dụng cho endpoint mới từ task #9 trở đi, endpoint cũ giữ nguyên.
+- Lý do: thông báo tiếng Việt, hiện đúng ô; giao diện người dùng tiếng Việt (frontend/CLAUDE.md).
+- Hệ quả: lỗi sai kiểu JSON (gửi số thay chuỗi) vẫn là mảng Pydantic, frontend hiện thông báo chung; task #10–#13 theo cùng quy ước.
+- Người quyết định: Nhã
+
+### D-54: Điểm đón/trả lưu "Khu vực – địa chỉ" với tên khu vực chuẩn của tuyến
+- Ngày: 04/11/2026 · Commit: Task #9 – feat: them thong tin nguoi dat, hanh khach va diem don tra theo tuyen
+- Bối cảnh: RDM không có bảng điểm đón/trả riêng; ve.diem_don, ve.diem_tra là chuỗi tối đa 150 ký tự; điểm trung gian ghi trong tuyen_xe.diem_trung_gian, cách nhau bằng ";".
+- Các phương án đã cân nhắc: (1) lưu nguyên văn khách gõ; (2) so khớp khu vực không phân biệt hoa thường và khoảng trắng, lưu tên chuẩn của tuyến, ghép địa chỉ bằng " – ".
+- Quyết định: phương án 2; vượt 150 ký tự → 422 ở ô địa chỉ; backend trả sẵn {khu_vuc, dia_chi, chuoi} để frontend không tự tách hay ghép chuỗi.
+- Lý do: dữ liệu thống nhất để tài xế, nhà xe và task #13 đọc lại; vẫn kiểm tra được tuyến và chiều đi (BR-BUS-23).
+- Hệ quả: tên điểm dừng chứa " – " sẽ bị tách sai (dữ liệu hiện tại không có); sửa tuyến sau khi khách nhập có thể làm da_nhap_thong_tin từ true thành false.
+- Người quyết định: Nhã 
+
+### D-55: Ghế "Giống người đặt" không gửi lên, không lấy tên từ hồ sơ để ghi đè vé
+- Ngày: 04/11/2026 · Commit: Task #9 – feat: them thong tin nguoi dat, hanh khach va diem don tra theo tuyen
+- Bối cảnh: theo D-40, khách vãng lai đặt lại bằng SĐT cũ nhưng nhập tên khác thì hồ sơ giữ tên cũ, tên vừa nhập chỉ nằm trên vé. PLAN ban đầu cho ghế còn tích dùng thông tin người đặt theo hồ sơ → ghi đè tên khách vừa nhập.
+- Các phương án đã cân nhắc: (1) ghế còn tích lấy tên từ hồ sơ khach_hang; (2) ghế còn tích không gửi lên, backend giữ nguyên vé; tên người đặt lúc giữ ghế (nguoi_dat_luc_giu) suy ra từ các vé.
+- Quyết định: phương án 2; riêng ghế đã sửa rồi tích lại thì gửi lại thông tin nguoi_dat_luc_giu (lấy từ vé, không phải hồ sơ); nguoi_dat_luc_giu không xác định được thì không gửi.
+- Lý do: không làm mất tên khách vừa nhập; giữ đúng D-40.
+- Hệ quả: nguoi_dat_luc_giu có thể null (khi các vé mang SĐT người đặt có nhiều tên khác nhau), lúc đó so với nguoi_dat; giới hạn ghi trong docs/API.md.
+- Người quyết định: Nhã (lỗi do Nhã phát hiện khi rà soát PLAN; AI đề xuất cách suy ra nguoi_dat_luc_giu)
+
+### D-56: Nhập thông tin không gia hạn giữ ghế; thanh toán phải có điểm đón/trả
+- Ngày: 04/11/2026 · Commit: Task #9 – feat: them thong tin nguoi dat, hanh khach va diem don tra theo tuyen
+- Bối cảnh: BR-BUS-26 cho đồng hồ giữ ghế chạy tiếp khi nhập sai; bước thanh toán (task #10, #11) cần biết đơn đã đủ thông tin.
+- Các phương án đã cân nhắc: (1) gia hạn han_giu_cho mỗi lần lưu; (2) không gia hạn; backend tính da_nhap_thong_tin và có helper ensure_details_complete.
+- Quyết định: phương án 2; ensure_details_complete trả 400 "Chưa nhập điểm đón/trả"; vé DA_HUY trong đơn không được ghi và không tính vào da_nhap_thong_tin.
+- Lý do: gia hạn mỗi lần lưu cho phép giữ ghế vô hạn, trái BR-BUS-17; kiểm tra đủ thông tin ở backend để frontend không quyết định thay.
+- Hệ quả: task #10, #11 gọi ensure_details_complete trước khi tạo thanh toán.
 - Người quyết định: Nhã 

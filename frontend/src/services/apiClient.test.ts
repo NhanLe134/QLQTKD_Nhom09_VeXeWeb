@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError, get, post, setAuthToken, setUnauthorizedHandler } from './apiClient'
+import { ApiError, get, post, put, setAuthToken, setUnauthorizedHandler } from './apiClient'
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -81,6 +81,38 @@ describe('post', () => {
       body: '{"a":1}',
       headers: { 'Content-Type': 'application/json' },
     })
+  })
+})
+
+describe('put', () => {
+  it('gửi PUT với body JSON và header thêm', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }))
+
+    await expect(put('/api/v1/x', { a: 1 }, { 'X-Ma-Truy-Cap': 'ma' })).resolves.toEqual({ ok: true })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init?.method).toBe('PUT')
+    expect(init?.body).toBe(JSON.stringify({ a: 1 }))
+    expect(init?.headers).toMatchObject({ 'X-Ma-Truy-Cap': 'ma', 'Content-Type': 'application/json' })
+  })
+})
+
+describe('lỗi kèm tên trường', () => {
+  it('đọc khóa truong vào ApiError.field', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(422, { detail: 'Số điện thoại không hợp lệ', truong: 'hanh_khach[1].so_dien_thoai' }),
+    )
+
+    const error = await get('/api/v1/x').catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 422, detail: 'Số điện thoại không hợp lệ', field: 'hanh_khach[1].so_dien_thoai' })
+  })
+
+  it('không có truong thì field là null', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(400, { detail: 'Lỗi', truong: null }))
+
+    await expect(get('/api/v1/x')).rejects.toMatchObject({ detail: 'Lỗi', field: null })
   })
 })
 

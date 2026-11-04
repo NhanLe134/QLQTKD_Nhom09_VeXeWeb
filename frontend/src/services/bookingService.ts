@@ -1,5 +1,5 @@
 import { accessCodeFor, clearStoredBookingFor, saveStoredBooking } from '../utils/bookingStorage'
-import { get, post, type RequestHeaders } from './apiClient'
+import { get, post, put, type RequestHeaders } from './apiClient'
 import type { TripInfo } from './tripService'
 
 export type NguoiDat = {
@@ -47,6 +47,22 @@ export type Ticket = {
   trang_thai_thanh_toan: 'CHO_THANH_TOAN' | 'CHO_THU_TIEN_MAT' | 'DA_THANH_TOAN'
   ho_ten: string | null
   so_dien_thoai: string | null
+  /** Chuỗi backend đã lưu ("Khu vực – địa chỉ"); null khi chưa nhập */
+  diem_don: string | null
+  diem_tra: string | null
+}
+
+/** Điểm đón/trả của đơn; backend tách sẵn, frontend không tự tách hay ghép chuỗi. */
+export type BookingPoint = {
+  khu_vuc: string
+  dia_chi: string | null
+  /** Chuỗi đúng như đã lưu, dùng để hiển thị */
+  chuoi: string
+}
+
+export type BookerAtHold = {
+  ho_ten: string
+  so_dien_thoai: string
 }
 
 export type Booking = {
@@ -61,6 +77,32 @@ export type Booking = {
   dang_giu_cho: boolean
   trang_thai_don: TrangThaiDon
   thoi_diem_hien_tai: string
+  /** Điểm dừng của tuyến theo thứ tự: điểm đi, điểm trung gian, điểm đến */
+  diem_dung: string[]
+  diem_don: BookingPoint | null
+  diem_tra: BookingPoint | null
+  /** Mọi vé chưa hủy đã có điểm đón/trả hợp lệ (backend tính) */
+  da_nhap_thong_tin: boolean
+  /** Họ tên, SĐT người đặt ghi trên vé lúc giữ ghế; null khi backend không xác định được */
+  nguoi_dat_luc_giu: BookerAtHold | null
+}
+
+export type PassengerInput = {
+  ve_id: string
+  ho_ten: string
+  so_dien_thoai: string
+}
+
+export type PointInput = {
+  khu_vuc: string
+  dia_chi: string | null
+}
+
+export type BookingDetailsRequest = {
+  /** Vé không gửi thì backend giữ nguyên họ tên, SĐT hiện có trên vé */
+  hanh_khach: PassengerInput[]
+  diem_don: PointInput
+  diem_tra: PointInput
 }
 
 function accessHeaders(maDon: string): RequestHeaders | undefined {
@@ -88,4 +130,9 @@ export async function cancelBooking(maDon: string): Promise<Booking> {
   )
   clearStoredBookingFor(maDon)
   return result
+}
+
+/** Lưu hành khách và điểm đón/trả (BR-BUS-21 đến 26); trả chi tiết đơn đã đọc lại. */
+export function saveBookingDetails(maDon: string, data: BookingDetailsRequest): Promise<Booking> {
+  return put<Booking>(`/api/v1/bookings/${encodeURIComponent(maDon)}/details`, data, accessHeaders(maDon))
 }

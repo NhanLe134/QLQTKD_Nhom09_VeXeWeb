@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_accessible_booking, get_optional_customer
@@ -8,8 +9,8 @@ from app.core.clock import get_now
 from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.models import TaiKhoan
-from app.schemas.booking import BookingOut, HoldRequest, HoldResponse
-from app.services import booking_service
+from app.schemas.booking import BookingOut, DetailsRequest, HoldRequest, HoldResponse
+from app.services import booking_details_service, booking_service
 
 # Không bắt buộc đăng nhập: khách vãng lai giữ ghế được (BR-BUS-01, 20)
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -56,3 +57,31 @@ async def cancel_booking(
     except booking_service.BookingError as error:
         raise HTTPException(error.status_code, detail=error.detail) from None
     return await booking_service.booking_detail(session, cancelled, now)
+
+
+@router.put(
+    "/{ma_don}/details",
+    responses={
+        400: {"description": '`{"detail": "...", "truong": "diem_don.khu_vuc" | null}`'},
+        410: {"description": "Đơn hết hạn giữ chỗ hoặc đã hủy"},
+        422: {"description": '`{"detail": "...", "truong": "hanh_khach[0].so_dien_thoai"}`'},
+    },
+)
+async def save_booking_details(
+    data: DetailsRequest,
+    booking: booking_service.Booking = Depends(get_accessible_booking),
+    session: AsyncSession = Depends(get_session),
+    now: datetime = Depends(get_now),
+) -> BookingOut:
+    """Hành khách từng ghế và điểm đón/trả cho đơn đang giữ (BR-BUS-21 đến 26)."""
+    try:
+        saved = await booking_details_service.save_details(session, booking, data, now)
+    except booking_details_service.FieldError as error:
+        # Quy ước endpoint mới: 400/422 kèm tên trường để frontend báo đúng ô
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"detail": error.detail, "truong": error.truong},
+        )
+    except booking_service.BookingError as error:
+        raise HTTPException(error.status_code, detail=error.detail) from None
+    return await booking_service.booking_detail(session, saved, now)

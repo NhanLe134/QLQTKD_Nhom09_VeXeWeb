@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
+import BookingDetailsForm from '../components/BookingDetailsForm'
+import BookingDetailsSummary from '../components/BookingDetailsSummary'
 import BookingFailed, { type FailureReason } from '../components/BookingFailed'
 import CancelBookingButton from '../components/CancelBookingButton'
 import HoldCountdown from '../components/HoldCountdown'
 import { useCountdown } from '../hooks/useCountdown'
 import { type Booking, getBooking } from '../services/bookingService'
+import { bookerReference } from '../utils/booker'
 import { clearStoredBookingFor } from '../utils/bookingStorage'
 import { formatCurrency, formatDate, formatTime, formatVehicleType } from '../utils/format'
 
@@ -52,23 +55,47 @@ export default function BookingPage() {
     )
   }
 
-  return <BookingDetail data={booking.data} clockOffsetMs={booking.clockOffsetMs} />
+  // Giữ nguyên độ lệch giờ khi cập nhật đơn: hạn giữ không đổi nên đồng hồ chạy tiếp (BR-BUS-26)
+  const { clockOffsetMs } = booking
+  return (
+    <BookingDetail
+      data={booking.data}
+      clockOffsetMs={clockOffsetMs}
+      onChange={(data) => setBooking({ state: 'loaded', data, clockOffsetMs })}
+    />
+  )
+}
+
+type DetailProps = {
+  data: Booking
+  clockOffsetMs: number
+  onChange: (data: Booking) => void
 }
 
 // Tách riêng để useCountdown bắt đầu đếm đúng lúc đã có dữ liệu đơn
-function BookingDetail({ data, clockOffsetMs }: { data: Booking; clockOffsetMs: number }) {
+function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
   const [cancelled, setCancelled] = useState(false)
+  const [gone, setGone] = useState(false)
+  // Đã lưu thông tin thì hiện tóm tắt, bấm "Sửa" để nhập lại
+  const [editing, setEditing] = useState(!data.da_nhap_thong_tin)
   const dangGiu = data.trang_thai_don === 'DANG_GIU'
   const remainingMs = useCountdown(dangGiu ? data.han_giu_cho : null, clockOffsetMs)
   // Hết giờ trên đồng hồ thì coi như hết giữ chỗ ngay, không chờ tải lại đơn
   const holding = remainingMs !== null && remainingMs > 0
-  const failure = failureReason(data, cancelled, dangGiu && !holding)
+  const failure = failureReason(data, cancelled, dangGiu && !holding, gone)
   const { chuyen } = data
   const heldTickets = data.ve.filter((ve) => ve.trang_thai_ve !== 'DA_HUY')
 
   useEffect(() => {
     if (failure) clearStoredBookingFor(data.ma_don)
   }, [failure, data.ma_don])
+
+  // 410 khi lưu: tải lại đơn để hiện đúng lý do theo trạng thái backend
+  function handleGone() {
+    getBooking(data.ma_don)
+      .then(onChange)
+      .catch(() => setGone(true))
+  }
 
   if (failure) {
     return <BookingFailed reason={failure} maDon={data.ma_don} chuyenXeId={chuyen.chuyen_xe_id} />
@@ -115,10 +142,21 @@ function BookingDetail({ data, clockOffsetMs }: { data: Booking; clockOffsetMs: 
 
       {holding && (
         <>
-          <div className="space-y-1 rounded-lg border border-dashed border-slate-300 p-4">
-            <h2 className="font-semibold">Thông tin hành khách</h2>
-            {/* Task #9: nhập hành khách từng ghế, điểm đón/trả */}
-            <p className="text-sm text-slate-600">Đang xây dựng.</p>
+          <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-semibold">Thông tin hành khách</h2>
+            <BookerInfo data={data} />
+            {editing ? (
+              <BookingDetailsForm
+                booking={data}
+                onSaved={(saved) => {
+                  onChange(saved)
+                  setEditing(false)
+                }}
+                onGone={handleGone}
+              />
+            ) : (
+              <BookingDetailsSummary booking={data} onEdit={() => setEditing(true)} />
+            )}
           </div>
           <CancelBookingButton maDon={data.ma_don} onCancelled={() => setCancelled(true)} />
         </>
@@ -127,10 +165,33 @@ function BookingDetail({ data, clockOffsetMs }: { data: Booking; clockOffsetMs: 
   )
 }
 
+/**
+ * Người đặt chỉ hiển thị, không sửa (đã nhập ở bước giữ ghế). Họ tên lấy theo tên đã ghi
+ * trên vé lúc giữ ghế nếu backend xác định được, không thì theo hồ sơ `nguoi_dat`.
+ */
+function BookerInfo({ data }: { data: Booking }) {
+  const booker = bookerReference(data)
+  return (
+    <section aria-label="Người đặt" className="space-y-1">
+      <h3 className="font-semibold">Người đặt</h3>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+        <dt className="text-slate-500">Họ tên</dt>
+        <dd>{booker.ho_ten}</dd>
+        <dt className="text-slate-500">Số điện thoại</dt>
+        <dd>{data.nguoi_dat.so_dien_thoai}</dd>
+        <dt className="text-slate-500">Email</dt>
+        <dd>{data.nguoi_dat.email ?? 'Không có'}</dd>
+      </dl>
+    </section>
+  )
+}
+
 /** Lý do biết ngay trên trang (tự hủy, hết giờ) ưu tiên hơn trạng thái tải từ backend. */
-function failureReason(data: Booking, cancelled: boolean, timedOut: boolean): FailureReason | null {
+function failureReason(data: Booking, cancelled: boolean, timedOut: boolean, gone: boolean): FailureReason | null {
   if (cancelled) return 'TU_HUY'
   if (timedOut) return 'HET_GIO'
   if (data.trang_thai_don === 'HET_HAN' || data.trang_thai_don === 'DA_HUY') return data.trang_thai_don
+  // 410 mà không tải lại được đơn: dùng câu trung tính
+  if (gone) return 'DA_HUY'
   return null
 }

@@ -95,6 +95,47 @@ class TicketOut(BaseModel):
     trang_thai_thanh_toan: TrangThaiThanhToanVe
     ho_ten: str | None
     so_dien_thoai: str | None
+    # Chuỗi đã lưu dạng "Khu vực – địa chỉ" (BR-BUS-25); None khi chưa nhập
+    diem_don: str | None
+    diem_tra: str | None
+
+
+class PassengerIn(BaseModel):
+    """Hành khách của một vé (BR-BUS-21); nội dung do service kiểm tra để báo đúng trường."""
+
+    ve_id: str
+    ho_ten: str
+    so_dien_thoai: str
+
+
+class PointIn(BaseModel):
+    khu_vuc: str
+    # Địa chỉ cụ thể, không bắt buộc (BR-BUS-25)
+    dia_chi: str | None = None
+
+
+class DetailsRequest(BaseModel):
+    # Vé không gửi thì giữ nguyên họ tên, SĐT hiện có trên vé
+    hanh_khach: list[PassengerIn] | None = None
+    # Một lần cho cả đơn (BR-BUS-22)
+    diem_don: PointIn
+    diem_tra: PointIn
+
+
+class PointOut(BaseModel):
+    """Điểm đón/trả của đơn, backend tách sẵn để frontend không tự tách, ghép chuỗi."""
+
+    khu_vuc: str
+    dia_chi: str | None
+    # Chuỗi đúng như đã lưu, dùng để hiển thị
+    chuoi: str
+
+
+class NguoiDatLucGiuOut(BaseModel):
+    """Họ tên, SĐT người đặt đã ghi trên vé lúc giữ ghế (xem docs/API.md, giới hạn)."""
+
+    ho_ten: str
+    so_dien_thoai: str
 
 
 class BookingOut(BaseModel):
@@ -110,3 +151,12 @@ class BookingOut(BaseModel):
     dang_giu_cho: bool
     trang_thai_don: TrangThaiDon
     thoi_diem_hien_tai: datetime
+    # Điểm dừng của tuyến theo thứ tự: điểm đi, điểm trung gian, điểm đến
+    diem_dung: list[str]
+    # Điểm đón/trả chung của các vé chưa hủy; None khi chưa nhập hoặc không thống nhất
+    diem_don: PointOut | None
+    diem_tra: PointOut | None
+    # Mọi vé chưa hủy đã có điểm đón/trả hợp lệ theo tuyến
+    da_nhap_thong_tin: bool
+    # None khi không xác định được; frontend dùng nguoi_dat thay thế
+    nguoi_dat_luc_giu: NguoiDatLucGiuOut | None

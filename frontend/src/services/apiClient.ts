@@ -2,16 +2,21 @@ const NETWORK_ERROR_MESSAGE = 'Không kết nối được máy chủ. Vui lòng
 const GENERIC_ERROR_MESSAGE = 'Đã có lỗi xảy ra. Vui lòng thử lại.'
 const VALIDATION_ERROR_MESSAGE = 'Dữ liệu gửi lên không hợp lệ.'
 
-/** Lỗi từ API; `detail` là thông báo hiển thị nguyên văn cho người dùng. */
+/**
+ * Lỗi từ API; `detail` là thông báo hiển thị nguyên văn cho người dùng.
+ * `field` là khóa `truong` (endpoint từ task #9), ví dụ `hanh_khach[1].so_dien_thoai`.
+ */
 export class ApiError extends Error {
   readonly status: number
   readonly detail: string
+  readonly field: string | null
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, field: string | null = null) {
     super(detail)
     this.name = 'ApiError'
     this.status = status
     this.detail = detail
+    this.field = field
   }
 }
 
@@ -36,23 +41,23 @@ function getBaseUrl(): string {
   return baseUrl.replace(/\/+$/, '')
 }
 
-async function readDetail(response: Response): Promise<string> {
+async function readError(response: Response): Promise<ApiError> {
   let body: unknown
   try {
     body = await response.json()
   } catch {
-    return GENERIC_ERROR_MESSAGE
+    return new ApiError(response.status, GENERIC_ERROR_MESSAGE)
   }
 
-  const detail = (body as { detail?: unknown } | null)?.detail
+  const { detail, truong } = (body ?? {}) as { detail?: unknown; truong?: unknown }
   if (typeof detail === 'string' && detail.trim() !== '') {
-    return detail
+    return new ApiError(response.status, detail, typeof truong === 'string' ? truong : null)
   }
   // FastAPI trả 422 với detail là mảng lỗi kiểm tra dữ liệu (tiếng Anh), không hiển thị nguyên văn
   if (response.status === 422) {
-    return VALIDATION_ERROR_MESSAGE
+    return new ApiError(response.status, VALIDATION_ERROR_MESSAGE)
   }
-  return GENERIC_ERROR_MESSAGE
+  return new ApiError(response.status, GENERIC_ERROR_MESSAGE)
 }
 
 /** Header thêm cho một request, ví dụ `X-Ma-Truy-Cap` của đơn đặt vé. */
@@ -89,7 +94,7 @@ async function request<T>(
     unauthorizedHandler?.()
   }
   if (!response.ok) {
-    throw new ApiError(response.status, await readDetail(response))
+    throw await readError(response)
   }
   if (response.status === 204) {
     return undefined as T
@@ -103,4 +108,8 @@ export function get<T>(path: string, headers?: RequestHeaders): Promise<T> {
 
 export function post<T>(path: string, body?: unknown, headers?: RequestHeaders): Promise<T> {
   return request<T>('POST', path, body, headers)
+}
+
+export function put<T>(path: string, body?: unknown, headers?: RequestHeaders): Promise<T> {
+  return request<T>('PUT', path, body, headers)
 }

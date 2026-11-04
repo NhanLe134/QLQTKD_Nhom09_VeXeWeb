@@ -14,6 +14,8 @@ SEED_PASSWORD = "mat-khau-test"
 DA_NANG_HUE_4_CHO = format_id(CHUYEN_XE_ID, 1)
 HUE_DA_NANG_4_CHO = format_id(CHUYEN_XE_ID, 2)
 DA_NANG_HUE_7_CHO = format_id(CHUYEN_XE_ID, 7)
+# Tuyến Hội An → Huế, điểm trung gian "Đà Nẵng; Lăng Cô"
+HOI_AN_HUE_4_CHO = format_id(CHUYEN_XE_ID, 3)
 
 
 def seats_url(chuyen_xe_id: str) -> str:
@@ -26,6 +28,10 @@ def booking_url(ma_don: str) -> str:
 
 def cancel_url(ma_don: str) -> str:
     return f"/api/v1/bookings/{ma_don}/cancel"
+
+
+def details_url(ma_don: str) -> str:
+    return f"/api/v1/bookings/{ma_don}/details"
 
 
 def code_header(code: str) -> dict[str, str]:

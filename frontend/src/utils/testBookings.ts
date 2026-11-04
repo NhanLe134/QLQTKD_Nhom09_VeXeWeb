@@ -1,0 +1,62 @@
+// Dữ liệu mẫu cho test Vitest (không dùng trong ứng dụng).
+import type { Booking, Ticket } from '../services/bookingService'
+
+export function ticket(overrides: Partial<Ticket> = {}): Ticket {
+  return {
+    ve_id: 'VE1',
+    ghe_id: 'GH1',
+    so_ghe: 'A01',
+    gia_ve: 200000,
+    trang_thai_ve: 'GIU_CHO',
+    trang_thai_thanh_toan: 'CHO_THANH_TOAN',
+    ho_ten: 'Trần Thị Bình',
+    so_dien_thoai: '0905111222',
+    diem_don: null,
+    diem_tra: null,
+    ...overrides,
+  }
+}
+
+/** Đơn đang giữ 2 ghế trên tuyến Đà Nẵng → Lăng Cô → Huế, chưa nhập thông tin. */
+export const HELD_BOOKING: Booking = {
+  ma_don: 'DH00100000',
+  chuyen: {
+    chuyen_xe_id: 'CX00000001',
+    ten_tuyen: 'Đà Nẵng - Huế',
+    diem_di: 'Đà Nẵng',
+    diem_den: 'Huế',
+    diem_trung_gian: 'Lăng Cô',
+    ngay_khoi_hanh: '2026-12-15',
+    gio_di: '2026-12-14T23:00:00Z',
+    gio_den: '2026-12-15T01:30:00Z',
+    ten_loai_xe: 'Xe 4 chỗ',
+    so_cho: 4,
+    gia_ve: 200000,
+  },
+  nguoi_dat: { ho_ten: 'Trần Thị Bình', so_dien_thoai: '0905111222', email: null },
+  ve: [ticket(), ticket({ ve_id: 'VE2', ghe_id: 'GH2', so_ghe: 'A02' })],
+  // Giá trị riêng của backend: trang chỉ hiển thị, không tự cộng
+  tong_tien: 390000,
+  han_giu_cho: '2026-12-01T03:20:00Z',
+  dang_giu_cho: true,
+  trang_thai_don: 'DANG_GIU',
+  thoi_diem_hien_tai: '2026-12-01T03:15:00Z',
+  diem_dung: ['Đà Nẵng', 'Lăng Cô', 'Huế'],
+  diem_don: null,
+  diem_tra: null,
+  da_nhap_thong_tin: false,
+  nguoi_dat_luc_giu: { ho_ten: 'Trần Thị Bình', so_dien_thoai: '0905111222' },
+}
+
+/** Đơn sau khi lưu: chuỗi điểm đón/trả do backend ghép. */
+export const SAVED_BOOKING: Booking = {
+  ...HELD_BOOKING,
+  ve: HELD_BOOKING.ve.map((ve) => ({ ...ve, diem_don: 'Lăng Cô – 12 Lê Lợi', diem_tra: 'Huế' })),
+  diem_don: { khu_vuc: 'Lăng Cô', dia_chi: '12 Lê Lợi', chuoi: 'Lăng Cô – 12 Lê Lợi' },
+  diem_tra: { khu_vuc: 'Huế', dia_chi: null, chuoi: 'Huế' },
+  da_nhap_thong_tin: true,
+}
+
+export function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+}

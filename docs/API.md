@@ -8,6 +8,7 @@ Mỗi task bổ sung phần của mình vào file này.
 - Tiền tố: `/api/v1`. Dữ liệu gửi và nhận dạng JSON.
 - Lỗi luôn có dạng `{"detail": "..."}`, thông báo tiếng Việt, hiển thị nguyên văn cho người dùng.
   Riêng 422 do Pydantic sinh ra thì `detail` là **mảng** lỗi tiếng Anh; frontend tự đổi thành thông báo chung.
+- **Lỗi kèm tên trường (từ task #9):** endpoint mới (`PUT /bookings/{ma_don}/details` và các endpoint từ task #10 trở đi) trả lỗi 400 và 422 dạng `{"detail": "...", "truong": "hanh_khach[1].so_dien_thoai"}`, để frontend hiện lỗi ngay dưới đúng ô. `truong` là `null` khi lỗi không gắn với trường nào. Chỉ số phần tử mảng đánh **từ 0, theo vị trí trong mảng gửi lên**. Endpoint cũ giữ nguyên dạng `{"detail": "..."}`. Lỗi sai kiểu JSON (ví dụ gửi số thay vì chuỗi) vẫn là mảng lỗi của Pydantic.
 
 | Mã | Ý nghĩa |
 |---|---|
@@ -418,14 +419,21 @@ Sai mã, thiếu mã, tài khoản khác hoặc đơn không tồn tại đều 
       "trang_thai_ve": "GIU_CHO",
       "trang_thai_thanh_toan": "CHO_THANH_TOAN",
       "ho_ten": "Trần Thị Bình",
-      "so_dien_thoai": "0905111222"
+      "so_dien_thoai": "0905111222",
+      "diem_don": null,
+      "diem_tra": null
     }
   ],
   "tong_tien": 200000,
   "han_giu_cho": "2026-12-01T03:20:00Z",
   "dang_giu_cho": true,
   "trang_thai_don": "DANG_GIU",
-  "thoi_diem_hien_tai": "2026-12-01T03:16:30Z"
+  "thoi_diem_hien_tai": "2026-12-01T03:16:30Z",
+  "diem_dung": ["Đà Nẵng", "Lăng Cô", "Huế"],
+  "diem_don": null,
+  "diem_tra": null,
+  "da_nhap_thong_tin": false,
+  "nguoi_dat_luc_giu": { "ho_ten": "Trần Thị Bình", "so_dien_thoai": "0905111222" }
 }
 ```
 
@@ -437,6 +445,11 @@ Sai mã, thiếu mã, tài khoản khác hoặc đơn không tồn tại đều 
 | `han_giu_cho` | Hạn giữ của các vé còn `GIU_CHO`; `null` khi không còn vé nào đang giữ |
 | `dang_giu_cho` | `true` khi còn vé `GIU_CHO` chưa quá hạn. `false` → hiển thị "Hết thời gian giữ chỗ" |
 | `trang_thai_don` | Trạng thái tổng của đơn do backend tính, xem bảng dưới. Frontend dùng trường này, không tự suy từ `ve` |
+| `ve[].diem_don`, `ve[].diem_tra` | Chuỗi đã lưu dạng `Khu vực – địa chỉ` (task #9); `null` khi chưa nhập |
+| `diem_dung` | Điểm dừng của tuyến theo thứ tự: điểm đi, các điểm trung gian, điểm đến (xem `PUT .../details`) |
+| `diem_don`, `diem_tra` | `{khu_vuc, dia_chi, chuoi}` chung của các vé chưa hủy, backend tách sẵn từ chuỗi đã lưu. `chuoi` là chuỗi đúng như đã lưu, dùng để hiển thị. `null` khi chưa nhập hoặc các vé khác nhau |
+| `da_nhap_thong_tin` | `true` khi mọi vé chưa hủy đã có điểm đón và điểm trả hợp lệ theo tuyến hiện tại (thuộc tuyến, đón trước trả) |
+| `nguoi_dat_luc_giu` | Họ tên, SĐT người đặt đã ghi trên vé lúc giữ ghế; `null` khi không xác định được. Xem giới hạn ở `PUT .../details` |
 
 **Trạng thái đơn (`trang_thai_don`)** — xét theo thứ tự:
 
@@ -466,6 +479,95 @@ Sai mã, thiếu mã, tài khoản khác hoặc đơn không tồn tại đều 
 |---|---|---|
 | 401 | `Phiên đăng nhập không hợp lệ hoặc đã hết hạn` | Gửi token sai/hết hạn |
 | 404 | `Không tìm thấy đơn` | Không có quyền xem, hoặc đơn không tồn tại |
+
+### PUT `/api/v1/bookings/{ma_don}/details` — Hành khách và điểm đón/trả
+
+Nhập hành khách từng ghế và điểm đón/trả cho đơn đang giữ. Liên quan: US-BUS-03, BR-BUS-04, 21 đến 26. Task #9.
+Quyền giống `GET /bookings/{ma_don}` (`get_accessible_booking`), sai quyền trả 404. Người đặt đã được nhập lúc giữ ghế; endpoint này **không** sửa người đặt.
+
+**Request**
+
+| Trường | Kiểu | Bắt buộc | Ghi chú |
+|---|---|---|---|
+| `hanh_khach` | `{ve_id, ho_ten, so_dien_thoai}[]` | không | Chỉ gửi vé cần đổi. Vé không gửi thì **giữ nguyên** họ tên, SĐT đang có trên vé (mặc định là người đặt, BR-BUS-21). Backend không bao giờ lấy tên trong hồ sơ `khach_hang` để ghi đè vé |
+| `diem_don` | `{khu_vuc, dia_chi}` | có | Một lần cho cả đơn (BR-BUS-22). `dia_chi` không bắt buộc |
+| `diem_tra` | `{khu_vuc, dia_chi}` | có | Như trên |
+
+```json
+{
+  "hanh_khach": [
+    { "ve_id": "VE00100001", "ho_ten": "Lê Văn Cường", "so_dien_thoai": "0911222333" }
+  ],
+  "diem_don": { "khu_vuc": "Đà Nẵng", "dia_chi": "12 Lê Lợi" },
+  "diem_tra": { "khu_vuc": "Huế", "dia_chi": null }
+}
+```
+
+**Điểm dừng của tuyến (`diem_dung`, BR-BUS-24):** `[diem_di]` + các phần của `diem_trung_gian` tách theo `;` + `[diem_den]`. Mỗi phần được bỏ khoảng trắng thừa; phần rỗng bị bỏ. Ví dụ `diem_di = "Hội An"`, `diem_trung_gian = " Đà Nẵng ;; Lăng Cô "`, `diem_den = "Huế"` cho ra `["Hội An", "Đà Nẵng", "Lăng Cô", "Huế"]`. Hàm dùng chung là `route_stops()` trong `app/services/route_stops.py` (task #13 dùng lại).
+
+**Kiểm tra**
+
+| Quy tắc | Mã | `detail` | `truong` |
+|---|---|---|---|
+| Họ tên không rỗng sau khi bỏ khoảng trắng | 422 | `Họ tên không được để trống` | `hanh_khach[i].ho_ten` |
+| Họ tên tối đa 200 ký tự (cột `ve.ho_ten`) | 422 | `Họ tên tối đa 200 ký tự` | `hanh_khach[i].ho_ten` |
+| SĐT gồm 10 chữ số, bắt đầu bằng 0 (BR-BUS-04) | 422 | `Số điện thoại phải gồm 10 chữ số, bắt đầu bằng 0` | `hanh_khach[i].so_dien_thoai` |
+| `ve_id` không trùng trong danh sách | 422 | `Vé bị gửi trùng` | `hanh_khach[i].ve_id` (ở lần xuất hiện thứ hai) |
+| `khu_vuc` không rỗng | 422 | `Vui lòng chọn điểm đón` / `Vui lòng chọn điểm trả` | `diem_don.khu_vuc` / `diem_tra.khu_vuc` |
+| `ve_id` là vé `GIU_CHO` của chính đơn này. Vé của đơn khác, hoặc vé đã `DA_HUY` của đơn, đều bị từ chối | 400 | `Vé không thuộc đơn` | `hanh_khach[i].ve_id` |
+| Điểm đón là điểm đi hoặc một điểm trung gian, không phải điểm đến (BR-BUS-23) | 400 | `Điểm đón không thuộc tuyến` | `diem_don.khu_vuc` |
+| Điểm trả là một điểm trung gian hoặc điểm đến, không phải điểm đi | 400 | `Điểm trả không thuộc tuyến` | `diem_tra.khu_vuc` |
+| Điểm đón đứng trước điểm trả trên tuyến | 400 | `Điểm đón phải trước điểm trả` | `diem_don.khu_vuc` |
+| Chuỗi sau khi ghép tối đa 150 ký tự (cột `ve.diem_don`, `ve.diem_tra`) | 422 | `Điểm đón và địa chỉ tối đa 150 ký tự` / `Điểm trả và địa chỉ tối đa 150 ký tự` | `diem_don.dia_chi` / `diem_tra.dia_chi` |
+| Đơn đã xác nhận | 400 | `Đơn đã xác nhận, không thể sửa thông tin` | `null` |
+
+- Khu vực được so khớp sau khi bỏ khoảng trắng thừa và **không phân biệt hoa thường**, nhưng lưu **đúng tên chuẩn của tuyến**: gửi `"  đà   nẴng "` thì lưu `"Đà Nẵng"`.
+- Lỗi định dạng (422) được kiểm tra trước, rồi mới khóa CSDL và kiểm tra trạng thái đơn.
+
+**Định dạng lưu (BR-BUS-25):** `Khu vực – địa chỉ`, dùng gạch ngang dài `–` có khoảng trắng hai bên, ví dụ `Đà Nẵng – 12 Lê Lợi`. Không có địa chỉ, hoặc địa chỉ chỉ toàn khoảng trắng, thì chỉ lưu khu vực, ví dụ `Huế`. Khoảng trắng thừa trong địa chỉ được bỏ. Frontend hiển thị chuỗi backend trả về, không tự ghép. Khi đọc lại, backend tách chuỗi ở lần xuất hiện **đầu tiên** của ` – `.
+
+**Xử lý** (trong một transaction):
+
+1. Khóa theo cùng thứ tự với giữ ghế, hủy đơn và job nhả ghế: hồ sơ khách hàng, rồi ghế của các vé `GIU_CHO` theo `ghe_id`, rồi các vé của đơn theo `ve_id` (`FOR UPDATE`).
+2. **Sau khi khóa** mới đọc lại đơn và gọi `ensure_booking_active` (410), để không ghi vào đơn mà job hoặc khách vừa nhả.
+3. Ghi điểm đón/trả cho **mọi vé `GIU_CHO`** của đơn (vé `DA_HUY` không bị ghi), và ghi họ tên, SĐT cho các vé được gửi.
+4. **Không** gia hạn `han_giu_cho`; đồng hồ giữ ghế vẫn chạy (BR-BUS-26).
+5. Gửi lại nhiều lần được; lần sau ghi đè lần trước.
+
+Log chỉ ghi `Lưu thông tin đơn ma_don=... so_hanh_khach_sua=...`, không có họ tên, SĐT hay địa chỉ.
+
+**Response 200:** giống `GET /bookings/{ma_don}`, đọc lại sau khi ghi.
+
+**Lỗi khác**
+
+| Mã | `detail` | Khi nào |
+|---|---|---|
+| 401 | `Phiên đăng nhập không hợp lệ hoặc đã hết hạn` | Gửi token sai hoặc hết hạn |
+| 404 | `Không tìm thấy đơn` | Không có quyền, hoặc đơn không tồn tại |
+| 410 | `Giữ chỗ đã hết hạn` | Đơn `HET_HAN` (không có `truong`) |
+| 410 | `Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ` | Đơn `DA_HUY` (không có `truong`) |
+
+**Kiểm tra đã nhập thông tin (task #10, #11):** `booking_service.ensure_details_complete(booking)` trả 400 `Chưa nhập điểm đón/trả` khi `da_nhap_thong_tin` là `false`.
+
+**Ô "Giống người đặt" (frontend):**
+
+- Ghế còn tích thì **không có** trong `hanh_khach`; backend giữ nguyên họ tên, SĐT trên vé.
+- Chưa lưu lần nào (`da_nhap_thong_tin = false`): mọi ghế mặc định tích.
+- Đã lưu: ghế được tích khi họ tên và SĐT trên vé trùng `nguoi_dat_luc_giu`. Nếu `nguoi_dat_luc_giu` là `null` thì so với `nguoi_dat`.
+- Tích lại một ghế đã sửa: gửi họ tên, SĐT trong `nguoi_dat_luc_giu`. Nếu `nguoi_dat_luc_giu` là `null` thì không gửi, vé giữ nguyên.
+
+**Giới hạn của `nguoi_dat_luc_giu` (tên người đặt lúc giữ ghế, D-40).** Khách vãng lai đặt lại bằng SĐT cũ nhưng nhập tên khác thì hồ sơ `khach_hang` vẫn giữ tên cũ; tên vừa nhập chỉ có trên vé. CSDL không có cột riêng cho tên này (schema không đổi), nên backend suy ra từ các vé của đơn:
+
+- Lúc giữ ghế, mọi vé mang SĐT của hồ sơ và cùng một họ tên vừa nhập.
+- Backend xét các vé còn mang SĐT người đặt. Nếu các vé đó chỉ có **một** họ tên thì họ tên này là `nguoi_dat_luc_giu`.
+- Nếu khách sửa một ghế thành tên khác nhưng vẫn để SĐT người đặt, sẽ có nhiều họ tên, và backend trả `null`.
+
+Khi giá trị là `null`, khối "Người đặt" trên frontend hiển thị theo `nguoi_dat`, tức tên trong hồ sơ (có thể là tên cũ). Khách đã đăng nhập không bị ảnh hưởng, vì tên trên vé luôn trùng tên hồ sơ.
+
+**Rủi ro**
+
+- Nhà xe sửa tuyến sau khi khách đã nhập: `da_nhap_thong_tin` được tính lại theo tuyến hiện tại, nên có thể đổi từ `true` thành `false`.
+- Tên điểm dừng chứa ` – ` sẽ bị tách sai khi đọc lại (dữ liệu hiện tại không có trường hợp này).
 
 ### POST `/api/v1/bookings/{ma_don}/cancel` — Hủy đơn đang giữ ghế
 

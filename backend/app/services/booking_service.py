@@ -1,7 +1,7 @@
 """Giữ ghế, đặt cả xe, xem đơn, nhả ghế và hủy đơn (BR-BUS-14 đến 20, 33, 37)."""
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import access_code_matches, hash_access_code, new_access_code
 from app.db.ids import KHACH_HANG_ID, MA_DON, VE_ID, next_id
-from app.models import GheNgoi, KhachHang, TaiKhoan, Ve
+from app.models import ChuyenXe, GheNgoi, KhachHang, TaiKhoan, TuyenXe, Ve
 from app.models.enums import TrangThaiGhe, TrangThaiThanhToanVe, TrangThaiVe
 from app.schemas.booking import (
     BookingOut,
@@ -20,10 +20,13 @@ from app.schemas.booking import (
     HoldRequest,
     HoldResponse,
     NguoiDatIn,
+    NguoiDatLucGiuOut,
     NguoiDatOut,
+    PointOut,
     TicketOut,
     TrangThaiDon,
 )
+from app.services.route_stops import parse_point, route_stops, valid_points
 from app.services.seat_availability import seat_available
 from app.services.seat_map_service import TRIP_NOT_FOUND, TripRecord, load_trip
 
@@ -42,6 +45,7 @@ HOLD_EXPIRED = "Giữ chỗ đã hết hạn"
 # Đơn hết hạn đã được job nhả cũng thành DA_HUY, CSDL không phân biệt được (docs/API.md)
 BOOKING_CANCELLED = "Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ"
 BOOKING_CONFIRMED = "Đơn đã xác nhận, không thể hủy ở bước này"
+DETAILS_MISSING = "Chưa nhập điểm đón/trả"
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +92,13 @@ class Booking:
     ma_don: str
     khach_hang: KhachHang
     tickets: list[BookingTicket]
+    # Điểm dừng của tuyến theo thứ tự (route_stops), để kiểm tra điểm đón/trả
+    diem_dung: list[str] = field(default_factory=list)
+
+    @property
+    def active_tickets(self) -> list[BookingTicket]:
+        """Vé chưa hủy."""
+        return [t for t in self.tickets if t.ve.trang_thai_ve != TrangThaiVe.DA_HUY]
 
 
 # --- Giữ ghế ---
@@ -314,8 +325,17 @@ async def _load_booking(session: AsyncSession, ma_don: str) -> Booking | None:
     # populate_existing: đọc lại sau khi nhả ghế, không dùng bản cũ trong session
     rows = (
         await session.execute(
-            select(Ve, GheNgoi.so_ghe, GheNgoi.han_giu_cho)
+            select(
+                Ve,
+                GheNgoi.so_ghe,
+                GheNgoi.han_giu_cho,
+                TuyenXe.diem_di,
+                TuyenXe.diem_trung_gian,
+                TuyenXe.diem_den,
+            )
             .join(GheNgoi, GheNgoi.ghe_id == Ve.ghe_id)
+            .join(ChuyenXe, ChuyenXe.chuyen_xe_id == Ve.chuyen_xe_id)
+            .join(TuyenXe, TuyenXe.tuyen_xe_id == ChuyenXe.tuyen_xe_id)
             .where(Ve.ma_don == ma_don)
             .order_by(GheNgoi.so_ghe, Ve.ve_id)
             .execution_options(populate_existing=True)
@@ -335,7 +355,18 @@ async def _load_booking(session: AsyncSession, ma_don: str) -> Booking | None:
         )
         for row in rows
     ]
-    return Booking(ma_don=ma_don, khach_hang=khach_hang, tickets=tickets)
+    first = rows[0]
+    return Booking(
+        ma_don=ma_don,
+        khach_hang=khach_hang,
+        tickets=tickets,
+        diem_dung=route_stops(first.diem_di, first.diem_trung_gian, first.diem_den),
+    )
+
+
+async def load_booking(session: AsyncSession, ma_don: str) -> Booking | None:
+    """Đọc lại đơn từ CSDL (không kiểm tra quyền); dùng sau khi đã khóa hoặc đã ghi."""
+    return await _load_booking(session, ma_don)
 
 
 async def load_accessible_booking(
@@ -384,6 +415,46 @@ def ensure_booking_active(booking: Booking, now: datetime) -> None:
         raise GoneError(BOOKING_CANCELLED)
 
 
+def details_complete(booking: Booking) -> bool:
+    """Mọi vé chưa hủy đã có điểm đón/trả hợp lệ theo tuyến (task #9)."""
+    active = booking.active_tickets
+    return bool(active) and all(
+        valid_points(booking.diem_dung, t.ve.diem_don, t.ve.diem_tra) for t in active
+    )
+
+
+def ensure_details_complete(booking: Booking) -> None:
+    """Chặn thanh toán khi chưa nhập điểm đón/trả (task #10, #11)."""
+    if not details_complete(booking):
+        raise BusinessRuleError(DETAILS_MISSING)
+
+
+def _shared_point(values: list[str | None]) -> PointOut | None:
+    """Điểm chung của các vé chưa hủy; None khi chưa nhập hoặc các vé khác nhau."""
+    if not values or values[0] is None or any(v != values[0] for v in values):
+        return None
+    parsed = parse_point(values[0])
+    return PointOut(khu_vuc=parsed.khu_vuc, dia_chi=parsed.dia_chi, chuoi=values[0])
+
+
+def _booker_at_hold(booking: Booking) -> NguoiDatLucGiuOut | None:
+    """Họ tên người đặt đã ghi trên vé lúc giữ ghế.
+
+    Lúc giữ ghế mọi vé mang SĐT của hồ sơ và cùng họ tên vừa nhập; hồ sơ khách vãng lai
+    cũ có thể giữ tên khác (D-40). CSDL không lưu riêng tên này, nên lấy từ các vé còn
+    mang SĐT người đặt: chỉ có một họ tên thì dùng, có nhiều họ tên thì None.
+    """
+    so_dien_thoai = booking.khach_hang.so_dien_thoai
+    names = {
+        t.ve.ho_ten
+        for t in booking.tickets
+        if t.ve.so_dien_thoai == so_dien_thoai and t.ve.ho_ten
+    }
+    if len(names) != 1:
+        return None
+    return NguoiDatLucGiuOut(ho_ten=names.pop(), so_dien_thoai=so_dien_thoai)
+
+
 async def booking_detail(
     session: AsyncSession, booking: Booking, now: datetime
 ) -> BookingOut:
@@ -409,6 +480,8 @@ async def booking_detail(
                 trang_thai_thanh_toan=t.ve.trang_thai_thanh_toan,
                 ho_ten=t.ve.ho_ten,
                 so_dien_thoai=t.ve.so_dien_thoai,
+                diem_don=t.ve.diem_don,
+                diem_tra=t.ve.diem_tra,
             )
             for t in booking.tickets
         ],
@@ -421,6 +494,11 @@ async def booking_detail(
         dang_giu_cho=han_giu_cho is not None and han_giu_cho > now,
         trang_thai_don=booking_status(booking, now),
         thoi_diem_hien_tai=now,
+        diem_dung=booking.diem_dung,
+        diem_don=_shared_point([t.ve.diem_don for t in booking.active_tickets]),
+        diem_tra=_shared_point([t.ve.diem_tra for t in booking.active_tickets]),
+        da_nhap_thong_tin=details_complete(booking),
+        nguoi_dat_luc_giu=_booker_at_hold(booking),
     )
 
 
