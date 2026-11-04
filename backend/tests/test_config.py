@@ -42,12 +42,13 @@ def test_test_database_url_is_optional_for_the_app(monkeypatch):
     assert Settings(_env_file=None).test_database_url is None
 
 
-def test_seat_hold_minutes_defaults_to_5(monkeypatch):
+def test_seat_hold_minutes_defaults_to_10(monkeypatch):
+    # Quyết định ngày 04/11/2026: giữ chỗ 10 phút
     monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
 
     settings = Settings(_env_file=None)
 
-    assert settings.seat_hold_minutes == 5
+    assert settings.seat_hold_minutes == 10
 
 
 def test_missing_database_url_raises():

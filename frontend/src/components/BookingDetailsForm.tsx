@@ -197,7 +197,7 @@ export default function BookingDetailsForm({ booking, onSaved, onGone, initialEr
               key={ticket.ve_id}
               role="group"
               aria-label={`Ghế ${ticket.so_ghe}`}
-              className="space-y-3 rounded-md border border-slate-200 p-3"
+              className="space-y-3 rounded-lg border border-slate-200 p-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="font-medium">Ghế {ticket.so_ghe}</p>
@@ -262,14 +262,14 @@ export default function BookingDetailsForm({ booking, onSaved, onGone, initialEr
       </fieldset>
 
       {formError && (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {formError}
         </p>
       )}
       <button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:bg-slate-400"
+        className="w-full rounded-lg bg-brand-700 px-4 py-2 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:bg-slate-400"
       >
         {submitting ? 'Đang lưu…' : 'Lưu thông tin'}
       </button>
@@ -292,7 +292,7 @@ function PointFields({ id, field, label, options, value, onChange, errors }: Poi
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <label htmlFor={`${id}-khu-vuc`} className="block text-sm font-medium text-slate-700">
+        <label htmlFor={`${id}-khu-vuc`} className="block text-sm font-semibold text-brand-800">
           {label}
         </label>
         <select
@@ -301,7 +301,7 @@ function PointFields({ id, field, label, options, value, onChange, errors }: Poi
           onChange={(event) => onChange({ ...value, khu_vuc: event.target.value })}
           aria-invalid={areaError ? true : undefined}
           aria-describedby={areaError ? `${id}-khu-vuc-error` : undefined}
-          className={`w-full rounded-md border bg-white px-3 py-2 text-base outline-none focus:ring-2 focus:ring-blue-500 ${
+          className={`w-full rounded-lg border bg-white px-3 py-2 text-base outline-none focus:ring-2 focus:ring-brand-400 ${
             areaError ? 'border-red-500' : 'border-slate-300'
           }`}
         >

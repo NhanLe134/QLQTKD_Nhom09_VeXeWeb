@@ -32,7 +32,7 @@ export default function CancelBookingButton({ maDon, label = 'Hủy đặt vé',
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-md border border-red-300 px-4 py-2 font-medium text-red-700 hover:bg-red-50"
+        className="rounded-lg border border-red-300 px-4 py-2 font-medium text-red-700 hover:bg-red-50"
       >
         {label}
       </button>
@@ -55,7 +55,7 @@ export default function CancelBookingButton({ maDon, label = 'Hủy đặt vé',
           type="button"
           onClick={confirm}
           disabled={submitting}
-          className="rounded-md bg-red-700 px-4 py-2 font-medium text-white hover:bg-red-800 disabled:opacity-50"
+          className="rounded-lg bg-red-700 px-4 py-2 font-medium text-white hover:bg-red-800 disabled:opacity-50"
         >
           {submitting ? 'Đang hủy…' : 'Đồng ý hủy'}
         </button>
@@ -66,7 +66,7 @@ export default function CancelBookingButton({ maDon, label = 'Hủy đặt vé',
             setMessage('')
           }}
           disabled={submitting}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         >
           Không hủy
         </button>

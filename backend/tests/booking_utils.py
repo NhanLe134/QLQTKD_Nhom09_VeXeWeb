@@ -66,8 +66,9 @@ async def confirm_tickets(factory, ma_don: str, so_ghe: list[str] | None = None)
 def guest(
     so_dien_thoai: str = "0905111222",
     ho_ten: str = "Trần Thị Bình",
-    email: str | None = None,
+    email: str | None = "khach.vang.lai@vexe.example",
 ) -> dict[str, object]:
+    # email bắt buộc khi giữ ghế; truyền None để thử trường hợp thiếu
     return {"ho_ten": ho_ten, "so_dien_thoai": so_dien_thoai, "email": email}
 
 

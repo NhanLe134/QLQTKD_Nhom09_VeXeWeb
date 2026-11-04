@@ -124,6 +124,17 @@ async def _confirm(session: AsyncSession, booking: Booking, now: datetime) -> in
                 loai_giao_dich=LoaiGiaoDich.THANH_TOAN,
             )
         )
+    # Khách từng tạo QR SePay rồi quay lại trả tiền mặt: hủy dòng SePay đang chờ
+    await session.execute(
+        update(ThanhToan)
+        .where(
+            ThanhToan.ma_don == current.ma_don,
+            ThanhToan.phuong_thuc_tt == PhuongThucThanhToan.CHUYEN_KHOAN_SEPAY,
+            ThanhToan.loai_giao_dich == LoaiGiaoDich.THANH_TOAN,
+            ThanhToan.trang_thai_thanh_toan == TrangThaiGiaoDich.CHO_THANH_TOAN,
+        )
+        .values(trang_thai_thanh_toan=TrangThaiGiaoDich.THAT_BAI)
+    )
     await session.flush()
     return len(held)
 

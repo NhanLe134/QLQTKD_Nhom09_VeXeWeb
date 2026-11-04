@@ -9,11 +9,13 @@ import CancelBookingButton from '../components/CancelBookingButton'
 import CashConfirmDialog from '../components/CashConfirmDialog'
 import HoldCountdown from '../components/HoldCountdown'
 import PaymentMethodPicker from '../components/PaymentMethodPicker'
+import QrSePayPanel from '../components/QrSePayPanel'
 import { useCountdown } from '../hooks/useCountdown'
-import { type Booking, getBooking } from '../services/bookingService'
+import { type Booking, taoQrSePay, type QrSePay, getBooking } from '../services/bookingService'
 import { bookerReference } from '../utils/booker'
-import { clearStoredBookingFor } from '../utils/bookingStorage'
+import { clearStoredBookingFor, moveToConfirmed } from '../utils/bookingStorage'
 import { formatCurrency, formatDate, formatTime, formatVehicleType } from '../utils/format'
+import { ApiError } from '../services/apiClient'
 
 type BookingState =
   | { state: 'loading' }
@@ -44,13 +46,13 @@ export default function BookingPage() {
   if (booking.state !== 'loaded') {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-bold">Đặt vé</h1>
+        <h1 className="text-2xl font-bold text-brand-800">Đặt vé</h1>
         {booking.state === 'loading' ? (
           <p role="status" className="text-slate-600">
             Đang tải đơn…
           </p>
         ) : (
-          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
             {booking.message}
           </p>
         )}
@@ -96,6 +98,51 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
   const { chuyen } = data
   const heldTickets = data.ve.filter((ve) => ve.trang_thai_ve !== 'DA_HUY')
 
+  // ---- Chuyển khoản SePay (BR-BUS-29): QR hiện ngay khi chọn, đếm ngược 5 phút ở đây ----
+  const [qrSePay, setQrSePay] = useState<QrSePay | null>(null)
+  const [hanQr, setSepayDeadline] = useState<string | null>(null)
+  const [dangTaoQr, setSepayLoading] = useState(false)
+  const [loiQr, setSepayError] = useState<string | null>(null)
+  const qrConLaiMs = useCountdown(qrSePay ? hanQr : null, 0)
+
+  function xuLyChonChuyenKhoan() {
+    if (qrSePay) {
+      // Chọn lại: cùng QR (backend idempotent), đồng hồ 5 phút bắt đầu lại
+      setSepayDeadline(new Date(Date.now() + qrSePay.thoi_gian_cho_giay * 1000).toISOString())
+      return
+    }
+    setSepayLoading(true)
+    setSepayError(null)
+    taoQrSePay(data.ma_don)
+      .then((qr) => {
+        setQrSePay(qr)
+        setSepayDeadline(new Date(Date.now() + qr.thoi_gian_cho_giay * 1000).toISOString())
+        // Backend gia hạn giữ chỗ thêm 10 phút khi tạo QR: tải lại đơn để
+        // đồng hồ giữ chỗ hiện hạn mới
+        getBooking(data.ma_don).then(onChange).catch(() => {})
+      })
+      .catch((error: unknown) => {
+        setSepayError(error instanceof ApiError ? error.detail : 'Không tạo được mã QR, vui lòng thử lại.')
+      })
+      .finally(() => setSepayLoading(false))
+  }
+
+  // Webhook SePay xác nhận đơn ở backend: hỏi lại đơn mỗi 2 giây để chuyển
+  // "Đặt vé thành công" ngay khi webhook ghi xong (US-BUS-05 AC2);
+  // dừng khi đơn không còn đang giữ
+  useEffect(() => {
+    if (!qrSePay || step !== 'payment' || data.trang_thai_don !== 'DANG_GIU') return
+    const timer = setInterval(() => {
+      getBooking(data.ma_don)
+        .then((latest) => {
+          if (latest.trang_thai_don === 'DA_XAC_NHAN') moveToConfirmed(latest.ma_don)
+          if (latest.trang_thai_don !== 'DANG_GIU') onChange(latest)
+        })
+        .catch(() => {})
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [qrSePay, step, data.ma_don, data.trang_thai_don, onChange])
+
   useEffect(() => {
     if (failure) clearStoredBookingFor(data.ma_don)
   }, [failure, data.ma_don])
@@ -124,14 +171,14 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Đặt vé</h1>
+      <h1 className="text-2xl font-bold text-brand-800">Đặt vé</h1>
       <p className="text-slate-600">
         Mã đơn: <span className="font-semibold text-slate-900">{data.ma_don}</span>
       </p>
 
       {dangGiu && <HoldCountdown remainingMs={remainingMs} />}
 
-      <div className="space-y-1 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="space-y-1 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
         <p className="text-lg font-semibold">{chuyen.ten_tuyen}</p>
         <p className="text-slate-700">
           {formatTime(chuyen.gio_di)} ngày {formatDate(chuyen.ngay_khoi_hanh)}
@@ -139,7 +186,7 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
         <p className="text-sm text-slate-600">{formatVehicleType(chuyen.ten_loai_xe, chuyen.so_cho)}</p>
       </div>
 
-      <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="space-y-2 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
         <h2 className="font-semibold">Ghế đã giữ</h2>
         <ul aria-label="Ghế đã giữ" className="divide-y divide-slate-100">
           {heldTickets.map((ve) => (
@@ -158,7 +205,7 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       {holding && (
         <>
           {step === 'details' && (
-            <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="space-y-4 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
               <h2 className="text-lg font-semibold">Thông tin hành khách</h2>
               <BookerInfo data={data} />
               {editing ? (
@@ -186,8 +233,18 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
             <PaymentMethodPicker
               tongTien={data.tong_tien}
               onChooseCash={() => setStep('confirm-cash')}
+              onChooseTransfer={xuLyChonChuyenKhoan}
+              transferActive={qrSePay !== null}
+              transferLoading={dangTaoQr}
               onBack={() => setStep('details')}
-            />
+            >
+              {loiQr && (
+                <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {loiQr}
+                </p>
+              )}
+              {qrSePay && <QrSePayPanel qr={qrSePay} conLaiMs={qrConLaiMs} />}
+            </PaymentMethodPicker>
           )}
           {step === 'confirm-cash' && (
             <CashConfirmDialog

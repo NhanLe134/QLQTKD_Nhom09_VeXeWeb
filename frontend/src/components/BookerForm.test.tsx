@@ -51,7 +51,7 @@ describe('BookerForm — khách vãng lai', () => {
     const { onSubmit } = renderForm()
 
     fill('Số điện thoại', '12345')
-    fill('Email (không bắt buộc)', 'khong-phai-email')
+    fill('Email', 'khong-phai-email')
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận giữ ghế' }))
 
     expect(screen.getByText('Vui lòng nhập họ tên')).toBeInTheDocument()
@@ -61,14 +61,32 @@ describe('BookerForm — khách vãng lai', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('gửi thông tin đã bỏ khoảng trắng; email trống thành null', () => {
+  it.each(['', '   '])('email bắt buộc: để trống %j thì báo lỗi, không gửi', (value) => {
+    const { onSubmit } = renderForm()
+
+    fill('Họ tên', 'Trần Thị Bình')
+    fill('Số điện thoại', '0905111222')
+    fill('Email', value)
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận giữ ghế' }))
+
+    expect(screen.getByText('Vui lòng nhập email')).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-invalid', 'true')
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('gửi thông tin đã bỏ khoảng trắng, kèm email', () => {
     const { onSubmit } = renderForm()
 
     fill('Họ tên', '  Trần Thị Bình ')
     fill('Số điện thoại', '0905111222')
+    fill('Email', ' binh@example.com ')
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận giữ ghế' }))
 
-    expect(onSubmit).toHaveBeenCalledWith({ ho_ten: 'Trần Thị Bình', so_dien_thoai: '0905111222', email: null })
+    expect(onSubmit).toHaveBeenCalledWith({
+      ho_ten: 'Trần Thị Bình',
+      so_dien_thoai: '0905111222',
+      email: 'binh@example.com',
+    })
   })
 
   it('nút Hủy gọi onCancel', () => {
@@ -97,6 +115,18 @@ describe('BookerForm — đã đăng nhập', () => {
     expect(screen.getByText('khach@vexe.example')).toBeInTheDocument()
     expect(screen.queryByLabelText('Số điện thoại')).not.toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận giữ ghế' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(null)
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  it('tài khoản cũ chưa có email: báo không gửi được vé qua email, vẫn giữ ghế được', async () => {
+    const noEmail = { ...ME, khach_hang: { ...ME.khach_hang, email: null } }
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify(noEmail), { status: 200 }))
+    const { onSubmit } = renderForm()
+
+    expect(await screen.findByRole('note')).toHaveTextContent('Tài khoản chưa có email nên vé sẽ không được gửi qua email.')
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận giữ ghế' }))
 
     expect(onSubmit).toHaveBeenCalledWith(null)

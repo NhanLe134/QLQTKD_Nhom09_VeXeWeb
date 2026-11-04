@@ -132,7 +132,8 @@ describe('TripSearchPage', () => {
     fireEvent.change(screen.getByLabelText('Ngày đi'), { target: { value: '2026-12-15' } })
     fireEvent.click(screen.getByRole('button', { name: 'Tìm chuyến' }))
 
-    expect(await screen.findByText('06:00 → 08:30')).toBeInTheDocument()
+    const card = await screen.findByRole('article', { name: /^Chuyến 06:00/ })
+    expect(within(card).getByText('08:30')).toBeInTheDocument()
     const params = new URLSearchParams(router.state.location.search)
     expect(Object.fromEntries(params)).toEqual({ di: 'Đà Nẵng', den: 'Huế', ngay: '2026-12-15' })
   })
@@ -162,7 +163,8 @@ describe('TripSearchPage', () => {
       '/chuyen/CX00000001',
     )
     // Thẻ 2: hết ghế → nút bị khóa
-    expect(within(cards[1]).getByText('07:00 → 09:30')).toBeInTheDocument()
+    expect(within(cards[1]).getByText('07:00')).toBeInTheDocument()
+    expect(within(cards[1]).getByText('09:30')).toBeInTheDocument()
     expect(within(cards[1]).getByText('150.000 đ')).toBeInTheDocument()
     expect(within(cards[1]).getByText('Hết ghế')).toBeInTheDocument()
     expect(within(cards[1]).getByRole('button', { name: 'Chọn chuyến' })).toBeDisabled()
@@ -216,7 +218,8 @@ describe('TripSearchPage', () => {
 
     fireEvent.click(suggestion)
 
-    expect(await screen.findByText('08:00 → 09:00')).toBeInTheDocument()
+    const nearby = await screen.findByRole('article', { name: /^Chuyến 08:00/ })
+    expect(within(nearby).getByText('09:00')).toBeInTheDocument()
     expect(new URLSearchParams(router.state.location.search).get('ngay')).toBe('2026-12-16')
     expect(tripRequests().at(-1)?.searchParams.get('ngay')).toBe('2026-12-16')
     expect(screen.getByLabelText('Ngày đi')).toHaveValue('2026-12-16')

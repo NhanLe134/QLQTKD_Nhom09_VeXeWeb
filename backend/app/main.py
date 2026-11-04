@@ -3,9 +3,11 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, bookings, me, trips
+from app.api.v1 import auth, bookings, me, trips, webhooks
+from app.api.validation_errors import handle_validation_error
 from app.core.config import Settings, get_settings
 from app.db.session import get_session_factory
 from app.services.release_job import run_release_job
@@ -34,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await job
 
     app = FastAPI(title="VeXe Backend", lifespan=lifespan)
+    app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -50,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(trips.router, prefix="/api/v1")
     app.include_router(bookings.router, prefix="/api/v1")
     app.include_router(me.router, prefix="/api/v1")
+    app.include_router(webhooks.router, prefix="/api/v1")
 
     return app
 

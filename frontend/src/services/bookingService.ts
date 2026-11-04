@@ -2,10 +2,18 @@ import { accessCodeFor, clearStoredBookingFor, moveToConfirmed, saveStoredBookin
 import { get, post, put, type RequestHeaders } from './apiClient'
 import type { TripInfo } from './tripService'
 
+/** Người đặt backend trả về; email có thể null với tài khoản cũ chưa có email */
 export type NguoiDat = {
   ho_ten: string
   so_dien_thoai: string
   email: string | null
+}
+
+/** Người đặt khách vãng lai gửi khi giữ ghế; email bắt buộc để nhận vé */
+export type NguoiDatInput = {
+  ho_ten: string
+  so_dien_thoai: string
+  email: string
 }
 
 export type HoldRequest = {
@@ -14,7 +22,7 @@ export type HoldRequest = {
   ghe_ids?: string[]
   dat_ca_xe?: boolean
   /** Chỉ khách vãng lai; khách đã đăng nhập thì backend dùng hồ sơ tài khoản */
-  nguoi_dat?: NguoiDat
+  nguoi_dat?: NguoiDatInput
 }
 
 export type HeldSeat = {
@@ -168,4 +176,28 @@ export type MyBooking = {
 /** Vé đã xác nhận của khách đang đăng nhập, mới nhất trước (BR-BUS-36). */
 export function getMyTickets(): Promise<MyBooking[]> {
   return get<MyBooking[]>('/api/v1/me/tickets')
+}
+
+/** Mã QR chuyển khoản SePay của đơn (BR-BUS-29); đếm ngược do frontend chạy. */
+export type QrSePay = {
+  ma_don: string
+  so_tien: number
+  /** Nội dung chuyển khoản "THANH TOAN VE {ma_don}", khách không được sửa */
+  noi_dung: string
+  /** Ảnh QR dựng sẵn (VietQR) để hiển thị trực tiếp */
+  qr_url: string
+  /** Cửa sổ chuyển khoản hiển thị cho khách (giây) */
+  thoi_gian_cho_giay: number
+}
+
+/**
+ * Tạo mã QR chuyển khoản SePay (BR-BUS-29); gọi lại trả đúng QR cũ (NFR-BUS-05).
+ * Khách chọn chuyển khoản thì gọi, chọn lại tiền mặt thì không gọi thêm.
+ */
+export function taoQrSePay(maDon: string): Promise<QrSePay> {
+  return post<QrSePay>(
+    `/api/v1/bookings/${encodeURIComponent(maDon)}/pay-sepay`,
+    undefined,
+    accessHeaders(maDon),
+  )
 }

@@ -37,7 +37,7 @@ function SuggestionList({ trips, onPick }: { trips: Trip[]; onPick: (ngay: strin
             <button
               type="button"
               onClick={() => onPick(trip.ngay_khoi_hanh)}
-              className="w-full rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-left text-sm hover:bg-blue-100"
+              className="w-full rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-left text-sm hover:bg-brand-100"
             >
               <span className="font-semibold">Ngày {formatDate(trip.ngay_khoi_hanh)}</span>
               {' · '}
@@ -113,10 +113,10 @@ export default function TripSearchPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Tìm chuyến</h1>
+      <h1 className="text-2xl font-bold text-brand-800">Tìm chuyến</h1>
 
       {locations.state === 'error' && (
-        <div role="alert" className="flex items-center justify-between gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           <span>Không tải được danh sách điểm đi, điểm đến: {locations.message}</span>
           <button type="button" onClick={retryLocations} className="font-medium underline">
             Thử lại
@@ -138,7 +138,7 @@ export default function TripSearchPage() {
       )}
 
       {current?.state === 'error' && (
-        <div role="alert" className="flex items-center justify-between gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           <span>{current.message}</span>
           <button type="button" onClick={() => setSearchAttempt((value) => value + 1)} className="font-medium underline">
             Thử lại
@@ -151,7 +151,7 @@ export default function TripSearchPage() {
           <p className="text-sm text-slate-600">
             {current.data.chuyen.length} chuyến ngày {formatDate(ngay)}
           </p>
-          <ul className="space-y-3">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {current.data.chuyen.map((trip) => (
               <li key={trip.chuyen_xe_id}>
                 <TripCard trip={trip} />
@@ -162,7 +162,7 @@ export default function TripSearchPage() {
       )}
 
       {current?.state === 'done' && current.data.chuyen.length === 0 && (
-        <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+        <div className="space-y-3 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
           <p role="status" className="font-medium">
             Không có chuyến phù hợp ngày {formatDate(ngay)}.
           </p>

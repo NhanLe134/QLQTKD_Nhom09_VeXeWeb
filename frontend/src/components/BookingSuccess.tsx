@@ -14,8 +14,8 @@ export default function BookingSuccess({ booking }: { booking: Booking }) {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Đặt vé thành công</h1>
-      <p role="status" className="rounded-md bg-green-50 px-3 py-2 font-medium text-green-700">
+      <h1 className="text-2xl font-bold text-brand-800">Đặt vé thành công</h1>
+      <p role="status" className="rounded-lg bg-green-50 px-3 py-2 font-medium text-green-700">
         Đơn đã được xác nhận.
         {payOnBoard && ` Vui lòng trả ${formatCurrency(booking.tong_tien)} cho tài xế khi lên xe.`}
       </p>
@@ -23,7 +23,7 @@ export default function BookingSuccess({ booking }: { booking: Booking }) {
         Mã đơn: <span className="font-semibold text-slate-900">{booking.ma_don}</span>
       </p>
 
-      <div className="space-y-1 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="space-y-1 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
         <p className="text-lg font-semibold">{chuyen.ten_tuyen}</p>
         <p className="text-slate-700">
           {formatTime(chuyen.gio_di)} ngày {formatDate(chuyen.ngay_khoi_hanh)}
@@ -33,7 +33,7 @@ export default function BookingSuccess({ booking }: { booking: Booking }) {
 
       <TicketList tickets={tickets} />
 
-      <p className="flex justify-between rounded-lg border border-slate-200 bg-white p-4 font-semibold">
+      <p className="flex justify-between rounded-xl border border-brand-100 bg-white shadow-sm p-4 font-semibold">
         <span>Tổng tiền</span>
         <span data-testid="tong-tien">{formatCurrency(booking.tong_tien)}</span>
       </p>
@@ -42,14 +42,14 @@ export default function BookingSuccess({ booking }: { booking: Booking }) {
         {user?.vai_tro === 'KHACH' && (
           <Link
             to="/ve-cua-toi"
-            className="rounded-md bg-blue-700 px-4 py-2 text-center font-medium text-white hover:bg-blue-800"
+            className="rounded-lg bg-brand-700 px-4 py-2 text-center font-semibold text-white shadow-sm hover:bg-brand-800"
           >
             Vé của tôi
           </Link>
         )}
         <Link
           to="/"
-          className="rounded-md border border-slate-300 px-4 py-2 text-center font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 px-4 py-2 text-center font-medium text-slate-700 hover:bg-slate-50"
         >
           Về trang chủ
         </Link>

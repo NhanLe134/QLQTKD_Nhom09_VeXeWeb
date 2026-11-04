@@ -108,13 +108,40 @@ async def test_register_links_existing_guest_profile(client, session_factory, gu
     assert khach_hang.ngay_dang_ky > GUEST_REGISTERED_AT
 
 
-async def test_register_guest_without_email_keeps_old_email(
-    client, session_factory, guest
-):
-    response = await register(client, email="")
+@pytest.mark.parametrize(
+    ("overrides", "detail"),
+    [
+        ({"email": ""}, "Vui lòng nhập email"),
+        ({"email": "   "}, "Vui lòng nhập email"),
+        ({"email": None}, "Vui lòng nhập email"),
+        ({"email": "khong-phai-email"}, "Email không hợp lệ"),
+        ({"email": "a" * 95 + "@x.com"}, "Email không hợp lệ"),
+    ],
+    ids=["rong", "khoang-trang", "null", "sai-dinh-dang", "qua-dai"],
+)
+async def test_register_email_required(client, session_factory, overrides, detail):
+    response = await register(client, **overrides)
 
-    assert response.status_code == 201
-    assert response.json()["khach_hang"]["email"] == "cu@example.com"
+    assert response.status_code == 422
+    assert response.json() == {"detail": detail, "truong": "email"}
+    assert await count_khach_hang(session_factory) == 0
+
+
+async def test_register_without_email_key_returns_422(client, session_factory):
+    payload = register_payload()
+    del payload["email"]
+
+    response = await client.post(REGISTER_URL, json=payload)
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Vui lòng nhập email", "truong": "email"}
+
+
+async def test_register_other_field_error_keeps_default_format(client, session_factory):
+    response = await register(client, so_dien_thoai="123")
+
+    assert response.status_code == 422
+    assert isinstance(response.json()["detail"], list)
 
 
 async def test_register_phone_with_account_returns_409(client, session_factory):
@@ -161,7 +188,6 @@ async def test_register_duplicate_username_does_not_touch_guest(
         {"mat_khau": "1234567"},  # 7 ký tự
         {"ho_ten": "   "},
         {"ten_dang_nhap": ""},
-        {"email": "khong-phai-email"},
         {"ho_ten": None},
     ],
 )

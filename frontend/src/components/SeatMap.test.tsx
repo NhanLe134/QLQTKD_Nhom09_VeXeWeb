@@ -11,6 +11,23 @@ const SEATS: Seat[] = [
   { ghe_id: 'GH4', so_ghe: 'A04', trang_thai: 'TRONG' },
 ]
 
+function makeSeats(count: number): Seat[] {
+  return Array.from({ length: count }, (_, i) => {
+    const code = `A${String(i + 1).padStart(2, '0')}`
+    return { ghe_id: `GH${i + 1}`, so_ghe: code, trang_thai: 'TRONG' }
+  })
+}
+
+/** Đọc sơ đồ thành bảng: D = vô lăng, _ = ô trống, còn lại là mã ghế */
+function readRows(): string[][] {
+  return screen.getAllByTestId('seat-row').map((row) =>
+    Array.from(row.children).map((cell) => {
+      if (cell.getAttribute('data-testid') === 'steering-wheel') return 'D'
+      return cell.textContent || '_'
+    }),
+  )
+}
+
 describe('SeatMap', () => {
   it('hiện mọi ghế theo mã ghế, kèm trạng thái và chú thích', () => {
     render(<SeatMap seats={SEATS} selected={['GH4']} onToggle={vi.fn()} />)
@@ -38,6 +55,37 @@ describe('SeatMap', () => {
 
     expect(onToggle).toHaveBeenCalledTimes(1)
     expect(onToggle).toHaveBeenCalledWith('GH1')
+  })
+
+  it.each([
+    // [số ghế, ô của từng hàng: D = vô lăng, _ = ô trống, còn lại là mã ghế]
+    [4, [['D', '_', 'A01'], ['A02', 'A03', 'A04']]],
+    [7, [['D', '_', 'A01'], ['A02', 'A03', 'A04'], ['A05', 'A06', 'A07']]],
+    [
+      16,
+      [
+        ['D', '_', 'A01', 'A02'],
+        ['A03', 'A04', '_', '_'],
+        ['A05', 'A06', 'A07', 'A08'],
+        ['A09', 'A10', 'A11', 'A12'],
+        ['A13', 'A14', 'A15', 'A16'],
+      ],
+    ],
+  ])('xếp xe %i chỗ đúng sơ đồ', (count, expected) => {
+    render(<SeatMap seats={makeSeats(count)} selected={[]} onToggle={vi.fn()} />)
+
+    expect(readRows()).toEqual(expected)
+    expect(screen.getByTestId('steering-wheel')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('loại xe chưa có sơ đồ riêng thì xếp 4 cột sau hàng vô lăng', () => {
+    render(<SeatMap seats={makeSeats(6)} selected={[]} onToggle={vi.fn()} />)
+
+    expect(readRows()).toEqual([
+      ['D', '_', '_', '_'],
+      ['A01', 'A02', 'A03', 'A04'],
+      ['A05', 'A06', '_', '_'],
+    ])
   })
 
   it('khóa mọi ghế khi disabled', () => {

@@ -140,7 +140,7 @@ async def test_edit_one_passenger_keeps_others(client, order):
 
 
 async def test_guest_reusing_profile_keeps_name_entered_at_hold(client, seeded, set_now):
-    """D-40: hồ sơ vãng lai giữ tên cũ; vé không gửi trong hanh_khach giữ tên vừa nhập."""
+    """D-20: hồ sơ vãng lai giữ tên cũ; vé không gửi trong hanh_khach giữ tên vừa nhập."""
     order = await place(
         client, ["A01", "A02"], nguoi_dat=guest("0900000004", "Tên Mới Nhập")
     )

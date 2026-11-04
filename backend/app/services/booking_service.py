@@ -12,8 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import access_code_matches, hash_access_code, new_access_code
 from app.db.ids import KHACH_HANG_ID, MA_DON, VE_ID, next_id
-from app.models import ChuyenXe, GheNgoi, KhachHang, TaiKhoan, TuyenXe, Ve
-from app.models.enums import TrangThaiGhe, TrangThaiThanhToanVe, TrangThaiVe
+from app.models import ChuyenXe, GheNgoi, KhachHang, TaiKhoan, ThanhToan, TuyenXe, Ve
+from app.models.enums import (
+    LoaiGiaoDich,
+    PhuongThucThanhToan,
+    TrangThaiGhe,
+    TrangThaiGiaoDich,
+    TrangThaiThanhToanVe,
+    TrangThaiVe,
+)
 from app.schemas.booking import (
     BookingOut,
     HeldSeatOut,
@@ -140,9 +147,9 @@ async def _guest_customer(
     )
     if khach_hang.user_id is not None:
         raise ConflictError(PHONE_HAS_ACCOUNT)
-    # Giữ nguyên họ tên hồ sơ; chỉ bổ sung email khi hồ sơ chưa có
-    if khach_hang.email is None and nguoi_dat.email is not None:
-        khach_hang.email = nguoi_dat.email
+    # Giữ nguyên họ tên hồ sơ (D-40). Email lấy theo lần giữ ghế mới nhất để vé gửi
+    # về đúng email khách vừa nhập; giữ ghế thất bại thì rollback, email cũ còn nguyên.
+    khach_hang.email = nguoi_dat.email
     return khach_hang
 
 
@@ -475,7 +482,7 @@ def _booker_at_hold(booking: Booking) -> NguoiDatLucGiuOut | None:
     """Họ tên người đặt đã ghi trên vé lúc giữ ghế.
 
     Lúc giữ ghế mọi vé mang SĐT của hồ sơ và cùng họ tên vừa nhập; hồ sơ khách vãng lai
-    cũ có thể giữ tên khác (D-40). CSDL không lưu riêng tên này, nên lấy từ các vé còn
+    cũ có thể giữ tên khác (D-20). CSDL không lưu riêng tên này, nên lấy từ các vé còn
     mang SĐT người đặt: chỉ có một họ tên thì dùng, có nhiều họ tên thì None.
     """
     so_dien_thoai = booking.khach_hang.so_dien_thoai
@@ -614,6 +621,17 @@ async def release_booking(
             GheNgoi.khach_hang_id == khach_hang_id,
         )
         .values(trang_thai=TrangThaiGhe.TRONG, han_giu_cho=None, khach_hang_id=None)
+    )
+    # Đơn bị nhả ghế: dòng SePay đang chờ chuyển THAT_BAI để nhà xe đối soát hoàn
+    await session.execute(
+        update(ThanhToan)
+        .where(
+            ThanhToan.ma_don == ma_don,
+            ThanhToan.phuong_thuc_tt == PhuongThucThanhToan.CHUYEN_KHOAN_SEPAY,
+            ThanhToan.loai_giao_dich == LoaiGiaoDich.THANH_TOAN,
+            ThanhToan.trang_thai_thanh_toan == TrangThaiGiaoDich.CHO_THANH_TOAN,
+        )
+        .values(trang_thai_thanh_toan=TrangThaiGiaoDich.THAT_BAI)
     )
     return len(held)
 
