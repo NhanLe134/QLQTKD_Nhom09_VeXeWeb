@@ -49,12 +49,13 @@ def du_lieu_giao_dich(
     co_id: bool = True,
 ) -> dict:
     body = {
-        "gateway": "Mb Bank",
+        "gateway": "MBBank",
         "transactionDate": "2026-12-01 00:01:00",
         "accountNumber": "0367545235",
         "content": content if content is not None else f"THANH TOAN VE {ma_don}",
         "transferType": chieu,
-        "amount": so_tien,
+        # Payload SePay thật dùng "transferAmount" (06/11)
+        "transferAmount": so_tien,
     }
     if co_id:
         # Payload chuẩn có "id"; payload thật ngày 06/11 chỉ có "code"

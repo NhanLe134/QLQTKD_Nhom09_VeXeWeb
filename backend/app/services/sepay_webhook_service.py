@@ -43,7 +43,9 @@ TRUONG_MA_GIAO_DICH = "id"
 # 06/11 không có "id", chỉ có "code" (VD: "DH00100013") — dùng làm mã giao
 # dịch dự phòng để vẫn đối soát idempotent được
 TRUONG_MA_THANH_TOAN = "code"
-TRUONG_SO_TIEN = "amount"
+# Payload SePay thật ngày 06/11 dùng "transferAmount" (không phải "amount")
+TRUONG_SO_TIEN = "transferAmount"
+TRUONG_SO_TIEN_DU_PHONG = "amount"
 TRUONG_NOI_DUNG = "content"
 TRUONG_CHIEU_GIAO_DICH = "transferType"
 TRUONG_NGAY_GIAO_DICH = "transactionDate"
@@ -170,7 +172,8 @@ async def xu_ly_giao_dich(
         return KetQuaWebhook(KET_QUA_BO_QUA, chi_tiet="noi dung khong co ma don")
     ma_don = khop.group(1).upper()
     try:
-        so_tien = Decimal(str(du_lieu.get(TRUONG_SO_TIEN)))
+        gia_tri_tien = du_lieu.get(TRUONG_SO_TIEN) or du_lieu.get(TRUONG_SO_TIEN_DU_PHONG)
+        so_tien = Decimal(str(gia_tri_tien))
     except (InvalidOperation, ArithmeticError):
         return KetQuaWebhook(KET_QUA_BO_QUA, chi_tiet="so tien khong hop le")
     ngay = _ngay_giao_dich(du_lieu, now)
