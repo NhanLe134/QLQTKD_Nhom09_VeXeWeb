@@ -3,10 +3,12 @@ import type { Booking } from '../services/bookingService'
 type Props = {
   booking: Booking
   onEdit: () => void
+  /** Sang bước chọn phương thức thanh toán */
+  onContinue: () => void
 }
 
 /** Tóm tắt sau khi lưu: hiển thị đúng chuỗi backend trả về, không tự ghép. */
-export default function BookingDetailsSummary({ booking, onEdit }: Props) {
+export default function BookingDetailsSummary({ booking, onEdit, onContinue }: Props) {
   const tickets = booking.ve.filter((ve) => ve.trang_thai_ve !== 'DA_HUY')
   return (
     <section aria-label="Tóm tắt thông tin" className="space-y-3">
@@ -27,10 +29,11 @@ export default function BookingDetailsSummary({ booking, onEdit }: Props) {
         <dd data-testid="tom-tat-diem-tra">{booking.diem_tra?.chuoi}</dd>
       </dl>
       <div className="flex flex-col gap-2 sm:flex-row">
-        {/* Task #10: chọn phương thức thanh toán */}
+        {/* Chỉ mở khi backend xác nhận đã nhập đủ điểm đón/trả */}
         <button
           type="button"
-          disabled
+          onClick={onContinue}
+          disabled={!booking.da_nhap_thong_tin}
           className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white disabled:bg-slate-400"
         >
           Tiếp tục thanh toán

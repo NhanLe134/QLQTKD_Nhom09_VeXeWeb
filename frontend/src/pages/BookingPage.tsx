@@ -4,8 +4,11 @@ import { useParams } from 'react-router-dom'
 import BookingDetailsForm from '../components/BookingDetailsForm'
 import BookingDetailsSummary from '../components/BookingDetailsSummary'
 import BookingFailed, { type FailureReason } from '../components/BookingFailed'
+import BookingSuccess from '../components/BookingSuccess'
 import CancelBookingButton from '../components/CancelBookingButton'
+import CashConfirmDialog from '../components/CashConfirmDialog'
 import HoldCountdown from '../components/HoldCountdown'
+import PaymentMethodPicker from '../components/PaymentMethodPicker'
 import { useCountdown } from '../hooks/useCountdown'
 import { type Booking, getBooking } from '../services/bookingService'
 import { bookerReference } from '../utils/booker'
@@ -72,12 +75,19 @@ type DetailProps = {
   onChange: (data: Booking) => void
 }
 
+type Step = 'details' | 'payment' | 'confirm-cash'
+
+type FieldError = { field: string; message: string }
+
 // Tách riêng để useCountdown bắt đầu đếm đúng lúc đã có dữ liệu đơn
 function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
   const [cancelled, setCancelled] = useState(false)
   const [gone, setGone] = useState(false)
   // Đã lưu thông tin thì hiện tóm tắt, bấm "Sửa" để nhập lại
   const [editing, setEditing] = useState(!data.da_nhap_thong_tin)
+  const [step, setStep] = useState<Step>('details')
+  // Lỗi kèm tên trường khi xác nhận thanh toán: mở lại form và báo đúng ô
+  const [detailsError, setDetailsError] = useState<FieldError | null>(null)
   const dangGiu = data.trang_thai_don === 'DANG_GIU'
   const remainingMs = useCountdown(dangGiu ? data.han_giu_cho : null, clockOffsetMs)
   // Hết giờ trên đồng hồ thì coi như hết giữ chỗ ngay, không chờ tải lại đơn
@@ -101,6 +111,17 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
     return <BookingFailed reason={failure} maDon={data.ma_don} chuyenXeId={chuyen.chuyen_xe_id} />
   }
 
+  // Trạng thái do backend quyết định; mở lại hoặc tải lại đơn đã xác nhận cũng hiện vé
+  if (data.trang_thai_don === 'DA_XAC_NHAN') {
+    return <BookingSuccess booking={data} />
+  }
+
+  function showFieldError(field: string, message: string) {
+    setDetailsError({ field, message })
+    setEditing(true)
+    setStep('details')
+  }
+
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-bold">Đặt vé</h1>
@@ -108,13 +129,7 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
         Mã đơn: <span className="font-semibold text-slate-900">{data.ma_don}</span>
       </p>
 
-      {dangGiu ? (
-        <HoldCountdown remainingMs={remainingMs} />
-      ) : (
-        <p role="status" className="rounded-md bg-green-50 px-3 py-2 font-medium text-green-700">
-          Đơn đã được xác nhận.
-        </p>
-      )}
+      {dangGiu && <HoldCountdown remainingMs={remainingMs} />}
 
       <div className="space-y-1 rounded-lg border border-slate-200 bg-white p-4">
         <p className="text-lg font-semibold">{chuyen.ten_tuyen}</p>
@@ -142,22 +157,48 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
 
       {holding && (
         <>
-          <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
-            <h2 className="text-lg font-semibold">Thông tin hành khách</h2>
-            <BookerInfo data={data} />
-            {editing ? (
-              <BookingDetailsForm
-                booking={data}
-                onSaved={(saved) => {
-                  onChange(saved)
-                  setEditing(false)
-                }}
-                onGone={handleGone}
-              />
-            ) : (
-              <BookingDetailsSummary booking={data} onEdit={() => setEditing(true)} />
-            )}
-          </div>
+          {step === 'details' && (
+            <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+              <h2 className="text-lg font-semibold">Thông tin hành khách</h2>
+              <BookerInfo data={data} />
+              {editing ? (
+                <BookingDetailsForm
+                  key={detailsError ? `${detailsError.field}:${detailsError.message}` : 'form'}
+                  booking={data}
+                  initialError={detailsError}
+                  onSaved={(saved) => {
+                    onChange(saved)
+                    setEditing(false)
+                    setDetailsError(null)
+                  }}
+                  onGone={handleGone}
+                />
+              ) : (
+                <BookingDetailsSummary
+                  booking={data}
+                  onEdit={() => setEditing(true)}
+                  onContinue={() => setStep('payment')}
+                />
+              )}
+            </div>
+          )}
+          {step === 'payment' && (
+            <PaymentMethodPicker
+              tongTien={data.tong_tien}
+              onChooseCash={() => setStep('confirm-cash')}
+              onBack={() => setStep('details')}
+            />
+          )}
+          {step === 'confirm-cash' && (
+            <CashConfirmDialog
+              maDon={data.ma_don}
+              tongTien={data.tong_tien}
+              onConfirmed={onChange}
+              onGone={handleGone}
+              onFieldError={showFieldError}
+              onCancel={() => setStep('payment')}
+            />
+          )}
           <CancelBookingButton maDon={data.ma_don} onCancelled={() => setCancelled(true)} />
         </>
       )}

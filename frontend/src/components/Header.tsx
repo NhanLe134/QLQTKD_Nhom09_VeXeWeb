@@ -30,6 +30,13 @@ export default function Header() {
                 </NavLink>
               </li>
             ))}
+            {user?.vai_tro === 'KHACH' && (
+              <li>
+                <NavLink to="/ve-cua-toi" className={navClassName}>
+                  Vé của tôi
+                </NavLink>
+              </li>
+            )}
             {user ? (
               <>
                 <li className="text-slate-900">{user.ho_ten}</li>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,5 +49,20 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: 'Đăng nhập' })).toBeInTheDocument()
     expect(screen.queryByText('Nguyễn Văn An')).not.toBeInTheDocument()
     expect(sessionStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+  })
+
+  it('khách đã đăng nhập thấy "Vé của tôi"; chưa đăng nhập hoặc vai trò khác thì không', () => {
+    renderHeader()
+    expect(screen.queryByRole('link', { name: 'Vé của tôi' })).not.toBeInTheDocument()
+    cleanup()
+
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 't', vai_tro: 'TAI_XE', ho_ten: 'Tài Xế' }))
+    renderHeader()
+    expect(screen.queryByRole('link', { name: 'Vé của tôi' })).not.toBeInTheDocument()
+    cleanup()
+
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 't', vai_tro: 'KHACH', ho_ten: 'An' }))
+    renderHeader()
+    expect(screen.getByRole('link', { name: 'Vé của tôi' })).toHaveAttribute('href', '/ve-cua-toi')
   })
 })

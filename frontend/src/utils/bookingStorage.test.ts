@@ -5,6 +5,8 @@ import {
   BOOKING_STORAGE_KEY,
   clearStoredBooking,
   clearStoredBookingFor,
+  CONFIRMED_STORAGE_KEY,
+  moveToConfirmed,
   readStoredBooking,
   saveStoredBooking,
 } from './bookingStorage'
@@ -38,5 +40,32 @@ describe('bookingStorage', () => {
     sessionStorage.setItem(BOOKING_STORAGE_KEY, raw)
 
     expect(readStoredBooking()).toBeNull()
+  })
+
+  it('chuyển đơn vừa xác nhận sang kho riêng, ô đang giữ trống cho đơn mới', () => {
+    saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-1' })
+    moveToConfirmed('DH00100000')
+    saveStoredBooking({ ma_don: 'DH00100001', ma_truy_cap: 'ma-2' })
+    moveToConfirmed('DH00100001')
+
+    expect(readStoredBooking()).toBeNull()
+    expect(accessCodeFor('DH00100000')).toBe('ma-1')
+    expect(accessCodeFor('DH00100001')).toBe('ma-2')
+    expect(accessCodeFor('DH00100002')).toBeNull()
+  })
+
+  it('không chuyển khi ô đang giữ là đơn khác', () => {
+    saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-1' })
+
+    moveToConfirmed('DH00100009')
+
+    expect(readStoredBooking()?.ma_don).toBe('DH00100000')
+    expect(accessCodeFor('DH00100009')).toBeNull()
+  })
+
+  it.each(['khong-phai-json', '[1]', 'null', '{"DH1":5}'])('bỏ qua kho đơn đã xác nhận hỏng %s', (raw) => {
+    sessionStorage.setItem(CONFIRMED_STORAGE_KEY, raw)
+
+    expect(accessCodeFor('DH1')).toBeNull()
   })
 })

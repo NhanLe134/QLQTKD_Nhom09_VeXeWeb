@@ -624,3 +624,106 @@ Job tự nhả ghế khi hết thời gian giữ (BR-BUS-17, US-BUS-06 AC2).
 - **Giờ máy lệch:** job dùng giờ CSDL nên không nhả ghế trước hạn dù máy chạy job có giờ lệch. Tuy vậy, các request (giữ ghế, xem đơn, hủy) vẫn dùng `get_now()` của máy chạy backend để tính `han_giu_cho` và trạng thái đơn. Máy lệch giờ sẽ cấp hạn giữ lệch tương ứng, nên **mọi máy thành viên chạy backend cần bật đồng bộ giờ tự động**.
 - **Nhiều job trên Supabase:** mỗi backend đang chạy thêm vài truy vấn mỗi chu kỳ và dùng chung pool kết nối nhỏ. Không cần job trên máy mình thì đặt `RELEASE_JOB_ENABLED=false`.
 - **Thanh toán (task #11):** task #11 phải khóa theo cùng thứ tự (khách hàng, rồi ghế) để không tranh chấp với job khi khách trả tiền đúng lúc ghế hết hạn.
+
+---
+
+## Thanh toán tiền mặt, vé điện tử, Vé của tôi — task #10
+
+**Mã vé** là `ve.ve_id` (dạng `VE` + 8 số, ví dụ `VE00100000`). Mỗi ghế có một vé điện tử, các vé cùng một lần đặt gom theo `ma_don` (BR-BUS-35). Nhóm đã xác nhận ngày 04/11/2026.
+
+### POST `/api/v1/bookings/{ma_don}/confirm-cash` — Trả tiền mặt khi lên xe
+
+Khách chọn **Tiền mặt khi lên xe** thì vé được xác nhận ngay (BR-BUS-27, 28; US-BUS-04). Quyền giống `GET /bookings/{ma_don}`: tài khoản sở hữu đơn, hoặc header `X-Ma-Truy-Cap` đúng; sai quyền trả 404. Không có body.
+
+Mọi việc sau chạy trong **một transaction**:
+
+1. Khóa theo thứ tự dùng chung (`booking_service.lock_booking`): hồ sơ khách hàng → ghế của vé `GIU_CHO` theo `ghe_id` → vé theo `ve_id`. Sau khi khóa, đọc lại đơn rồi mới kiểm tra.
+2. Đơn đã xác nhận:
+   - Mọi vé đã xác nhận đều `CHO_THU_TIEN_MAT` → **200**, trả đúng kết quả cũ, không ghi thêm gì, không gửi email lại.
+   - Ngược lại (đã thanh toán cách khác, ví dụ chuyển khoản) → **400** `Đơn đã được thanh toán`.
+3. Đơn `HET_HAN` / `DA_HUY` → **410** (`ensure_booking_active`).
+4. Chuyến không còn `MO_BAN` hoặc `gio_di` ≤ thời điểm hiện tại → **400** `Chuyến xe đã khởi hành hoặc ngừng bán`.
+5. Chưa nhập điểm đón/trả hợp lệ → **400** (`ensure_details_complete`).
+6. Ghi dữ liệu:
+   - Vé `GIU_CHO` của đơn → `trang_thai_ve = DA_XAC_NHAN`, `trang_thai_thanh_toan = CHO_THU_TIEN_MAT`.
+   - Ghế → `DA_BAN`, `han_giu_cho = NULL` (giữ `khach_hang_id`). Câu UPDATE chỉ đổi ghế còn `GIU_CHO`, còn hạn và do chính khách của đơn giữ. Số dòng đổi khác số vé thì rollback và trả 410.
+   - **Một dòng `thanh_toan` cho cả đơn:** `ma_don`, `ve_id = NULL`, `so_tien` = tổng giá các vé vừa xác nhận, `phuong_thuc_tt = TIEN_MAT`, `trang_thai_thanh_toan = CHO_THANH_TOAN` (tiền chưa thu), `loai_giao_dich = THANH_TOAN`, `ngay_thanh_toan` và `ma_giao_dich` = NULL. CSDL không có UNIQUE trên `thanh_toan.ma_don`, nên việc chống trùng dựa vào khóa khách hàng và kiểm tra "đơn đã có dòng TIEN_MAT chưa" sau khi khóa.
+
+**Response 200:** giống `GET /bookings/{ma_don}` (đọc lại sau khi ghi): `trang_thai_don = DA_XAC_NHAN`, `han_giu_cho = null`, `ve[]` gồm mã vé (`ve_id`), `so_ghe`, `ho_ten`, `diem_don`, `diem_tra`, `gia_ve`, `trang_thai_ve`, `trang_thai_thanh_toan`; `tong_tien` do backend tính. Lần đầu và các lần gọi lại đều trả 200.
+
+**Lỗi**
+
+| Mã | Body | Khi nào |
+|---|---|---|
+| 400 | `{"detail": "Chưa nhập điểm đón/trả", "truong": "diem_don.khu_vuc"}` | Chưa nhập hoặc điểm đón/trả không còn hợp lệ |
+| 400 | `{"detail": "Chuyến xe đã khởi hành hoặc ngừng bán", "truong": null}` | Chuyến không còn bán được |
+| 400 | `{"detail": "Đơn đã được thanh toán", "truong": null}` | Đơn đã xác nhận không phải bằng tiền mặt |
+| 401 | `{"detail": "Phiên đăng nhập không hợp lệ hoặc đã hết hạn"}` | Gửi token sai/hết hạn |
+| 404 | `{"detail": "Không tìm thấy đơn"}` | Không có quyền, hoặc đơn không tồn tại |
+| 410 | `{"detail": "Giữ chỗ đã hết hạn"}` | Đơn `HET_HAN` |
+| 410 | `{"detail": "Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ"}` | Đơn `DA_HUY` |
+
+**Tranh chấp với job nhả ghế:** lời gọi xác nhận và job cùng khóa hồ sơ khách hàng trước, nên trên một đơn hai bên chạy lần lượt.
+
+- Xác nhận giữ khóa trước: job (`SKIP LOCKED`) bỏ qua đơn. Vòng sau, vé đã `DA_XAC_NHAN` nên job không đụng tới.
+- Job giữ khóa trước: lời gọi xác nhận chờ, rồi đọc lại thấy vé `DA_HUY` → 410.
+
+Vì mọi quyết định được đưa ra sau khi khóa, trên dữ liệu đã đọc lại, một đơn không bao giờ vừa bị bán vừa bị nhả, kể cả khi giờ máy (request) và giờ CSDL (job) lệch nhau.
+
+Log: `Xác nhận tiền mặt ma_don=... so_ve=...`. Không ghi mã truy cập, SĐT, họ tên, email.
+
+**Quy tắc cho task #11 (chuyển khoản SePay):** một đơn chỉ đi theo một phương thức.
+
+- Đơn đã có dòng `thanh_toan` `TIEN_MAT` (loại `THANH_TOAN`) thì **không tạo mã QR**.
+- Ngược lại, đơn đã có dòng `CHUYEN_KHOAN_SEPAY` (đã tạo QR) thì **không cho xác nhận tiền mặt**. Kiểm tra này chưa có trong `confirm-cash`; task #11 thêm khi tạo dòng QR.
+- Task #11 khóa theo cùng thứ tự (`lock_booking`) và kiểm tra sau khóa.
+
+### Gửi vé qua email (giả lập)
+
+- Chỉ chạy khi đơn **vừa được xác nhận** trong lời gọi đó; gọi lại `confirm-cash` không gửi lần hai.
+- Chạy nền **sau khi commit và trả response** (FastAPI `BackgroundTasks`). Trước khi trả response, backend dựng sẵn dữ liệu thường `TicketEmail` (`ma_don`, email người đặt hoặc `null`, `tong_tien`, thông tin chuyến, danh sách vé dạng dict). Tác vụ nền không dùng object ORM, vì lúc chạy session của request đã đóng.
+- Hiện chỉ ghi log `Gửi vé ma_don=... so_ve=...`. Người đặt không có email → log `Bỏ qua gửi vé ma_don=... ly_do=khong_co_email`.
+- Gửi lỗi chỉ ghi log `Gửi vé thất bại ma_don=... loi=<tên lớp lỗi>`. Vé vẫn `DA_XAC_NHAN`, request vẫn 200 (BR-BUS-35). Log không ghi nội dung lỗi, vì có thể chứa địa chỉ email.
+- Đổi sang email thật: chỉ thay thân `ticket_notifier.send_tickets_email`.
+
+**Giới hạn:** tác vụ nền chạy trong tiến trình backend. Tiến trình dừng giữa chừng thì email bị mất và không gửi lại; vé không bị ảnh hưởng. Gửi thật nên dùng hàng đợi có thử lại.
+
+### GET `/api/v1/bookings/{ma_don}` với đơn đã xác nhận
+
+Đơn `DA_XAC_NHAN` vẫn xem được (cùng quy tắc quyền), để khách tải lại trang vẫn thấy vé. Frontend giữ mã truy cập của đơn đã xác nhận trong `sessionStorage` (khóa `vexe.don_da_xac_nhan`, tự xóa khi đóng tab).
+
+### GET `/api/v1/me/tickets` — Vé của tôi
+
+Chỉ tài khoản vai trò `KHACH` (BR-BUS-36, 37): chưa đăng nhập **401**, vai trò khác **403**. Trả các đơn **đã xác nhận** thuộc hồ sơ khách hàng gắn với tài khoản, kể cả đơn đặt vãng lai trước khi đăng ký bằng cùng SĐT (BR-BUS-08). Mỗi đơn chỉ gồm vé `DA_XAC_NHAN`, đơn mới nhất trước (`ngay_dat` giảm dần, rồi `ma_don` giảm dần). Tài khoản chưa có hồ sơ khách hàng trả `[]`.
+
+**Response 200**
+
+```json
+[
+  {
+    "ma_don": "DH00100001",
+    "chuyen": { "chuyen_xe_id": "CX00000001", "ten_tuyen": "Đà Nẵng - Huế", "...": "giống sơ đồ ghế" },
+    "ngay_dat": "2026-12-01T03:00:00Z",
+    "tong_tien": 400000,
+    "trang_thai_don": "DA_XAC_NHAN",
+    "ve": [
+      {
+        "ve_id": "VE00100002",
+        "ghe_id": "GH00000001",
+        "so_ghe": "A01",
+        "gia_ve": 200000,
+        "trang_thai_ve": "DA_XAC_NHAN",
+        "trang_thai_thanh_toan": "CHO_THU_TIEN_MAT",
+        "ho_ten": "Khách Mẫu",
+        "so_dien_thoai": "0900000001",
+        "diem_don": "Đà Nẵng",
+        "diem_tra": "Huế"
+      }
+    ]
+  }
+]
+```
+
+Response không chứa mã truy cập.
+
+**Giới hạn:** chưa có tham số lọc trạng thái hay phân trang; mọi đơn đã xác nhận được trả trong một lần. Mỗi chuyến khác nhau tốn thêm một truy vấn đọc thông tin chuyến.

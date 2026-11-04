@@ -46,6 +46,8 @@ HOLD_EXPIRED = "Giữ chỗ đã hết hạn"
 BOOKING_CANCELLED = "Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ"
 BOOKING_CONFIRMED = "Đơn đã xác nhận, không thể hủy ở bước này"
 DETAILS_MISSING = "Chưa nhập điểm đón/trả"
+ALREADY_PAID = "Đơn đã được thanh toán"
+TRIP_NOT_BOOKABLE = "Chuyến xe đã khởi hành hoặc ngừng bán"
 
 logger = logging.getLogger(__name__)
 
@@ -361,6 +363,38 @@ async def _load_booking(session: AsyncSession, ma_don: str) -> Booking | None:
         khach_hang=khach_hang,
         tickets=tickets,
         diem_dung=route_stops(first.diem_di, first.diem_trung_gian, first.diem_den),
+    )
+
+
+async def lock_booking(session: AsyncSession, booking: Booking) -> None:
+    """Cùng thứ tự khóa với giữ ghế, hủy đơn và job: khách hàng → ghế theo ghe_id → vé.
+
+    Gọi trong transaction; sau đó phải đọc lại đơn (load_booking) rồi mới kiểm tra.
+    """
+    await session.execute(
+        select(KhachHang.khach_hang_id)
+        .where(KhachHang.khach_hang_id == booking.khach_hang.khach_hang_id)
+        .with_for_update()
+    )
+    seat_ids = list(
+        await session.scalars(
+            select(Ve.ghe_id).where(
+                Ve.ma_don == booking.ma_don, Ve.trang_thai_ve == TrangThaiVe.GIU_CHO
+            )
+        )
+    )
+    if seat_ids:
+        await session.execute(
+            select(GheNgoi.ghe_id)
+            .where(GheNgoi.ghe_id.in_(seat_ids))
+            .order_by(GheNgoi.ghe_id)
+            .with_for_update()
+        )
+    await session.execute(
+        select(Ve.ve_id)
+        .where(Ve.ma_don == booking.ma_don)
+        .order_by(Ve.ve_id)
+        .with_for_update()
     )
 
 

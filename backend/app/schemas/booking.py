@@ -160,3 +160,15 @@ class BookingOut(BaseModel):
     da_nhap_thong_tin: bool
     # None khi không xác định được; frontend dùng nguoi_dat thay thế
     nguoi_dat_luc_giu: NguoiDatLucGiuOut | None
+
+
+class MyBookingOut(BaseModel):
+    """Một đơn trong "Vé của tôi": vé đã xác nhận gom theo mã đơn (BR-BUS-35, 36)."""
+
+    ma_don: str
+    chuyen: TripInfo
+    ngay_dat: datetime
+    # Tổng giá các vé đã xác nhận của đơn
+    tong_tien: int
+    trang_thai_don: TrangThaiDon
+    ve: list[TicketOut]

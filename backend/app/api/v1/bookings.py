@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +10,12 @@ from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.models import TaiKhoan
 from app.schemas.booking import BookingOut, DetailsRequest, HoldRequest, HoldResponse
-from app.services import booking_details_service, booking_service
+from app.services import (
+    booking_details_service,
+    booking_service,
+    cash_payment_service,
+    ticket_notifier,
+)
 
 # Không bắt buộc đăng nhập: khách vãng lai giữ ghế được (BR-BUS-01, 20)
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -85,3 +90,39 @@ async def save_booking_details(
     except booking_service.BookingError as error:
         raise HTTPException(error.status_code, detail=error.detail) from None
     return await booking_service.booking_detail(session, saved, now)
+
+
+@router.post(
+    "/{ma_don}/confirm-cash",
+    responses={
+        400: {"description": '`{"detail": "...", "truong": "diem_don.khu_vuc" | null}`'},
+        404: {"description": "Không tìm thấy đơn hoặc không có quyền"},
+        410: {"description": "Đơn hết hạn giữ chỗ hoặc đã hủy"},
+    },
+)
+async def confirm_cash(
+    background_tasks: BackgroundTasks,
+    booking: booking_service.Booking = Depends(get_accessible_booking),
+    session: AsyncSession = Depends(get_session),
+    now: datetime = Depends(get_now),
+) -> BookingOut:
+    """Trả tiền mặt khi lên xe: xác nhận vé ngay (BR-BUS-28). Gọi lại trả kết quả cũ."""
+    try:
+        confirmed, newly_confirmed = await cash_payment_service.confirm_cash(
+            session, booking, now
+        )
+    except booking_details_service.FieldError as error:
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"detail": error.detail, "truong": error.truong},
+        )
+    except booking_service.BookingError as error:
+        raise HTTPException(error.status_code, detail=error.detail) from None
+    detail = await booking_service.booking_detail(session, confirmed, now)
+    if newly_confirmed:
+        # Dựng sẵn dữ liệu thường: tác vụ nền chạy khi session của request đã đóng
+        background_tasks.add_task(
+            ticket_notifier.deliver_tickets_safely,
+            ticket_notifier.build_ticket_email(detail),
+        )
+    return detail

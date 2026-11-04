@@ -34,12 +34,16 @@ def details_url(ma_don: str) -> str:
     return f"/api/v1/bookings/{ma_don}/details"
 
 
+def confirm_cash_url(ma_don: str) -> str:
+    return f"/api/v1/bookings/{ma_don}/confirm-cash"
+
+
 def code_header(code: str) -> dict[str, str]:
     return {"X-Ma-Truy-Cap": code}
 
 
 async def confirm_tickets(factory, ma_don: str, so_ghe: list[str] | None = None) -> None:
-    """Giả lập đơn đã xác nhận (task #10 chưa có): vé DA_XAC_NHAN, ghế DA_BAN."""
+    """Giả lập đơn đã xác nhận nhưng không qua tiền mặt: vé DA_XAC_NHAN, ghế DA_BAN."""
     async with factory() as session, session.begin():
         statement = select(Ve.ghe_id).join(GheNgoi, GheNgoi.ghe_id == Ve.ghe_id).where(
             Ve.ma_don == ma_don

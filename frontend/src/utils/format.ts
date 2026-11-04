@@ -70,3 +70,14 @@ export function formatCountdown(remainingMs: number): string {
   const seconds = totalSeconds % 60
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
+
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  CHO_THANH_TOAN: 'Chờ thanh toán',
+  CHO_THU_TIEN_MAT: 'Chờ thu tiền mặt',
+  DA_THANH_TOAN: 'Đã thanh toán',
+}
+
+/** Nhãn tiếng Việt của trạng thái thanh toán backend trả về; giá trị lạ hiện nguyên văn. */
+export function formatPaymentStatus(status: string): string {
+  return PAYMENT_STATUS_LABELS[status] ?? status
+}

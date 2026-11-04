@@ -1,9 +1,11 @@
 import type { RouteObject } from 'react-router-dom'
 
 import Layout from './components/Layout'
+import RequireCustomer from './components/RequireCustomer'
 import BookingPage from './pages/BookingPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import MyTicketsPage from './pages/MyTicketsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import RegisterPage from './pages/RegisterPage'
 import SeatSelectionPage from './pages/SeatSelectionPage'
@@ -20,7 +22,15 @@ export const routes: RouteObject[] = [
       { path: 'chuyen/:id', element: <SeatSelectionPage /> },
       { path: 'dat-ve/:maDon', element: <BookingPage /> },
       { path: 'tra-cuu-ve', element: <UnderConstructionPage title="Tra cứu vé" /> },
-      // Không trang nào yêu cầu đăng nhập (BR-BUS-01)
+      // Đặt vé không cần đăng nhập (BR-BUS-01); chỉ "Vé của tôi" cần tài khoản khách (BR-BUS-36)
+      {
+        path: 've-cua-toi',
+        element: (
+          <RequireCustomer>
+            <MyTicketsPage />
+          </RequireCustomer>
+        ),
+      },
       { path: 'dang-nhap', element: <LoginPage /> },
       { path: 'dang-ky', element: <RegisterPage /> },
       { path: '*', element: <NotFoundPage /> },

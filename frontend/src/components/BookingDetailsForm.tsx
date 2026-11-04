@@ -19,6 +19,8 @@ type Props = {
   onSaved: (booking: Booking) => void
   /** Backend trả 410: đơn đã hết hạn giữ hoặc đã hủy */
   onGone: () => void
+  /** Lỗi kèm tên trường từ bước khác (ví dụ xác nhận thanh toán), hiện ngay dưới ô đó */
+  initialError?: { field: string; message: string } | null
 }
 
 type PassengerState = {
@@ -87,7 +89,7 @@ function errorKey(field: string, sentIds: string[]): string {
   return veId ? `ve:${veId}.${match[2]}` : field
 }
 
-export default function BookingDetailsForm({ booking, onSaved, onGone }: Props) {
+export default function BookingDetailsForm({ booking, onSaved, onGone, initialError = null }: Props) {
   const stops = booking.diem_dung
   // Ô đón không có điểm đến, ô trả không có điểm đi (BR-BUS-23)
   const pickupOptions = stops.slice(0, -1)
@@ -102,7 +104,9 @@ export default function BookingDetailsForm({ booking, onSaved, onGone }: Props) 
   const [dropoff, setDropoff] = useState(() =>
     initialPoint(booking.diem_tra, dropoffOptions, dropoffOptions[dropoffOptions.length - 1] ?? ''),
   )
-  const [errors, setErrors] = useState<Errors>({})
+  const [errors, setErrors] = useState<Errors>(() =>
+    initialError ? { [errorKey(initialError.field, [])]: initialError.message } : {},
+  )
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 

@@ -57,6 +57,20 @@ export const SAVED_BOOKING: Booking = {
   da_nhap_thong_tin: true,
 }
 
+/** Đơn đã xác nhận trả tiền mặt (backend trả sau confirm-cash). */
+export const CONFIRMED_BOOKING: Booking = {
+  ...SAVED_BOOKING,
+  ve: SAVED_BOOKING.ve.map((ve, index) => ({
+    ...ve,
+    ve_id: `VE0010000${index + 1}`,
+    trang_thai_ve: 'DA_XAC_NHAN',
+    trang_thai_thanh_toan: 'CHO_THU_TIEN_MAT',
+  })),
+  han_giu_cho: null,
+  dang_giu_cho: false,
+  trang_thai_don: 'DA_XAC_NHAN',
+}
+
 export function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 }

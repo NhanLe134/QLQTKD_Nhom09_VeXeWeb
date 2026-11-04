@@ -5,10 +5,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import GheNgoi, KhachHang, Ve
 from app.models.enums import TrangThaiVe
 from app.schemas.auth import PHONE_PATTERN
 from app.schemas.booking import DetailsRequest, PointIn, TrangThaiDon
@@ -123,39 +121,10 @@ def _resolve_points(
     return diem_don, diem_tra
 
 
-async def _lock_booking(session: AsyncSession, booking: Booking) -> None:
-    """Cùng thứ tự khóa với giữ ghế, hủy đơn và job: khách hàng → ghế theo ghe_id → vé."""
-    await session.execute(
-        select(KhachHang.khach_hang_id)
-        .where(KhachHang.khach_hang_id == booking.khach_hang.khach_hang_id)
-        .with_for_update()
-    )
-    seat_ids = list(
-        await session.scalars(
-            select(Ve.ghe_id).where(
-                Ve.ma_don == booking.ma_don, Ve.trang_thai_ve == TrangThaiVe.GIU_CHO
-            )
-        )
-    )
-    if seat_ids:
-        await session.execute(
-            select(GheNgoi.ghe_id)
-            .where(GheNgoi.ghe_id.in_(seat_ids))
-            .order_by(GheNgoi.ghe_id)
-            .with_for_update()
-        )
-    await session.execute(
-        select(Ve.ve_id)
-        .where(Ve.ma_don == booking.ma_don)
-        .order_by(Ve.ve_id)
-        .with_for_update()
-    )
-
-
 async def _save(
     session: AsyncSession, booking: Booking, data: DetailsRequest, now: datetime
 ) -> None:
-    await _lock_booking(session, booking)
+    await booking_service.lock_booking(session, booking)
     # Đọc lại sau khi khóa: job hoặc khách có thể vừa nhả đơn
     current = await booking_service.load_booking(session, booking.ma_don)
     booking_service.ensure_booking_active(current, now)

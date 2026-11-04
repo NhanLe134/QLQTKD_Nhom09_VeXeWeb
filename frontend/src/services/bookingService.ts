@@ -1,4 +1,4 @@
-import { accessCodeFor, clearStoredBookingFor, saveStoredBooking } from '../utils/bookingStorage'
+import { accessCodeFor, clearStoredBookingFor, moveToConfirmed, saveStoredBooking } from '../utils/bookingStorage'
 import { get, post, put, type RequestHeaders } from './apiClient'
 import type { TripInfo } from './tripService'
 
@@ -38,13 +38,16 @@ export type TrangThaiVe = 'GIU_CHO' | 'DA_XAC_NHAN' | 'DA_HUY'
 /** Trạng thái tổng của đơn do backend tính (docs/API.md) */
 export type TrangThaiDon = 'DANG_GIU' | 'HET_HAN' | 'DA_HUY' | 'DA_XAC_NHAN'
 
+export type TrangThaiThanhToanVe = 'CHO_THANH_TOAN' | 'CHO_THU_TIEN_MAT' | 'DA_THANH_TOAN'
+
 export type Ticket = {
+  /** Mã vé điện tử (docs/API.md) */
   ve_id: string
   ghe_id: string
   so_ghe: string
   gia_ve: number
   trang_thai_ve: TrangThaiVe
-  trang_thai_thanh_toan: 'CHO_THANH_TOAN' | 'CHO_THU_TIEN_MAT' | 'DA_THANH_TOAN'
+  trang_thai_thanh_toan: TrangThaiThanhToanVe
   ho_ten: string | null
   so_dien_thoai: string | null
   /** Chuỗi backend đã lưu ("Khu vực – địa chỉ"); null khi chưa nhập */
@@ -135,4 +138,34 @@ export async function cancelBooking(maDon: string): Promise<Booking> {
 /** Lưu hành khách và điểm đón/trả (BR-BUS-21 đến 26); trả chi tiết đơn đã đọc lại. */
 export function saveBookingDetails(maDon: string, data: BookingDetailsRequest): Promise<Booking> {
   return put<Booking>(`/api/v1/bookings/${encodeURIComponent(maDon)}/details`, data, accessHeaders(maDon))
+}
+
+/**
+ * Trả tiền mặt khi lên xe (BR-BUS-28); gọi lại trả kết quả cũ (backend idempotent).
+ * Thành công thì giữ mã truy cập ở kho đơn đã xác nhận để tải lại trang vẫn xem được vé.
+ */
+export async function confirmCash(maDon: string): Promise<Booking> {
+  const result = await post<Booking>(
+    `/api/v1/bookings/${encodeURIComponent(maDon)}/confirm-cash`,
+    undefined,
+    accessHeaders(maDon),
+  )
+  moveToConfirmed(maDon)
+  return result
+}
+
+/** Một đơn trong "Vé của tôi": vé đã xác nhận gom theo mã đơn. */
+export type MyBooking = {
+  ma_don: string
+  chuyen: TripInfo
+  ngay_dat: string
+  /** Tổng tiền do backend tính */
+  tong_tien: number
+  trang_thai_don: TrangThaiDon
+  ve: Ticket[]
+}
+
+/** Vé đã xác nhận của khách đang đăng nhập, mới nhất trước (BR-BUS-36). */
+export function getMyTickets(): Promise<MyBooking[]> {
+  return get<MyBooking[]>('/api/v1/me/tickets')
 }

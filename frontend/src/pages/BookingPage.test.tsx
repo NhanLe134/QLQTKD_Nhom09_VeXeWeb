@@ -245,7 +245,7 @@ describe('BookingPage', () => {
     expect(await screen.findByRole('region', { name: 'Người đặt' })).toHaveTextContent('Tên Hồ Sơ')
   })
 
-  it('lưu thành công: hiện tóm tắt theo chuỗi backend, nút thanh toán tạm khóa, bấm Sửa để nhập lại', async () => {
+  it('lưu thành công: hiện tóm tắt theo chuỗi backend, nút thanh toán mở, bấm Sửa để nhập lại', async () => {
     saveStoredBooking({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
     mockDetailsBackend([BOOKING], jsonResponse(200, SAVED_BOOKING))
 
@@ -259,7 +259,7 @@ describe('BookingPage', () => {
     expect(screen.getByTestId('tom-tat-diem-don')).toHaveTextContent('Lăng Cô – 12 Lê Lợi')
     expect(screen.getByTestId('tom-tat-diem-tra')).toHaveTextContent('Huế')
     expect(within(summary).getByRole('list', { name: 'Hành khách' })).toHaveTextContent('Ghế A01: Trần Thị Bình · 0905111222')
-    expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Hủy đặt vé' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Sửa' }))

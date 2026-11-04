@@ -512,3 +512,38 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Lý do: gia hạn mỗi lần lưu cho phép giữ ghế vô hạn, trái BR-BUS-17; kiểm tra đủ thông tin ở backend để frontend không quyết định thay.
 - Hệ quả: task #10, #11 gọi ensure_details_complete trước khi tạo thanh toán.
 - Người quyết định: Nhã 
+### D-57: Đơn tiền mặt ghi 1 dòng thanh_toan cho cả đơn, trạng thái chờ thu
+- Ngày: 04/11/2026 · Commit: Task #10 – feat: them thanh toan tien mat va ve dien tu
+- Bối cảnh: RDM có giá trị TIEN_MAT trong thanh_toan nhưng vault không quy định đơn tiền mặt có ghi thanh_toan không, ghi theo vé hay theo đơn (KHÔNG ĐỦ DỮ LIỆU TRONG VAULT).
+- Các phương án đã cân nhắc: (A) không ghi, chỉ dựa vào trạng thái vé; (B) 1 dòng mỗi đơn: ma_don, ve_id NULL, so_tien = tổng, TIEN_MAT, CHO_THANH_TOAN; (C) 1 dòng mỗi vé.
+- Quyết định: phương án B; chống trùng bằng khóa và kiểm tra đã có dòng sau khi khóa (ma_don không UNIQUE).
+- Lý do: cùng mô hình "một đơn một giao dịch" với SePay (D-05); có dấu vết để phần tài xế thu tiền dùng sau; A không có dấu vết, C lệch D-05.
+- Hệ quả: task #11 phải chặn hai chiều — đơn đã có dòng TIEN_MAT thì không tạo QR, đơn đã có QR thì không xác nhận tiền mặt.
+- Người quyết định: Nhã (AI phát hiện khoảng trống và đề xuất 3 phương án)
+
+### D-58: Xác nhận tiền mặt idempotent và kiểm tra lại chuyến sau khi khóa
+- Ngày: 04/11/2026 · Commit: Task #10 – feat: them thanh toan tien mat va ve dien tu
+- Bối cảnh: khách có thể bấm xác nhận 2 lần hoặc mạng gửi lại; chuyến có thể khởi hành hoặc ngừng bán trong 5 phút giữ ghế.
+- Các phương án đã cân nhắc: (1) lần gọi thứ hai báo lỗi; (2) lần gọi thứ hai trả 200 với kết quả cũ, không ghi thêm, không gửi email lại; về chuyến: (a) không kiểm tra lại; (b) kiểm tra MO_BAN và gio_di > now sau khi khóa.
+- Quyết định: (2) và (b); chuyến không hợp lệ → 400 "Chuyến xe đã khởi hành hoặc ngừng bán"; đơn đã thanh toán cách khác → 400 "Đơn đã được thanh toán"; UPDATE ghế kèm điều kiện, lệch số dòng thì rollback và trả 410.
+- Lý do: đáp ứng NFR-BUS-05; không bán vé cho chuyến đã chạy.
+- Hệ quả: frontend chỉ cần chặn bấm 2 lần cho trải nghiệm, an toàn nằm ở backend.
+- Người quyết định: Nhã (AI đề xuất; Q3 do AI hỏi, Nhã chốt có kiểm tra)
+
+### D-59: Email vé chạy nền sau commit, chỉ nhận dữ liệu thường
+- Ngày: 04/11/2026 · Commit: Task #10 – feat: them thanh toan tien mat va ve dien tu
+- Bối cảnh: BR-BUS-35 yêu cầu lỗi email không làm hủy vé; email hiện chỉ giả lập bằng log.
+- Các phương án đã cân nhắc: (1) gửi trong transaction xác nhận; (2) BackgroundTasks nhận object ORM; (3) BackgroundTasks nhận dữ liệu thường (TicketEmail) dựng sẵn trước khi trả response.
+- Quyết định: phương án 3; lỗi chỉ ghi tên lớp lỗi; người đặt không có email thì bỏ qua; chỉ gửi khi vừa xác nhận lần đầu.
+- Lý do: (1) làm email lỗi kéo theo hủy vé; (2) lỗi detached vì session đã đóng, bị try/except nuốt nên email không bao giờ gửi (Nhã phát hiện khi rà soát PLAN).
+- Hệ quả: tiến trình chết giữa chừng thì mất email (vé vẫn còn); gửi email thật sau này nên dùng hàng đợi.
+- Người quyết định: Nhã (lỗi do Nhã phát hiện; AI cài đặt)
+
+### D-60: Giữ mã truy cập của đơn đã xác nhận trong khóa sessionStorage riêng
+- Ngày: 04/11/2026 · Commit: Task #10 – feat: them thanh toan tien mat va ve dien tu
+- Bối cảnh: trang chọn ghế xóa khóa "đơn đang giữ" khi đơn không còn giữ ghế; khách vãng lai không có tài khoản nên mất mã là mất quyền xem vé (Tra cứu vé ở task #13 chưa có).
+- Các phương án đã cân nhắc: (1) giữ nguyên khóa "đơn đang giữ"; (2) khi xác nhận xong, chuyển mã sang khóa vexe.don_da_xac_nhan (dạng map), xóa khóa đang giữ.
+- Quyết định: phương án 2; mã đơn = ve.ve_id là mã vé.
+- Lý do: tải lại trang vẫn xem được vé, và tab vẫn đặt được đơn mới (BR-BUS-18).
+- Hệ quả: mã truy cập nằm lâu hơn trong sessionStorage nhưng vẫn tự xóa khi đóng tab; sau khi đóng tab, khách vãng lai xem lại vé qua Tra cứu vé (task #13).
+- Người quyết định: Nhã 
