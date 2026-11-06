@@ -3,7 +3,16 @@ import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { APP_NAME } from '../utils/constants'
 import BrandLogo from './BrandLogo'
-import { HomeIcon, LookupIcon, SearchIcon, SwapIcon, TicketIcon, UserIcon } from './icons'
+import {
+  CashIcon,
+  HomeIcon,
+  LookupIcon,
+  SearchIcon,
+  SteeringWheelIcon,
+  SwapIcon,
+  TicketIcon,
+  UserIcon,
+} from './icons'
 
 type NavItem = { to: string; label: string; icon: (props: { className?: string }) => React.ReactNode; end?: boolean }
 
@@ -16,12 +25,20 @@ const NAV_ITEMS: NavItem[] = [
 // "Vé của tôi" chỉ dành cho tài khoản khách (BR-BUS-36)
 const CUSTOMER_ITEM: NavItem = { to: '/ve-cua-toi', label: 'Vé của tôi', icon: TicketIcon }
 
-// Hoàn tiền thủ công cho vé đã hủy: chỉ tài khoản nhà xe
-const OPERATOR_ITEM: NavItem = { to: '/nha-xe/hoan-tien', label: 'Hoàn tiền', icon: SwapIcon }
+// Nhà xe: phân công tài xế, đối soát tiền mặt tài xế nộp, hoàn tiền thủ công cho vé đã hủy
+const OPERATOR_ITEMS: NavItem[] = [
+  { to: '/nha-xe/phan-cong', label: 'Phân công', icon: SteeringWheelIcon },
+  { to: '/nha-xe/doi-soat-tien-mat', label: 'Đối soát tiền mặt', icon: CashIcon },
+  { to: '/nha-xe/hoan-tien', label: 'Hoàn tiền', icon: SwapIcon },
+]
+
+// Tài xế: chuyến được phân công, thu và nộp tiền mặt
+const DRIVER_ITEM: NavItem = { to: '/tai-xe', label: 'Chuyến của tôi', icon: SteeringWheelIcon }
 
 function navItemsFor(vaiTro: string | undefined): NavItem[] {
   if (vaiTro === 'KHACH') return [NAV_ITEMS[0], NAV_ITEMS[1], CUSTOMER_ITEM]
-  if (vaiTro === 'NHA_XE') return [...NAV_ITEMS, OPERATOR_ITEM]
+  if (vaiTro === 'NHA_XE') return [...NAV_ITEMS, ...OPERATOR_ITEMS]
+  if (vaiTro === 'TAI_XE') return [...NAV_ITEMS, DRIVER_ITEM]
   return NAV_ITEMS
 }
 
@@ -40,7 +57,7 @@ function navClassName({ isActive }: { isActive: boolean }): string {
 export default function Header() {
   const { user, logout } = useAuth()
   // Đã đăng nhập tài khoản khách: hiển thị "Vé của tôi", ẩn "Tra cứu vé". Chưa đăng nhập: hiển thị "Tra cứu vé".
-  // Nhà xe: thêm "Hoàn tiền"
+  // Nhà xe: thêm Phân công, Đối soát tiền mặt, Hoàn tiền. Tài xế: thêm Chuyến của tôi
   const items = navItemsFor(user?.vai_tro)
 
   return (

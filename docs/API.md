@@ -738,7 +738,7 @@ Mọi việc sau chạy trong **một transaction**:
 6. Ghi dữ liệu:
    - Vé `GIU_CHO` của đơn → `trang_thai_ve = DA_XAC_NHAN`, `trang_thai_thanh_toan = CHO_THU_TIEN_MAT`.
    - Ghế → `DA_BAN`, `han_giu_cho = NULL` (giữ `khach_hang_id`). Câu UPDATE chỉ đổi ghế còn `GIU_CHO`, còn hạn và do chính khách của đơn giữ. Số dòng đổi khác số vé thì rollback và trả 410.
-   - **Một dòng `thanh_toan` cho cả đơn:** `ma_don`, `ve_id = NULL`, `so_tien` = tổng giá các vé vừa xác nhận, `phuong_thuc_tt = TIEN_MAT`, `trang_thai_thanh_toan = CHO_THANH_TOAN` (tiền chưa thu), `loai_giao_dich = THANH_TOAN`, `ngay_thanh_toan` và `ma_giao_dich` = NULL. CSDL không có UNIQUE trên `thanh_toan.ma_don`, nên việc chống trùng dựa vào khóa khách hàng và kiểm tra "đơn đã có dòng TIEN_MAT chưa" sau khi khóa.
+   - **Một dòng `thanh_toan` cho cả đơn:** `ma_don`, `ve_id = NULL`, `so_tien` = tổng giá các vé vừa xác nhận, `phuong_thuc_tt = TIEN_MAT`, `trang_thai_thanh_toan = CHO_THANH_TOAN` (tiền chưa thu; tài xế thu qua `POST /driver/.../collect-cash`), `loai_giao_dich = THANH_TOAN`, `ngay_thanh_toan` và `ma_giao_dich` = NULL. CSDL không có UNIQUE trên `thanh_toan.ma_don`, nên việc chống trùng dựa vào khóa khách hàng và kiểm tra "đơn đã có dòng TIEN_MAT chưa" sau khi khóa.
 
 **Response 200:** giống `GET /bookings/{ma_don}` (đọc lại sau khi ghi): `trang_thai_don = DA_XAC_NHAN`, `han_giu_cho = null`, `ve[]` gồm mã vé (`ve_id`), `so_ghe`, `ho_ten`, `diem_don`, `diem_tra`, `gia_ve`, `trang_thai_ve`, `trang_thai_thanh_toan`; `tong_tien` do backend tính. Lần đầu và các lần gọi lại đều trả 200.
 
@@ -969,7 +969,7 @@ Xử lý trong **một transaction**:
 2. Đọc lại đơn sau khi khóa; kiểm tra lại quy tắc theo `get_now()`. Vé đã bị đổi chuyến/ghế so với lúc đọc trước khi khóa → **409** `Vé vừa được thay đổi, vui lòng tải lại trang`. Một vé không hợp lệ thì **không ghi gì** cho cả request.
 3. Mỗi vé: tạo `yeu_cau_huy_doi` (`loai_yeu_cau = HUY`, `trang_thai = DA_DUYET`, `chuyen_xe_cu_id`, `ghe_cu_id`, `gia_ve_cu`, `muc_hoan`, ngân hàng và số tài khoản nhận nếu cần); `ve` → `DA_HUY`; `ghe_ngoi` → `TRONG`, `khach_hang_id` và `han_giu_cho` về NULL. Ghế đặt lại được ngay.
 4. `muc_hoan > 0` → tạo `thanh_toan` (`ve_id`, `ma_don`, `so_tien = muc_hoan`, `CHUYEN_KHOAN_SEPAY`, `CHO_THANH_TOAN`, `loai_giao_dich = HOAN_TIEN`) chờ nhà xe hoàn tay.
-5. Vé tiền mặt chưa thu: dòng `thanh_toan` `TIEN_MAT` của đơn (ghi tổng cả đơn), **chỉ khi còn `CHO_THANH_TOAN`**: hủy một phần → `so_tien` trừ đi giá các vé vừa hủy; hủy hết vé tiền mặt → `THAT_BAI`, giữ `so_tien` là số còn phải thu trước lần hủy cuối. Giá gốc từng vé vẫn ở `yeu_cau_huy_doi.gia_ve_cu`. Dòng đã `DA_THANH_TOAN` (tài xế đã thu) không bị sửa.
+5. Vé tiền mặt chưa thu: dòng `thanh_toan` `TIEN_MAT` của đơn (ghi tổng cả đơn), **chỉ khi còn `CHO_THANH_TOAN`**: hủy một phần → `so_tien` trừ đi giá các vé vừa hủy; không còn vé chưa thu nhưng tài xế **đã thu** vé khác của đơn → `so_tien` trừ giá vé vừa hủy, chuyển `DA_THANH_TOAN` và ghi `ngay_thanh_toan`; chưa thu vé nào mà hủy hết → `THAT_BAI`, giữ `so_tien` là số còn phải thu trước lần hủy cuối. Giá gốc từng vé vẫn ở `yeu_cau_huy_doi.gia_ve_cu`. Dòng đã `DA_THANH_TOAN` (tài xế đã thu đủ) không bị sửa. Vé đã thu tiền mặt rồi mới hủy (còn ≥ 12 giờ) được xử lý như vé đã thanh toán và có khoản hoàn qua `/refunds` (xem mục "Phân công tài xế, thu và nộp tiền mặt").
 
 Sau commit, gửi **biên lai hủy qua email giả lập** (chạy nền, chỉ ghi log `Gửi biên lai hủy ma_don=... so_ve=... tong_hoan=...`). Lỗi gửi chỉ ghi log tên lớp lỗi, không ảnh hưởng vé đã hủy. Gọi lại không gửi lần nữa.
 
@@ -1060,7 +1060,190 @@ Phía hủy: đọc vé trước khi khóa, khóa, đọc lại; vé đã đổi
 
 ---
 
+## Phân công tài xế, thu và nộp tiền mặt — BPMN "Quản lý chuyến xe" và làn "Tài xế"
+
+Luồng: **nhà xe phân công tài xế** cho chuyến → tài xế xem khách, **thu tiền mặt từng vé** ("Kiểm tra thông tin & Thu tiền") → **nộp tiền** cho nhà xe ("Gửi tiền cho nhà xe") → **nhà xe xác nhận hoặc từ chối** ("Nhận tiền", cổng XOR do người quyết). Không đổi schema; dùng `chuyen_xe.tai_xe_id`, `chi_tiet_tai_xe`, `ve.trang_thai_thanh_toan`, dòng `thanh_toan` `TIEN_MAT` và bảng `nop_tien_mat`.
+
+### Xác định người đang đăng nhập
+
+- Nhà xe: `require_role(NHA_XE)` → `nha_xe.user_id = tai_khoan.user_id`. Chuyến thuộc nhà xe qua `tuyen_xe.nha_xe_id`.
+- Tài xế: `require_role(TAI_XE)` → `tai_xe.user_id = tai_khoan.user_id`. Chuyến của tài xế là chuyến có `chuyen_xe.tai_xe_id` bằng mã đó.
+- Đúng vai trò nhưng chưa có hồ sơ (`nha_xe` / `tai_xe`) → **403** `Tài khoản chưa có hồ sơ nhà xe` / `Tài khoản chưa có hồ sơ tài xế`.
+- Sai vai trò → **403**; chưa đăng nhập → **401**. Lỗi nghiệp vụ trả `{"detail": "...", "truong": ...}`.
+
+Seed: tài xế mẫu `TX00000001` (`tai_xe_mau`) thuộc `NX00000001` qua `chi_tiet_tai_xe` (từ 01/01/2026, chưa kết thúc), được gán sẵn 2 chuyến `CX00000001` (Đà Nẵng → Huế 06:00–08:30 ngày 15/12) và `CX00000002` (Huế → Đà Nẵng 13:00–15:30). Các chuyến khác có `tai_xe_id = NULL`. CSDL dùng chung có thể khác seed: seed cũ gán tài xế cho mọi chuyến, và seed không ghi đè dòng đã có.
+
+### Nhà xe — `/api/v1/operator` (chỉ NHA_XE)
+
+#### GET `/api/v1/operator/trips?ngay=YYYY-MM-DD&trang_thai=` — Chuyến kèm tài xế
+
+`ngay` là ngày khởi hành theo giờ Việt Nam; `trang_thai` ∈ `MO_BAN`, `NGUNG_BAN`, `HOAN_THANH`, `DA_HUY`; cả hai tùy chọn. Sắp theo `gio_di`.
+
+```json
+[{ "chuyen": { "chuyen_xe_id": "CX00000001", "ten_tuyen": "Đà Nẵng - Huế", "gio_di": "2026-12-14T23:00:00Z", "gio_den": "2026-12-15T01:30:00Z" },
+   "trang_thai": "MO_BAN",
+   "tai_xe": { "tai_xe_id": "TX00000001", "ho_ten": "Tài Xế Mẫu" } }]
+```
+`tai_xe` là `null` khi chưa phân công. Tên tài xế lấy từ `chi_tiet_tai_xe.ho_ten` (bảng `tai_xe` không có cột tên).
+
+#### GET `/api/v1/operator/drivers?ngay=YYYY-MM-DD` — Tài xế của nhà xe
+
+Tài xế có `chi_tiet_tai_xe` của nhà xe còn hiệu lực vào `ngay`: `ngay_bat_dau ≤ ngay` và (`ngay_ket_thuc` NULL hoặc `≥ ngay`). Không truyền `ngay` → hôm nay (giờ Việt Nam). Trả `[{"tai_xe_id", "ho_ten"}]`.
+
+#### PUT `/api/v1/operator/trips/{chuyen_xe_id}/driver` — Phân công tài xế
+
+Body `{"tai_xe_id": "TX00000002"}` (1–10 ký tự). Khóa `tai_xe` rồi `chuyen_xe` (`FOR UPDATE`), đọc lại rồi kiểm tra. Response 200 cùng dạng một phần tử của `GET /operator/trips`.
+
+| Mã | `detail` | `truong` | Khi nào |
+|---|---|---|---|
+| 200 | | | Phân công xong. Gán lại **đúng tài xế hiện tại** → 200, không ghi gì |
+| 404 | `Không tìm thấy chuyến xe` | null | Chuyến không có hoặc không thuộc nhà xe |
+| 400 | `Chuyến xe đã hoàn thành hoặc đã bị hủy, không thể phân công` | null | Chuyến `HOAN_THANH` / `DA_HUY` |
+| 400 | `Tài xế không thuộc nhà xe hoặc không còn làm việc vào ngày chuyến` | `tai_xe_id` | Không có `chi_tiet_tai_xe` còn hiệu lực vào `ngay_khoi_hanh` |
+| 400 | `Chuyến đã có tiền mặt được thu hoặc đã có khoản nộp, không thể đổi tài xế` | `tai_xe_id` | Đổi sang tài xế khác khi chuyến đã có vé được thu tiền mặt hoặc đã có dòng `nop_tien_mat` (mọi trạng thái) |
+| 400 | `Tài xế đã được phân công chuyến CX... trùng giờ` | `tai_xe_id` | Xem quy tắc trùng giờ |
+
+**Quy tắc trùng giờ:**
+- Khoảng thời gian của một chuyến là `[gio_di, coalesce(gio_den, gio_di)]`.
+- Hai chuyến của cùng tài xế trùng khi `A.gio_di < B.ket_thuc` và `B.gio_di < A.ket_thuc`, hoặc khi cùng `gio_di`.
+- **Chạm mốc không tính trùng**: chuyến này đến đúng lúc chuyến kia đi.
+- Bỏ qua chuyến `DA_HUY`.
+
+> **Giới hạn:** chuyến **thiếu `gio_den`** chỉ được tính như một thời điểm (`gio_di`), nên có thể **không phát hiện được trùng** với chuyến chạy trong khoảng thời gian thật của nó. Ví dụ: chuyến 06:00 không có giờ đến sẽ không bị tính là trùng với chuyến 07:00 của cùng tài xế.
+
+Hai lần phân công cùng một tài xế vào hai chuyến trùng giờ gửi cùng lúc: khóa `tai_xe` buộc chúng chạy lần lượt, nên chỉ một lần thành công (có test).
+
+#### GET `/api/v1/operator/cash-deposits?trang_thai=` — Khoản nộp tiền mặt
+
+`trang_thai` ∈ `CHO_XAC_NHAN`, `DA_XAC_NHAN`, `TU_CHOI` (tùy chọn). Chỉ trả khoản của chuyến thuộc nhà xe, nộp sớm nhất trước.
+
+```json
+[{ "nop_tien_id": "NT00100000", "tai_xe_id": "TX00000001", "ten_tai_xe": "Tài Xế Mẫu",
+   "chuyen": { "chuyen_xe_id": "CX00000001", "ten_tuyen": "Đà Nẵng - Huế" },
+   "so_tien": 400000, "ngay_nop": "2026-12-15T03:00:00Z",
+   "trang_thai": "CHO_XAC_NHAN", "ngay_xac_nhan": null }]
+```
+
+#### POST `/api/v1/operator/cash-deposits/{nop_tien_id}/confirm` và `/reject` — Xác nhận / Từ chối
+
+Đây là cổng XOR "Nhận tiền", do nhà xe quyết. Backend khóa dòng `nop_tien_mat` rồi đọc lại.
+
+- `confirm` → `DA_XAC_NHAN`; `reject` → `TU_CHOI`. Cả hai ghi `ngay_xac_nhan = get_now()` (thời điểm nhà xe quyết định).
+- Gọi lại cùng thao tác → 200, trả kết quả cũ, **không** ghi đè `ngay_xac_nhan`.
+- Khoản đã ở trạng thái còn lại → **409** `Khoản nộp đã được xử lý trước đó`.
+- Xác nhận và từ chối gửi cùng lúc → chỉ một bên 200, bên kia 409 (có test).
+- Không có, hoặc thuộc nhà xe khác → **404** `Không tìm thấy khoản nộp`.
+- Bị từ chối thì tài xế **nộp lại được**, vì khoản `TU_CHOI` không tính vào "đã nộp".
+
+### Tài xế — `/api/v1/driver` (chỉ TAI_XE)
+
+Chuyến không phải của tài xế đang đăng nhập (kể cả chuyến không tồn tại) → **404** `Không tìm thấy chuyến xe`.
+
+#### GET `/api/v1/driver/trips` — Chuyến được phân công
+
+Trả `[{"chuyen": {...}, "trang_thai": "MO_BAN", "so_khach": 3}]`, sắp theo `gio_di`. `so_khach` là số vé `DA_XAC_NHAN`.
+
+#### GET `/api/v1/driver/trips/{chuyen_xe_id}` — Khách và tiền mặt của chuyến
+
+```json
+{
+  "chuyen": { "chuyen_xe_id": "CX00000001" }, "trang_thai": "MO_BAN",
+  "khach": [{
+    "ve_id": "VE00100001", "ma_don": "DH00100000", "so_ghe": "A01",
+    "ho_ten": "Trần Thị Bình", "so_dien_thoai": "0905111222",
+    "diem_don": "Đà Nẵng", "diem_tra": "Huế",
+    "trang_thai_thanh_toan": "CHO_THU_TIEN_MAT", "so_tien_can_thu": 200000, "co_the_thu_tien": true
+  }],
+  "tien_mat": { "tong_da_thu": 0, "tong_chua_thu": 200000, "da_nop": 0, "dang_cho": 0, "co_the_nop": 0 },
+  "co_the_nop_tien": false, "co_the_ket_thuc": false,
+  "khoan_nop": [], "thoi_diem_hien_tai": "2026-12-14T20:00:00Z"
+}
+```
+- `khach`: chỉ vé `DA_XAC_NHAN` của chuyến, sắp theo số ghế. `so_tien_can_thu = gia_ve` khi vé `CHO_THU_TIEN_MAT`, ngược lại là 0.
+- Mọi số tiền và cờ `co_the_*` do backend tính; frontend chỉ hiển thị.
+
+#### POST `/api/v1/driver/trips/{chuyen_xe_id}/tickets/{ve_id}/collect-cash` — Đã thu tiền mặt một vé
+
+Khóa **cùng thứ tự với hủy vé**: `khach_hang` → `ghe_ngoi` theo `ghe_id` → `ve` (`booking_service.lock_booking`) → `chuyen_xe` (`FOR SHARE`) → dòng `thanh_toan` `TIEN_MAT` của đơn. Sau đó đọc lại rồi mới kiểm tra. Response 200 cùng dạng `GET /driver/trips/{id}`.
+
+| Mã | `detail` | Khi nào |
+|---|---|---|
+| 200 | | `ve.trang_thai_thanh_toan` → `DA_THANH_TOAN`. Vé đã thu từ trước → 200, không ghi thêm |
+| 404 | `Không tìm thấy vé` | Vé không thuộc chuyến này (kể cả vé vừa được n8n đổi sang chuyến khác) |
+| 404 | `Không tìm thấy chuyến xe` | Chuyến không phải của mình (kể cả khi nhà xe vừa đổi tài xế) |
+| 400 | `Vé đã bị hủy` / `Vé chưa được xác nhận` | |
+| 400 | `Vé này không thanh toán tiền mặt khi lên xe` | Vé chuyển khoản SePay |
+| 400 | `Chuyến xe đã bị hủy` | |
+
+Khi đơn **không còn vé `DA_XAC_NHAN` + `CHO_THU_TIEN_MAT`**, dòng `TIEN_MAT` của đơn chuyển `DA_THANH_TOAN` và ghi `ngay_thanh_toan`. `so_tien` giữ nguyên (phương án A: `so_tien` luôn là số tiền tài xế cần thu của đơn).
+
+Khách hủy vé và tài xế thu tiền **cùng lúc**: cả hai khóa `khach_hang` trước, nên chạy lần lượt.
+- Hủy trước → thu tiền nhận 400 `Vé đã bị hủy`.
+- Thu trước → vé hủy sau được xử lý như vé đã thanh toán (có khoản hoàn qua `/refunds`).
+- Dù bên nào thắng, `so_tien` của dòng `TIEN_MAT` luôn bằng tổng các vé đã thu (có test).
+
+#### POST `/api/v1/driver/trips/{chuyen_xe_id}/cash-deposits` — Nộp tiền cho nhà xe
+
+Không có body: **`so_tien` do backend tính**. Backend khóa `chuyen_xe` (`FOR UPDATE`), kiểm tra lại tài xế, rồi tạo `nop_tien_mat` với `tai_xe_id`, `chuyen_xe_id`, `so_tien`, `ngay_nop = get_now()`, trạng thái `CHO_XAC_NHAN`. Response **201** cùng dạng một phần tử của `GET /operator/cash-deposits`.
+
+**Cách xác định "đã nộp":** bảng `nop_tien_mat` không liên kết tới vé, nên tính theo tổng của chuyến:
+
+```
+tong_da_thu = Σ ve.gia_ve của chuyến có trang_thai_thanh_toan = DA_THANH_TOAN
+              và thuộc đơn tiền mặt (đơn có dòng thanh_toan TIEN_MAT/THANH_TOAN chưa THAT_BAI)
+co_the_nop  = tong_da_thu − Σ nop_tien_mat.so_tien của chuyến ở DA_XAC_NHAN hoặc CHO_XAC_NHAN
+```
+Khoản `TU_CHOI` không bị trừ, nên nộp lại sẽ ra đúng số tiền cũ.
+
+| Mã | `detail` | Khi nào |
+|---|---|---|
+| 409 | `Chuyến đã có khoản nộp đang chờ nhà xe xác nhận` | Mỗi chuyến chỉ có tối đa **một** khoản `CHO_XAC_NHAN`. Hai request nộp cùng lúc → một 201, một 409 |
+| 400 | `Không có tiền mặt nào cần nộp cho chuyến này` | `co_the_nop = 0` |
+| 404 | `Không tìm thấy chuyến xe` | Chuyến không phải của mình |
+
+**Nộp tiền không bắt buộc chuyến đã `HOAN_THANH`**, để demo được với chuyến tương lai (dữ liệu mẫu ngày 15–16/12/2026).
+
+#### POST `/api/v1/driver/trips/{chuyen_xe_id}/complete` — Kết thúc chuyến (tùy chọn)
+
+- `chuyen_xe.trang_thai` → `HOAN_THANH`, chỉ khi `get_now() ≥ gio_di`.
+- Trước giờ đi → **400** `Chỉ kết thúc được chuyến sau giờ khởi hành`.
+- Chuyến `DA_HUY` → 400. Chuyến đã `HOAN_THANH` → 200, không ghi thêm.
+- Chuyến `HOAN_THANH` không còn nhận hủy vé và không phân công lại được.
+- Không có trạng thái "đã lên xe" (CSDL chưa có giá trị này).
+
+### Thu tiền bất cứ lúc nào — hệ quả
+
+Tài xế đánh dấu "đã thu" được **bất cứ lúc nào**, kể cả trước giờ đi. Lý do: để demo được, và để việc khách hủy vé và tài xế thu tiền có thể xảy ra cùng lúc. Hệ quả:
+- Vé đã thu tiền mặt mà khách hủy khi còn ≥ 12 giờ trước giờ đi được tính như vé đã thanh toán: hoàn 100% hoặc 50%, khách phải nhập tài khoản nhận, và phát sinh khoản hoàn `HOAN_TIEN` chờ nhà xe chuyển ở `/refunds`.
+- Tiền mặt của vé đó **vẫn tính vào `tong_da_thu`** và vào khoản tài xế nộp, vì tài xế đang cầm tiền. Phần hoàn cho khách là khoản riêng của nhà xe.
+- Trên thực tế tài xế thu tiền khi khách lên xe, tức trong vòng 12 giờ trước giờ đi. Lúc đó khách không còn hủy được, nên trường hợp này hiếm.
+
+### Lệch so với BPMN
+
+1. BPMN vẽ "Gửi tiền cho nhà xe" → "Nhận tiền" → "Hoàn thành vé" mà **không có cổng XOR** sau "Nhận tiền". Hệ thống thêm cổng do nhà xe quyết: Xác nhận (`DA_XAC_NHAN`) hoặc Từ chối (`TU_CHOI`, tài xế nộp lại). Đây là phần mở rộng; cần cập nhật BPMN.
+2. BPMN đặt "Xác nhận hoàn thành chuyến" **trước** "Gửi tiền cho nhà xe". Hệ thống **không bắt buộc** chuyến `HOAN_THANH` trước khi nộp tiền, để demo được với chuyến tương lai. Kết thúc chuyến là thao tác riêng, tùy chọn.
+3. Trong bước BPMN "Thêm/Sửa/Xóa chuyến xe", hệ thống chỉ làm phần **phân công tài xế** (`chuyen_xe.tai_xe_id`). Không làm thêm/sửa/xóa chuyến, và không gửi thông báo "Báo cho tài xế liên quan" (tài xế tự xem ở "Chuyến của tôi").
+4. Không làm "Liên hệ khách hàng", "Khách phản hồi?" và trạng thái "đã lên xe" (CSDL chưa có giá trị trạng thái này).
+
+### Giao diện
+
+- `/nha-xe/phan-cong` (NHA_XE, menu "Phân công"): chọn ngày → danh sách chuyến → chọn tài xế → **Lưu**. Lỗi có `truong = "tai_xe_id"` (trùng giờ, tài xế ngoài nhà xe, chuyến đã thu tiền) hiện ngay dưới ô chọn tài xế của đúng chuyến.
+- `/nha-xe/doi-soat-tien-mat` (NHA_XE, menu "Đối soát tiền mặt"): các khoản `CHO_XAC_NHAN` (tài xế, chuyến, số tiền, ngày nộp); nút **Xác nhận** / **Từ chối**, mỗi nút có hộp xác nhận trong trang.
+- `/tai-xe` (TAI_XE, menu "Chuyến của tôi") → `/tai-xe/chuyen/{id}`:
+  - Danh sách khách, bấm số điện thoại để gọi.
+  - Nút **Đã thu tiền mặt** cho từng vé, có hộp xác nhận.
+  - Tổng đã thu / chưa thu, nút **Nộp tiền {số tiền backend tính}**.
+  - Trạng thái các khoản nộp (Chờ xác nhận / Đã xác nhận / Bị từ chối).
+  - Nút **Kết thúc chuyến** khi backend cho phép.
+- Frontend không tự tính tiền: mọi số tiền và việc hiện/ẩn nút đều theo `tien_mat` và các cờ `co_the_*` của backend.
+
+### Log
+
+`Phân công tài xế chuyen_xe_id=... tai_xe_id=...`, `Thu tiền mặt chuyen_xe_id=... ve_id=...`, `Nộp tiền mặt nop_tien_id=... chuyen_xe_id=... so_tien=...`, `Đối soát tiền mặt nop_tien_id=... trang_thai=...`, `Kết thúc chuyến chuyen_xe_id=...`. Log **không** chứa họ tên, SĐT hành khách (có test).
+
 ## Rủi ro đã biết (chưa xử lý)
 
 1. **Tra cứu vé chỉ bằng số điện thoại** (`GET /api/v1/bookings/lookup?phone=...`). Không cần đăng nhập, không cần mã đơn, không giới hạn số lần gọi. Ai biết (hoặc dò) một SĐT là xem được mọi đơn đã xác nhận có SĐT đó, gồm họ tên, SĐT từng hành khách, mã đơn, mã vé, điểm đón/trả. Trái BR-BUS-36 (tra cứu bằng **mã đơn + SĐT**) và BR-BUS-37. Trang "Tra cứu vé" **không có nút Hủy vé**; kết quả tra cứu không có mã truy cập nên các endpoint hủy vé vẫn trả 404. Cần sửa ở một task riêng: bắt buộc mã đơn + SĐT và giới hạn số lần thử.
 2. **Đổi vé không xác thực** (`POST /api/v1/bookings/exchange`). Endpoint không kiểm tra quyền (không dùng `get_accessible_booking` hay `require_role`), chỉ cần `ve_id`; mã vé lộ ra qua trang tra cứu ở mục 1. Ai biết `ve_id` là gửi được yêu cầu đổi vé của người khác sang n8n. Backend cũng không khóa dữ liệu hay ghi `yeu_cau_huy_doi` cho đổi vé (xem mục "Hủy và đổi vé (n8n) cùng lúc"). Cần sửa ở một task riêng: dùng `get_accessible_booking` theo `ma_don`, và n8n làm đúng các bước khóa ở trên.
+3. **"Đơn tiền mặt" được suy ra từ dòng `thanh_toan`.** Vé `DA_THANH_TOAN` chỉ được tính là tiền mặt tài xế đã thu khi đơn có dòng `TIEN_MAT`/`THANH_TOAN` chưa `THAT_BAI`. Nếu webhook SePay đến muộn và đánh dấu thanh toán cho một đơn đã chọn tiền mặt, tổng đã thu của chuyến có thể bị tính sai.
+4. **Vé đổi chuyến qua n8n sau khi đã thu tiền mặt.** Vé mang theo `trang_thai_thanh_toan = DA_THANH_TOAN` sang chuyến mới, nên tiền tài xế cũ đã thu sẽ được tính vào chuyến mới. Chưa xử lý.

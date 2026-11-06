@@ -322,6 +322,28 @@ async def test_partial_cash_cancel_reduces_cash_row(client, seeded, set_now):
     assert int(row.so_tien) == 2 * GIA_VE
 
 
+async def test_cancel_rest_after_driver_collected_one_ticket(client, seeded, set_now):
+    """Tài xế đã thu vé A01, khách hủy vé A02 còn lại: dòng TIEN_MAT phải là DA_THANH_TOAN
+    với số đã thu (A01), không được chuyển THAT_BAI."""
+    order = await cash_order(client, ["A01", "A02"])
+    first, second = ve_ids_of(order)
+    async with seeded() as session, session.begin():
+        # Mô phỏng tài xế đã thu tiền vé A01
+        await session.execute(
+            update(Ve)
+            .where(Ve.ve_id == first)
+            .values(trang_thai_thanh_toan=TrangThaiThanhToanVe.DA_THANH_TOAN)
+        )
+    set_now(GIO_DI - timedelta(hours=30))
+
+    assert (await cancel(client, order, [second])).status_code == 200
+
+    row = await cash_row(seeded, order["ma_don"])
+    assert row.trang_thai_thanh_toan == TrangThaiGiaoDich.DA_THANH_TOAN
+    assert int(row.so_tien) == GIA_VE
+    assert row.ngay_thanh_toan == GIO_DI - timedelta(hours=30)
+
+
 async def test_collected_cash_row_is_not_touched(client, seeded, set_now):
     order = await cash_order(client, ["A01", "A02"])
     async with seeded() as session, session.begin():

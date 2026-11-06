@@ -92,3 +92,26 @@ const REFUND_STATUS_LABELS: Record<string, string> = {
 export function formatRefundStatus(status: string): string {
   return REFUND_STATUS_LABELS[status] ?? status
 }
+
+const TRIP_STATUS_LABELS: Record<string, string> = {
+  MO_BAN: 'Đang mở bán',
+  NGUNG_BAN: 'Ngừng bán',
+  HOAN_THANH: 'Đã hoàn thành',
+  DA_HUY: 'Đã hủy',
+}
+
+/** Nhãn tiếng Việt của trạng thái chuyến backend trả về; giá trị lạ hiện nguyên văn. */
+export function formatTripStatus(status: string): string {
+  return TRIP_STATUS_LABELS[status] ?? status
+}
+
+const DEPOSIT_STATUS_LABELS: Record<string, string> = {
+  CHO_XAC_NHAN: 'Chờ xác nhận',
+  DA_XAC_NHAN: 'Đã xác nhận',
+  TU_CHOI: 'Bị từ chối',
+}
+
+/** Nhãn tiếng Việt của trạng thái khoản nộp tiền mặt; giá trị lạ hiện nguyên văn. */
+export function formatDepositStatus(status: string): string {
+  return DEPOSIT_STATUS_LABELS[status] ?? status
+}

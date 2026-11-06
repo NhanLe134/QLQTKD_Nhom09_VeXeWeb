@@ -89,4 +89,28 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: 'Hoàn tiền' })).toHaveAttribute('href', '/nha-xe/hoan-tien')
     expect(screen.queryByRole('link', { name: 'Vé của tôi' })).not.toBeInTheDocument()
   })
+
+  it('nhà xe thấy Phân công, Đối soát tiền mặt, Hoàn tiền; không thấy Chuyến của tôi', () => {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 't', vai_tro: 'NHA_XE', ho_ten: 'Nhà Xe' }))
+    renderHeader()
+
+    expect(screen.getByRole('link', { name: 'Phân công' })).toHaveAttribute('href', '/nha-xe/phan-cong')
+    expect(screen.getByRole('link', { name: 'Đối soát tiền mặt' })).toHaveAttribute('href', '/nha-xe/doi-soat-tien-mat')
+    expect(screen.getByRole('link', { name: 'Hoàn tiền' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Chuyến của tôi' })).not.toBeInTheDocument()
+  })
+
+  it('chỉ tài xế thấy "Chuyến của tôi"; không thấy mục của nhà xe', () => {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 't', vai_tro: 'TAI_XE', ho_ten: 'Tài Xế' }))
+    renderHeader()
+    expect(screen.getByRole('link', { name: 'Chuyến của tôi' })).toHaveAttribute('href', '/tai-xe')
+    expect(screen.queryByRole('link', { name: 'Phân công' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Đối soát tiền mặt' })).not.toBeInTheDocument()
+    cleanup()
+
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 't', vai_tro: 'KHACH', ho_ten: 'An' }))
+    renderHeader()
+    expect(screen.queryByRole('link', { name: 'Chuyến của tôi' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Phân công' })).not.toBeInTheDocument()
+  })
 })

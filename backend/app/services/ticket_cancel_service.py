@@ -214,11 +214,18 @@ async def _cancelled_request_ids(session: AsyncSession, ve_ids: list[str]) -> se
 
 
 async def _reduce_cash_payment(
-    session: AsyncSession, current: Booking, cancelled_ids: set[str], cash_amount: Decimal
+    session: AsyncSession,
+    current: Booking,
+    cancelled_ids: set[str],
+    cash_amount: Decimal,
+    now: datetime,
 ) -> None:
-    """Dòng TIEN_MAT ghi tổng cả đơn: hủy một phần trừ so_tien, hủy hết chuyển THAT_BAI.
+    """Dòng TIEN_MAT ghi số tài xế cần thu của cả đơn (phương án A).
 
-    Chỉ sửa khi dòng còn CHO_THANH_TOAN (tài xế chưa thu).
+    - Còn vé chưa thu: trừ so_tien phần vé vừa hủy.
+    - Không còn vé chưa thu nhưng tài xế đã thu vé khác của đơn: trừ so_tien, DA_THANH_TOAN.
+    - Chưa thu vé nào và hủy hết: THAT_BAI, giữ so_tien còn phải thu trước lần hủy cuối.
+    Chỉ sửa khi dòng còn CHO_THANH_TOAN (tài xế chưa thu đủ).
     """
     row = await session.scalar(
         select(ThanhToan)
@@ -239,8 +246,18 @@ async def _reduce_cash_payment(
         and t.ve.trang_thai_ve == TrangThaiVe.DA_XAC_NHAN
         and t.ve.trang_thai_thanh_toan == TrangThaiThanhToanVe.CHO_THU_TIEN_MAT
     ]
+    # Đơn tiền mặt: vé DA_THANH_TOAN là vé tài xế đã thu (kể cả vé đã thu rồi mới hủy)
+    collected = [
+        t
+        for t in current.tickets
+        if t.ve.trang_thai_thanh_toan == TrangThaiThanhToanVe.DA_THANH_TOAN
+    ]
     if remaining_cash:
         row.so_tien = max(Decimal(row.so_tien) - cash_amount, Decimal(0))
+    elif collected:
+        row.so_tien = max(Decimal(row.so_tien) - cash_amount, Decimal(0))
+        row.trang_thai_thanh_toan = TrangThaiGiaoDich.DA_THANH_TOAN
+        row.ngay_thanh_toan = now
     else:
         # Giữ so_tien là số còn phải thu trước lần hủy cuối; lịch sử giá ở yeu_cau_huy_doi
         row.trang_thai_thanh_toan = TrangThaiGiaoDich.THAT_BAI
@@ -315,7 +332,7 @@ async def _write_cancellation(
         Decimal(0),
     )
     if cash_amount > 0:
-        await _reduce_cash_payment(session, current, set(ve_ids), cash_amount)
+        await _reduce_cash_payment(session, current, set(ve_ids), cash_amount, now)
     await session.flush()
 
 
