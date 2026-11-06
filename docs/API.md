@@ -761,3 +761,48 @@ Chỉ tài khoản vai trò `KHACH` (BR-BUS-36, 37): chưa đăng nhập **401**
 Response không chứa mã truy cập.
 
 **Giới hạn:** chưa có tham số lọc trạng thái hay phân trang; mọi đơn đã xác nhận được trả trong một lần. Mỗi chuyến khác nhau tốn thêm một truy vấn đọc thông tin chuyến.
+
+
+---
+
+## Tra cứu vé và Đổi vé qua n8n — Tự động hoá BPMN
+
+### GET `/api/v1/bookings/lookup` — Tra cứu vé theo số điện thoại
+
+Không cần đăng nhập. Tìm tất cả các đơn có vé `DA_XAC_NHAN` khớp với số điện thoại của hành khách hoặc người đặt.
+
+**Query Parameters**
+- `phone` (string, bắt đầu bằng `0`, gồm 10 chữ số): Ví dụ `?phone=0900000001`
+
+**Response 200 OK**
+Mảng các đơn `MyBookingOut` (cùng định dạng với `GET /api/v1/me/tickets`).
+
+---
+
+### POST `/api/v1/bookings/exchange` — Đổi vé qua n8n
+
+Nhận thông tin vé cần đổi và ghế/chuyến mới từ Frontend, sau đó chuyển tiếp (forward) sang Webhook của n8n (`N8N_EXCHANGE_WEBHOOK_URL`).
+
+**Request Body**
+```json
+{
+  "ve_id": "VE100001",
+  "chuyen_xe_moi_id": "CX100002",
+  "ghe_moi_id": "GH100005"
+}
+```
+
+**Response 200 OK**
+```json
+{
+  "status": "success",
+  "message": "Đổi vé thành công",
+  "ve_id": "VE100001",
+  "chuyen_xe_moi_id": "CX100002",
+  "so_ghe_moi": "B01"
+}
+```
+
+**Mã lỗi**
+- `400`: n8n từ chối do vi phạm chính sách đổi (sau 24h, vé mới đắt hơn vé cũ, ghế đã có người đặt).
+- `502`: Không thể kết nối tới n8n Webhook.

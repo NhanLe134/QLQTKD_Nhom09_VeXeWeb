@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Cửa sổ chuyển khoản hiển thị cho khách (giây chia từ phút); chỉ là hiển thị,
     # server chấp nhận tiền đến trong toàn bộ thời gian giữ chỗ
     sepay_qr_minutes: int = Field(default=5, gt=0)
+    # Webhook n8n xử lý luồng tự động hoá đổi vé
+    n8n_exchange_webhook_url: str = Field(
+        default="http://localhost:5678/webhook/doi-ve"
+    )
 
     @field_validator("cors_origins", mode="before")
     @classmethod

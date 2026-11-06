@@ -9,8 +9,8 @@ import MyTicketsPage from './pages/MyTicketsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import RegisterPage from './pages/RegisterPage'
 import SeatSelectionPage from './pages/SeatSelectionPage'
+import TraCuuVePage from './pages/TraCuuVePage'
 import TripSearchPage from './pages/TripSearchPage'
-import UnderConstructionPage from './pages/UnderConstructionPage'
 
 export const routes: RouteObject[] = [
   {
@@ -21,7 +21,7 @@ export const routes: RouteObject[] = [
       { path: 'tim-chuyen', element: <TripSearchPage /> },
       { path: 'chuyen/:id', element: <SeatSelectionPage /> },
       { path: 'dat-ve/:maDon', element: <BookingPage /> },
-      { path: 'tra-cuu-ve', element: <UnderConstructionPage title="Tra cứu vé" /> },
+      { path: 'tra-cuu-ve', element: <TraCuuVePage /> },
       // Đặt vé không cần đăng nhập (BR-BUS-01); chỉ "Vé của tôi" cần tài khoản khách (BR-BUS-36)
       {
         path: 've-cua-toi',
