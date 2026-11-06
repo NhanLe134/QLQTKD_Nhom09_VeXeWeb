@@ -11,6 +11,8 @@
 | LOG-02 | Thiết kế kỹ thuật + kế hoạch thanh toán SePay | nguyên văn — LOG-02 | Bản thiết kế chưa có mã: bổ sung cột `han_qr`, `noi_dung_ck`, enum `CAN_HOAN_THU_CONG` (không tạo bảng mới); endpoints `POST /bookings/{ma_don}/pay-sepay`, `POST /webhooks/sepay` (RBAC + secret constant-time); kế hoạch 10 bước backend→frontend; 8 điểm thiếu/mâu thuẫn/rủi ro (loại QR tĩnh/động, một tài khoản nhận, trạng thái tiền đến muộn, webhook trễ so hạn 5 phút...); chờ phê duyệt | Nhàn chỉnh thiết kế: bỏ cột `han_qr`/`noi_dung_ck` (đếm ngược 5p ở FE), muộn/sai tiền/đơn hủy → `THAT_BAI`, giữ chỗ 10p + CK 5p, QR hiện giữa 2 ô phương thức, nội dung CK `THANH TOAN VE {VE ID}`, một nhà xe, yêu cầu code webhook (sẽ tự bổ sung trường + khóa) |
 | LOG-03 | Chỉnh thiết kế SePay theo phản hồi + trả lời câu hỏi public webhook | nguyên văn — LOG-03 | Thiết kế v2 theo 4 quyết định (bỏ 2 cột, giữ chỗ 10p, THAT_BAI, một nhà xe); chỉ ra mâu thuẫn nội dung CK `VE ID` vs `MA_DON` với đơn nhiều vé; xác nhận cần URL công khai (HTTPS/tunnel) để SePay gọi webhook, pytest không cần; ghi DECISION_LOG 1–3 | Nhàn chọn A: nội dung CK = `THANH TOAN VE {ma_don}`; chọn cách public: deploy backend; phê duyệt để bắt đầu code |
 | LOG-04 | Triển khai tính năng SePay (backend + frontend) |  | Backend: `sepay_payment_service`, `sepay_webhook_service`, endpoint `pay-sepay` + `/webhooks/sepay`, vá `confirm-cash`/`release_booking`, config `SEPAY_*`, giữ chỗ 10 phút; test pytest **328/328 pass**. Frontend: `SepayQrPanel`, chọn CK hiện QR giữa 2 ô + đếm ngược 5p + poll 3s tự chuyển thành công; lint/typecheck/test **224/224 pass**, build OK. Docs: API.md, vault, .env.example | (đang chờ Nhàn xem xét — sẽ điền ở LOG-05) |
+| LOG-05 | Nắm quy tắc ghi AI usage log + decision log (phiên mới) | nguyên văn — LOG-05 | Xác nhận quy tắc ghi 2 file log của Nhàn; kiểm tra log hiện có (LOG-01→04, Decision 1–2), log đầu tiên cho prompt thiết kế kế hoạch đã có ở LOG-02 nên không ghi trùng; ghi LOG-05; không có quyết định nghiệp vụ mới nên không ghi Decision log; chờ yêu cầu tiếp | Nhàn chấp nhận, chuyển sang yêu cầu mới (LOG-06) |
+| LOG-06 | Rà soát ý định tính năng gửi email xác nhận đặt vé | nguyên văn — LOG-06 | Rà soát 7 mục + code hiện có (`ticket_notifier` đã giả lập gửi nền sau commit, chỉ gửi khi vừa xác nhận). Mâu thuẫn: tiền mặt là `CHO_THU_TIEN_MAT` nhưng mẫu ghi "ĐÃ THANH TOÁN" và phạm vi cấm gửi đơn chưa thanh toán; lẫn mã vé/mã đơn; thương hiệu VexeApp vs Nhà xe Thịnh Vượng; phạm vi có xe/tài xế/trạng thái TT nhưng dữ liệu thiếu. Thiếu: mục 4, giờ khởi hành + múi giờ, điểm đón/trả, danh sách mã vé từng ghế, cơ chế tài xế đối chiếu, chính sách gửi lại khi lỗi, escape HTML, bản text thuần, tiêu chí 5s phụ thuộc Gmail. Đề xuất: giữ BackgroundTasks + smtplib + Gmail SMTP App Password + Jinja2 (không dùng Resend vì cần domain riêng); rủi ro host chặn cổng SMTP. Nêu 5 câu hỏi chờ Nhàn chốt | Nhàn chốt: tiền mặt vẫn gửi ("Đặt vé thành công" + "Chờ thu tiền mặt"); thương hiệu VexeApp, dùng email đã có; xe/tài xế có thì hiện; Render gói miễn phí (AI xác minh chặn SMTP → chuyển sang Gmail API qua HTTPS); có gửi lại khi lỗi |
 
 
 ### LOG-01 — Prompt nguyên văn
@@ -89,4 +91,79 @@ YÊU CẦU ĐẦU RA:
 
 YÊU CẦU TƯƠNG TÁC:
 CHƯA VIẾT MÃ NGUỒN. Hãy trình bày bản thiết kế trên và chờ tôi xem xét, chỉnh sửa và phê duyệt kế hoạch trước khi chuyển sang bước tiếp.
+```
+
+
+### LOG-05 — Prompt nguyên văn
+
+```text
+ở cuộc trò chuyện này, bạn đang làm việc với Thanh Nhàn -> quá trình làm việc phải được lưu log vào ai usage log và decison log của Nhàn
+
+yêu cầu thêm khi tôi giao tiếp với bạn. với mỗi prompt tôi gửi cho bạn, bạn tự động ghi log vào AI-usage-log-nhan
+| ID | Task | Context | AI Output | Human Verification / Decision |
+stt - ngắn gọn tên task bạn cần hoàn thiện - prompt mà tôi gửi bạn(không được sai 1 kí tự nào cả) - tóm tắt ngắn gọn kết quả bạn trả về - hành động của tôi trước câu trả lời của bạn
+nếu prompt sau tôi là tương tác với prompt trước đó thì bạn sẽ ghi vào Human Verification / Decision - hành động của tôi trước câu trả lời của bạn
+giờ thì bắt đầu ghi log ai usage log đầu tiên với prompt tôi yêu cầu bạn thiết kế kế hoạch ngay trước đó
+
+tương tự với decision log nhan, cũng tạo bảng những decioson log khi tôi chat với bản -> STT  - ngày quyết định (là ngày và giờ hiện tại trừ đi - ngày, vd bây giờ là 12h28 6/11 thì ghi log là 12h28 ngày 4/11)- bối cảnh - quyết định - lí do - người quyết định (Nhàn)
+nội dung ghi vào file này là những quyết định liên quan đến quy trình nghiệp vụ QUAN TRỌNG mà dữ liệu trong vault thiếu, k ghi những quyết định nhỏ. nội dung các trường ghi tóm tắt ngắn gọn
+
+sau khi nắm rõ yêu cầu, tôi sẽ gửi yêu cầu để bạn làm
+```
+
+
+### LOG-06 — Prompt nguyên văn
+
+```text
+BỐI CẢNH & VỊ THẾ:
+Đóng vai Trợ lý Kỹ thuật / Co-founder cùng thảo luận. CHƯA VIẾT CODE VÀ CHƯA LÊN KẾ HOẠCH KỸ THUẬT CHI TIẾT.
+Hãy cùng tôi rà soát và đánh giá 7 mục Ý định dưới đây cho tính năng "Gửi email xác nhận đặt vé thành công":
+
+1. VẤN ĐỀ NGHIỆP VỤ:
+- Khách hàng sau khi thanh toán/xác nhận đặt vé thành công chưa nhận được vé điện tử qua email để làm minh chứng lên xe.
+
+2. NGƯỜI DÙNG & VAI TRÒ (LANE BPMN):
+- Khách hàng: Nhận email tự động, mở email xem chi tiết thông tin vé và xuất trình giao diện email/mã vé cho tài xế khi lên xe.
+- Hệ thống / Background Task: Nhận sự kiện vé được xác nhận thành công (qua Webhook SePay hoặc Tiền mặt) -> Tự động sinh nội dung email từ mẫu HTML và gửi tới địa chỉ email của khách hàng.
+
+3. PHẠM VI (SCOPE):
+- Ứng dụng SẼ LÀM: 
+  + Tự động kích hoạt luồng gửi email ngay sau khi vé được đặt thành công.
+  + Thiết kế Mẫu Email dạng HTML đẹp mắt, chuyên nghiệp, responsive trên thiết bị di động.
+  + Hiển thị đầy đủ chi tiết vé (Mã vé/Mã đơn hàng, Lộ trình, Ngày khởi hành, Số ghế, Số lượng vé, Nhà xe, Tổng tiền, Trạng thái thanh toán, Thông tin xe và tài xế nếu có).
+  + Đảm bảo tính Idempotency: Không gửi trùng lặp nhiều email cho cùng một mã đơn hàng/mã vé.
+- Ứng dụng KHÔNG LÀM: 
+  + Không gửi email cho các đơn hàng chưa thanh toán hoặc bị hủy/thất bại.
+  + Không đính kèm tệp PDF.
+
+5. QUY TẮC NGHIỆP VỤ & GIAO DIỆN
+- Gửi email tự động bất cứ khi nào trạng thái vé chuyển sang thành công (áp dụng cho cả phương thức Tiền mặt lẫn Chuyển khoản qua SePay).
+- Cấu trúc tiêu đề email (Subject): [VexeApp] Xác nhận thanh toán thành công - Mã vé: {Mã đơn hàng}
+- Yêu cầu Thiết kế HTML/CSS:
+  + Tiêu đề banner chính màu xanh đậm: "THANH TOÁN THÀNH CÔNG - Mã đơn hàng: #{MA_VE}".
+  + Badge trạng thái nổi bật: "Vé điện tử - ĐÃ THANH TOÁN" (nền vàng nhạt, chữ xanh).
+  + Lời chào cá nhân hóa: "Chào {TEN_KHACH_HANG}, VexeApp xác nhận bạn đã thanh toán thành công...".
+  + Bảng chi tiết vé (Layout bảng 2 cột sạch đẹp, chữ in đậm các thông tin quan trọng):
+    * Lộ trình: {DIEM_DI} -> {DIEM_DEN}
+    * Khởi hành: {NGAY_KHOI_HANG} (Định dạng DD/MM/YYYY)
+    * Số ghế: {DANH_SACH_GHE} (Màu đỏ nổi bật, ví dụ: C6, C5)
+    * Số lượng vé: {SO_LUONG}
+    * Tổng tiền: {TONG_TIEN} VNĐ (Màu xanh lá in đậm)
+  + Khung nhắc nhở tài xế (Nền nhạt, viền nét đứt màu xanh): "XÁC NHẬN LÊN XE - Quý khách vui lòng trình email này cho tài xế khi lên xe."
+  + Footer: Ghi chú thông tin dự án/hệ thống nhỏ gọn bên dưới.
+
+6. DỮ LIỆU (DATA ENTITIES):
+- Dữ liệu đầu vào để fill template: TEN_KHACH_HANG, EMAIL_KH, MA_VE, DIEM_DI, DIEM_DEN, NGAY_KHOI_HANG, DANH_SACH_GHE, SO_LUONG, TONG_TIEN.
+- Dữ liệu nhạy cảm: Email và tên khách hàng.
+
+7. TIÊU CHÍ HOÀN THÀNH
+- Vé được xác nhận thành công -> Khách hàng nhận được 1 email duy nhất trong vòng dưới 5 giây.
+- Email hiển thị chuẩn HTML trên Gmail (cả trên PC và Mobile), đúng toàn bộ thông tin vé, giao diện đúng khung thiết kế mẫu.
+- Không lộ mật khẩu ứng dụng/API Key gửi mail trên repository.
+
+NHIỆM VỤ DÀNH CHO AI TRONG BƯỚC NÀY:
+1. Đọc và rà soát kỹ 7 mục Ý định trên.
+2. Cho tôi biết luồng nghiệp vụ và cấu trúc dữ liệu email trên có điểm nào mâu thuẫn hoặc thiếu sót không?
+3. Cho biết dịch vụ/thư viện gửi email nào tối ưu nhất cho stack hiện tại (ví dụ: FastAPI BackgroundTasks / SMTP Gmail / Resend...).
+4. Xác nhận khi bạn đã nắm rõ bài toán để tôi chuẩn bị chuyển sang tiếp theo.
 ```
