@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ subject }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f3f4f6; padding: 24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Banner chính màu xanh đậm -->
+          <tr>
+            <td style="background-color: #1e3a8a; padding: 24px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                {% if is_sepay %}THANH TOÁN THÀNH CÔNG{% else %}XÁC NHẬN ĐẶT VÉ THÀNH CÔNG{% endif %}
+              </h1>
+              <p style="margin: 6px 0 0; color: #bfdbfe; font-size: 14px;">Mã đơn hàng: #{{ ma_don }}</p>
+            </td>
+          </tr>
+
+          <!-- Nội dung chính -->
+          <tr>
+            <td style="padding: 24px;">
+              <!-- Badge trạng thái -->
+              <div style="text-align: center; margin-bottom: 20px;">
+                {% if is_sepay %}
+                  <span style="display: inline-block; padding: 6px 16px; background-color: #dcfce7; color: #166534; border: 1px solid #86efac; border-radius: 20px; font-size: 14px; font-weight: 700;">
+                    Vé điện tử - ĐÃ THANH TOÁN
+                  </span>
+                {% else %}
+                  <span style="display: inline-block; padding: 6px 16px; background-color: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; border-radius: 20px; font-size: 14px; font-weight: 700;">
+                    Vé điện tử - THANH TOÁN TRÊN XE
+                  </span>
+                  <p style="margin: 8px 0 0; color: #c2410c; font-size: 13px; font-style: italic;">
+                    Quý khách vui lòng chuẩn bị đúng số tiền mặt khi lên xe
+                  </p>
+                {% endif %}
+              </div>
+
+              <!-- Lời chào cá nhân hóa -->
+              <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.5;">
+                Chào <strong>{{ ho_ten }}</strong>,
+              </p>
+              <p style="margin: 0 0 20px; font-size: 15px; line-height: 1.5; color: #4b5563;">
+                {% if is_sepay %}
+                  VexeApp xác nhận bạn đã thanh toán thành công cho đơn đặt vé của mình. Dưới đây là thông tin vé điện tử chi tiết:
+                {% else %}
+                  VexeApp xác nhận bạn đã đặt vé thành công. Tiền vé sẽ được thu bằng tiền mặt khi bạn lên xe. Dưới đây là thông tin vé chi tiết:
+                {% endif %}
+              </p>
+
+              <!-- Bảng chi tiết vé 2 cột -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="10" border="0" style="border-collapse: collapse; margin-bottom: 24px; font-size: 14px;">
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                  <td width="40%" style="color: #6b7280; font-weight: 500;">Mã đơn hàng:</td>
+                  <td width="60%" style="color: #111827; font-weight: 700;">{{ ma_don }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">
+                  <td style="color: #6b7280; font-weight: 500;">Lộ trình:</td>
+                  <td style="color: #111827; font-weight: 600;">{{ diem_di }} &rarr; {{ diem_den }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                  <td style="color: #6b7280; font-weight: 500;">Khởi hành:</td>
+                  <td style="color: #111827; font-weight: 600;">{{ gio_di }} &bull; {{ ngay_khoi_hanh }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">
+                  <td style="color: #6b7280; font-weight: 500;">Điểm đón cụ thể:</td>
+                  <td style="color: #111827; font-weight: 500;">{{ diem_don }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                  <td style="color: #6b7280; font-weight: 500;">Điểm trả cụ thể:</td>
+                  <td style="color: #111827; font-weight: 500;">{{ diem_tra }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">
+                  <td style="color: #6b7280; font-weight: 500;">Thông tin xe / Tài xế:</td>
+                  <td style="color: #4b5563; font-style: italic;">{{ thong_tin_xe_tai_xe }}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb;">
+                  <td style="color: #6b7280; font-weight: 500;">Số lượng vé:</td>
+                  <td style="color: #111827; font-weight: 600;">{{ so_luong }} vé</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e5e7eb; background-color: #f9fafb;">
+                  <td style="color: #6b7280; font-weight: 500;">Danh sách ghế:</td>
+                  <td>
+                    <span style="color: #dc2626; font-weight: 700; font-size: 15px;">{{ danh_sach_ghe }}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color: #6b7280; font-weight: 500;">Tổng tiền:</td>
+                  <td>
+                    <span style="color: #16a34a; font-weight: 700; font-size: 16px;">{{ tong_tien_formatted }} VNĐ</span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Khung nhắc nhở tài xế (Nền nhạt, viền nét đứt màu xanh) -->
+              <div style="background-color: #eff6ff; border: 2px dashed #3b82f6; border-radius: 6px; padding: 14px 16px; text-align: center; margin-bottom: 24px;">
+                <p style="margin: 0 0 4px; color: #1e40af; font-weight: 700; font-size: 14px; text-transform: uppercase;">
+                  XÁC NHẬN LÊN XE
+                </p>
+                <p style="margin: 0; color: #1e3a8a; font-size: 13px;">
+                  Quý khách vui lòng trình email này cho tài xế khi lên xe.
+                </p>
+              </div>
+
+              <p style="margin: 0; font-size: 13px; color: #6b7280; line-height: 1.5; text-align: center;">
+                Nếu có bất kỳ thắc mắc nào, vui lòng liên hệ tổng đài hỗ trợ của VexeApp.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 16px 24px; border-top: 1px solid #e5e7eb; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                &copy; VexeApp - Hệ thống Đặt vé xe khách trực tuyến Nhóm 09.<br>
+                Đây là email tự động từ hệ thống, vui lòng không phản hồi thư này.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
