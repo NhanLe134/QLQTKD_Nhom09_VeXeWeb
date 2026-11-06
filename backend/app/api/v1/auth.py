@@ -1,9 +1,10 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_client_ip, get_current_user, get_login_rate_limiter
+from app.core.clock import get_now
 from app.core.config import Settings, get_settings
 from app.core.security import create_access_token
 from app.db.session import get_session
@@ -16,6 +17,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.services import auth_service
+from app.services.login_rate_limiter import LoginRateLimiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,11 +48,20 @@ async def login(
     data: LoginRequest,
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
+    limiter: LoginRateLimiter = Depends(get_login_rate_limiter),
+    client_ip: str = Depends(get_client_ip),
+    now: datetime = Depends(get_now),
 ) -> TokenResponse:
     try:
-        tai_khoan = await auth_service.authenticate(
-            session, data.ten_dang_nhap, data.mat_khau
+        tai_khoan = await auth_service.authenticate_with_limit(
+            session, limiter, client_ip, data.ten_dang_nhap, data.mat_khau, now
         )
+    except auth_service.TooManyAttemptsError as error:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=error.detail,
+            headers={"Retry-After": str(error.retry_after_seconds)},
+        ) from None
     except auth_service.AuthenticationError as error:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,

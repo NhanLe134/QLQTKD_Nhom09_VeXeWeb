@@ -132,6 +132,43 @@ Dùng chung cho mọi vai trò.
 |---|---|---|
 | 401 | `Sai tên đăng nhập hoặc mật khẩu` | Sai tên **hoặc** sai mật khẩu — cùng một thông báo (BR-BUS-06) |
 | 422 | *(mảng lỗi Pydantic)* | Thiếu trường |
+| 429 | `Bạn đăng nhập sai quá nhiều lần, vui lòng thử lại sau X phút` | Đã sai quá số lần cho phép (xem dưới). Kèm header `Retry-After` (giây) |
+
+#### Giới hạn đăng nhập sai
+
+- Đếm theo cặp **(tên đăng nhập, IP)**, cửa sổ trượt: sai `LOGIN_MAX_FAILED_ATTEMPTS` lần (mặc định 5) trong `LOGIN_LOCKOUT_MINUTES` phút (mặc định 5) thì các lần sau bị **429**, kể cả khi nhập đúng mật khẩu (đang khóa thì không kiểm mật khẩu).
+- `X` = số phút còn phải chờ, làm tròn lên, tối thiểu 1. Hết thời gian thì đăng nhập lại được.
+- Đăng nhập **đúng** (khi chưa bị khóa) thì xóa bộ đếm của cặp đó.
+- Tên đăng nhập không tồn tại cũng bị đếm và khóa y hệt; 401 và 429 giống nhau giữa tên có thật và không có thật → không dò được tên nào tồn tại.
+- Tên khác (cùng IP) hoặc IP khác (cùng tên) có bộ đếm riêng, không bị ảnh hưởng.
+
+**Giới hạn đã biết** (chấp nhận trong phạm vi đồ án):
+
+- Bộ đếm nằm **trong bộ nhớ của một tiến trình**: chạy nhiều worker uvicorn hoặc nhiều instance thì mỗi nơi đếm riêng (thực tế được thử nhiều hơn 5 lần); **khởi động lại backend là mất bộ đếm**. Muốn dùng chung cần kho chung (Redis/CSDL) — chưa làm.
+- Vì khóa theo (tên, IP), kẻ tấn công đổi được IP thật (nhiều máy, botnet) vẫn thử được 5 lần mỗi IP. Bù lại, người khác không thể cố tình khóa tài khoản của một người từ IP khác.
+
+#### Đọc IP client và `TRUSTED_PROXY_HOPS`
+
+Mỗi proxy **nối** IP mà nó nhận kết nối vào **cuối** header `X-Forwarded-For`. Phần bên trái do client tự gửi nên **giả được**. Backend vì vậy chỉ lấy phần tử thứ `TRUSTED_PROXY_HOPS` **tính từ bên phải** (do proxy tin cậy ghi), không bao giờ lấy phần tử đầu tiên:
+
+| `TRUSTED_PROXY_HOPS` | IP dùng để đếm |
+|---|---|
+| `0` (mặc định, chạy trên máy) | IP kết nối trực tiếp (`request.client.host`); **bỏ qua** `X-Forwarded-For` |
+| `N ≥ 1` (chạy sau N proxy) | Phần tử thứ N từ phải của `X-Forwarded-For`; header có ít hơn N phần tử thì dùng IP kết nối trực tiếp |
+
+Không dùng `uvicorn --proxy-headers --forwarded-allow-ips="*"` cho việc này: cấu hình đó tin cả chuỗi header, client tự đặt được IP.
+
+**Khi deploy lên Render — bắt buộc đặt `TRUSTED_PROXY_HOPS`:**
+
+1. Deploy với `TRUSTED_PROXY_HOPS=0`, tạm thời ghi log header `X-Forwarded-For` và `request.client.host` của **một** request đăng nhập (hoặc một endpoint thử), gửi từ máy có IP công khai đã biết (xem IP ở trang "what is my IP").
+2. Đếm số phần tử **bên phải** IP công khai đó trong `X-Forwarded-For`, cộng 1 → đó là số hop. Ví dụ log `X-Forwarded-For: 203.0.113.7` (chỉ IP thật) → `1`; `203.0.113.7, 10.x.x.x` → `2`.
+3. Thử lại với header giả: `curl -H "X-Forwarded-For: 1.2.3.4" ...` → log phải thấy `1.2.3.4, <IP thật>, ...`; phần tử được chọn vẫn phải là IP thật.
+4. Đặt biến môi trường `TRUSTED_PROXY_HOPS=<số hop>` trên Render (thường là `1`), xóa dòng log tạm.
+
+Rủi ro khi đặt sai:
+
+- **Lớn hơn** số proxy thật → backend đọc phần tử do client tự gửi: mỗi IP giả lại được 5 lần thử cho cùng tên → **giới hạn mất tác dụng**.
+- **Bằng 0** khi đang sau proxy → mọi người dùng chung IP của proxy: khóa thực chất chỉ còn theo tên đăng nhập, người khác cố ý sai 5 lần là khóa được tài khoản của người dùng thật trong 5 phút.
 
 ---
 
@@ -168,6 +205,46 @@ Dùng chung cho mọi vai trò.
 ### Phân quyền (dùng cho các task sau)
 
 Các endpoint giới hạn vai trò trả **403** `Bạn không có quyền thực hiện thao tác này` khi đã đăng nhập nhưng sai vai trò, và 401 khi chưa đăng nhập.
+
+### Tài khoản mẫu và tài khoản ADMIN (vận hành)
+
+Seed (`uv run python -m app.db.seed`, chỉ chạy cho CSDL **local**) tạo 4 tài khoản, cùng mật khẩu `SEED_USER_PASSWORD`:
+
+| `user_id` | `ten_dang_nhap` | `vai_tro` |
+|---|---|---|
+| `TK00000001` | `khach_mau` | `KHACH` |
+| `TK00000002` | `nha_xe_mau` | `NHA_XE` |
+| `TK00000003` | `tai_xe_mau` | `TAI_XE` |
+| `TK00000004` | `admin_mau` | `ADMIN` (không có bảng hồ sơ; `ho_ten` khi đăng nhập là `admin_mau`) |
+
+**Thêm `admin_mau` lên Supabase (làm tay, người phụ trách CSDL; không chạy seed):**
+
+> Dùng **mật khẩu riêng, đủ mạnh** (ví dụ ≥ 16 ký tự ngẫu nhiên, lưu trong trình quản lý mật khẩu của nhóm). **KHÔNG dùng `SEED_USER_PASSWORD`**: mật khẩu đó dùng chung cho các tài khoản demo, nhiều người biết.
+
+1. Kiểm tra chưa có trùng, trong Supabase → SQL Editor:
+   ```sql
+   SELECT user_id, ten_dang_nhap FROM tai_khoan
+   WHERE user_id = 'TK00000004' OR ten_dang_nhap = 'admin_mau';
+   ```
+   Phải ra **0 dòng**. Có dòng thì dừng lại, báo nhóm (seed chỉ bỏ qua trùng khóa chính; trùng `ten_dang_nhap` sẽ lỗi UNIQUE).
+2. Tạo hash Argon2 **trên máy mình** (mật khẩu nhập ẩn, không lưu vào lịch sử shell):
+   ```bash
+   cd backend
+   uv run python -c "import getpass; from app.core.security import hash_password; print(hash_password(getpass.getpass('Mat khau admin: ')))"
+   ```
+3. Chèn trong một transaction, kiểm tra rồi mới `COMMIT`:
+   ```sql
+   BEGIN;
+   INSERT INTO tai_khoan (user_id, ten_dang_nhap, mat_khau, vai_tro, so_dien_thoai)
+   VALUES ('TK00000004', 'admin_mau', '<hash bước 2>', 'ADMIN', '0900000005')
+   ON CONFLICT DO NOTHING;
+   SELECT user_id, ten_dang_nhap, vai_tro FROM tai_khoan WHERE ten_dang_nhap = 'admin_mau';
+   -- Đúng 1 dòng, vai_tro = ADMIN → COMMIT; sai → ROLLBACK
+   COMMIT;
+   ```
+4. Thử `POST /api/v1/auth/login` với `admin_mau` → 200, `vai_tro` = `ADMIN`. Chỉ lưu hash trong CSDL; không ghi mật khẩu vào Git, `.env.example` hay tin nhắn nhóm.
+
+Không chạy seed lên Supabase chỉ để thêm admin: seed dùng `SEED_USER_PASSWORD` và chèn thêm mọi dòng mẫu còn thiếu.
 
 ---
 

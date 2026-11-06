@@ -2,7 +2,7 @@
 
 from collections.abc import Awaitable, Callable
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.db.session import get_session
 from app.models import TaiKhoan
 from app.models.enums import VaiTro
 from app.services import booking_service
+from app.services.login_rate_limiter import LoginRateLimiter
 
 INVALID_SESSION = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn"
 FORBIDDEN = "Bạn không có quyền thực hiện thao tác này"
@@ -26,6 +27,36 @@ def _unauthorized() -> HTTPException:
         detail=INVALID_SESSION,
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+def client_ip_from(
+    forwarded_for: str | None, direct_host: str | None, trusted_proxy_hops: int
+) -> str:
+    """IP client dùng cho giới hạn đăng nhập.
+
+    Mỗi proxy NỐI IP nó nhận được vào CUỐI X-Forwarded-For; phần bên trái do client
+    tự gửi nên giả được. Vì vậy chỉ lấy phần tử thứ `trusted_proxy_hops` tính từ
+    bên phải (do proxy tin cậy ghi), không bao giờ lấy phần tử đầu tiên.
+    """
+    fallback = direct_host or "unknown"
+    if trusted_proxy_hops == 0 or not forwarded_for:
+        return fallback
+    hops = [part.strip() for part in forwarded_for.split(",") if part.strip()]
+    if len(hops) < trusted_proxy_hops:
+        return fallback
+    return hops[-trusted_proxy_hops]
+
+
+def get_client_ip(request: Request, settings: Settings = Depends(get_settings)) -> str:
+    return client_ip_from(
+        request.headers.get("x-forwarded-for"),
+        request.client.host if request.client else None,
+        settings.trusted_proxy_hops,
+    )
+
+
+def get_login_rate_limiter(request: Request) -> LoginRateLimiter:
+    return request.app.state.login_rate_limiter
 
 
 async def get_optional_user(

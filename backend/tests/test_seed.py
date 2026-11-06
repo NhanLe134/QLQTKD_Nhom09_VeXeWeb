@@ -39,7 +39,7 @@ from app.models.enums import TrangThaiGhe, VaiTro
 
 PASSWORD = "mat-khau-test"
 EXPECTED_ROW_COUNTS = {
-    TaiKhoan: 3,
+    TaiKhoan: 4,
     KhachHang: 2,
     NhaXe: 1,
     TaiXe: 1,
@@ -288,7 +288,9 @@ async def test_seed_creates_one_account_per_role_with_hashed_password(session_fa
         VaiTro.KHACH,
         VaiTro.NHA_XE,
         VaiTro.TAI_XE,
+        VaiTro.ADMIN,
     }
+    assert len(accounts) == 4
     for account in accounts:
         assert account.mat_khau != PASSWORD
         assert verify_password(PASSWORD, account.mat_khau)
@@ -342,3 +344,28 @@ def test_seed_requires_password_from_environment(password):
 
     with pytest.raises(ValueError, match="SEED_USER_PASSWORD"):
         require_seed_password(settings)
+
+
+async def test_seed_twice_keeps_four_accounts(session_factory):
+    await run_seed(session_factory)
+    await run_seed(session_factory)
+
+    async with session_factory() as session:
+        roles = (await session.scalars(select(TaiKhoan.vai_tro))).all()
+
+    assert sorted(roles) == sorted(
+        [VaiTro.KHACH, VaiTro.NHA_XE, VaiTro.TAI_XE, VaiTro.ADMIN]
+    )
+
+
+async def test_sample_admin_can_log_in(client, seeded):
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"ten_dang_nhap": "admin_mau", "mat_khau": "mat-khau-test"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["vai_tro"] == "ADMIN"
+    # Không có hồ sơ riêng: tên hiển thị là tên đăng nhập
+    assert body["ho_ten"] == "admin_mau"

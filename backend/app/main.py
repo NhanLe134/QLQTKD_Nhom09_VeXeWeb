@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -10,6 +11,7 @@ from app.api.v1 import auth, bookings, me, trips, webhooks
 from app.api.validation_errors import handle_validation_error
 from app.core.config import Settings, get_settings
 from app.db.session import get_session_factory
+from app.services.login_rate_limiter import LoginRateLimiter
 from app.services.release_job import run_release_job
 
 
@@ -36,6 +38,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await job
 
     app = FastAPI(title="VeXe Backend", lifespan=lifespan)
+    # Mỗi app một bộ đếm riêng (test tạo app mới thì bộ đếm mới)
+    app.state.login_rate_limiter = LoginRateLimiter(
+        settings.login_max_failed_attempts,
+        timedelta(minutes=settings.login_lockout_minutes),
+    )
     app.add_exception_handler(RequestValidationError, handle_validation_error)
     app.add_middleware(
         CORSMiddleware,

@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(min_length=32)
     # Phiên đăng nhập hết hạn sau 60 phút (BR-BUS-05)
     access_token_minutes: int = Field(default=60, gt=0)
+    # Giới hạn đăng nhập sai theo (tên đăng nhập, IP), lưu trong bộ nhớ tiến trình
+    login_max_failed_attempts: int = Field(default=5, gt=0)
+    login_lockout_minutes: int = Field(default=5, gt=0)
+    # Số proxy tin cậy đứng trước app (đọc IP từ X-Forwarded-For, đếm từ phải).
+    # 0 = bỏ qua X-Forwarded-For (chạy trực tiếp). Trên Render: xem docs/API.md
+    trusted_proxy_hops: int = Field(default=0, ge=0)
     seed_user_password: str | None = None
     # Job nhả ghế hết hạn (BR-BUS-17); test tắt job để không chạm CSDL dùng chung
     release_job_enabled: bool = True

@@ -1,6 +1,7 @@
 """Đăng ký, đăng nhập và hồ sơ tài khoản (BR-BUS-02 đến 08)."""
 
-from datetime import UTC, datetime
+import math
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -11,10 +12,14 @@ from app.db.ids import KHACH_HANG_ID, TAI_KHOAN_ID, next_id
 from app.models import ChiTietTaiXe, KhachHang, NhaXe, TaiKhoan, TaiXe
 from app.models.enums import VaiTro
 from app.schemas.auth import RegisterRequest
+from app.services.login_rate_limiter import LoginRateLimiter, minutes_to_wait
 
 USERNAME_TAKEN = "Tên đăng nhập đã được sử dụng"
 PHONE_TAKEN = "Số điện thoại đã được đăng ký"
 INVALID_CREDENTIALS = "Sai tên đăng nhập hoặc mật khẩu"
+TOO_MANY_ATTEMPTS = (
+    "Bạn đăng nhập sai quá nhiều lần, vui lòng thử lại sau {minutes} phút"
+)
 
 
 class ConflictError(Exception):
@@ -27,6 +32,15 @@ class AuthenticationError(Exception):
     def __init__(self) -> None:
         super().__init__(INVALID_CREDENTIALS)
         self.detail = INVALID_CREDENTIALS
+
+
+class TooManyAttemptsError(Exception):
+    def __init__(self, minutes: int, wait: timedelta) -> None:
+        detail = TOO_MANY_ATTEMPTS.format(minutes=minutes)
+        super().__init__(detail)
+        self.detail = detail
+        # Header Retry-After tính bằng giây, làm tròn lên
+        self.retry_after_seconds = max(1, math.ceil(wait.total_seconds()))
 
 
 async def _username_exists(session: AsyncSession, ten_dang_nhap: str) -> bool:
@@ -107,6 +121,32 @@ async def authenticate(
         raise AuthenticationError
     if not verify_password(mat_khau, tai_khoan.mat_khau):
         raise AuthenticationError
+    return tai_khoan
+
+
+async def authenticate_with_limit(
+    session: AsyncSession,
+    limiter: LoginRateLimiter,
+    client_ip: str,
+    ten_dang_nhap: str,
+    mat_khau: str,
+    now: datetime,
+) -> TaiKhoan:
+    """Đăng nhập có giới hạn số lần sai theo (tên đăng nhập, IP).
+
+    Đang bị khóa thì từ chối luôn, không kiểm mật khẩu (kể cả mật khẩu đúng).
+    Tên không tồn tại cũng bị đếm như sai mật khẩu, để không lộ tên nào có thật.
+    """
+    key = (ten_dang_nhap, client_ip)
+    wait = limiter.retry_after(key, now)
+    if wait is not None:
+        raise TooManyAttemptsError(minutes_to_wait(wait), wait)
+    try:
+        tai_khoan = await authenticate(session, ten_dang_nhap, mat_khau)
+    except AuthenticationError:
+        limiter.record_failure(key, now)
+        raise
+    limiter.reset(key)
     return tai_khoan
 
 

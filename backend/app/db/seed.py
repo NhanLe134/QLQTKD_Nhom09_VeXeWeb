@@ -55,6 +55,7 @@ REGISTERED_AT = datetime(2026, 11, 1, tzinfo=UTC)
 USER_KHACH = format_id(TAI_KHOAN_ID, 1)
 USER_NHA_XE = format_id(TAI_KHOAN_ID, 2)
 USER_TAI_XE = format_id(TAI_KHOAN_ID, 3)
+USER_ADMIN = format_id(TAI_KHOAN_ID, 4)
 KHACH_HANG = format_id(KHACH_HANG_ID, 1)
 KHACH_VANG_LAI = format_id(KHACH_HANG_ID, 2)
 NHA_XE = format_id(NHA_XE_ID, 1)
@@ -88,6 +89,14 @@ TAI_KHOAN = [
         "ten_dang_nhap": "tai_xe_mau",
         "vai_tro": VaiTro.TAI_XE,
         "so_dien_thoai": "0900000003",
+    },
+    # Quản trị viên mẫu: không có bảng hồ sơ riêng, tên hiển thị là tên đăng nhập.
+    # Chỉ dùng cho CSDL local/test; Supabase thêm tay bằng mật khẩu riêng (docs/API.md)
+    {
+        "user_id": USER_ADMIN,
+        "ten_dang_nhap": "admin_mau",
+        "vai_tro": VaiTro.ADMIN,
+        "so_dien_thoai": "0900000005",
     },
 ]
 
