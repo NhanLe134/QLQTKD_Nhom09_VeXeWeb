@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { BusLogo, SearchIcon } from '../components/icons'
+import BrandLogo from '../components/BrandLogo'
+import { SearchIcon } from '../components/icons'
 
 import { getHealth } from '../services/healthService'
 import { APP_NAME, SERVICE_AREA } from '../utils/constants'
@@ -33,7 +34,7 @@ export default function HomePage() {
   return (
     <section className="space-y-6">
       <div className="flex flex-col items-center gap-4 rounded-2xl bg-white p-6 text-center shadow-md ring-1 ring-brand-100 sm:flex-row sm:text-left">
-        <BusLogo className="h-24 w-24 shrink-0 text-brand-600" />
+        <BrandLogo className="h-32 w-32" />
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-brand-800">{APP_NAME}</h1>
           <p className="text-slate-600">Đặt vé xe {SERVICE_AREA} trực tuyến, trả tiền mặt khi lên xe.</p>

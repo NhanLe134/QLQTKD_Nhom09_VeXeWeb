@@ -2,7 +2,8 @@ import { Link, NavLink } from 'react-router-dom'
 
 import { useAuth } from '../hooks/useAuth'
 import { APP_NAME } from '../utils/constants'
-import { BusLogo, HomeIcon, LookupIcon, SearchIcon, TicketIcon, UserIcon } from './icons'
+import BrandLogo from './BrandLogo'
+import { HomeIcon, LookupIcon, SearchIcon, TicketIcon, UserIcon } from './icons'
 
 type NavItem = { to: string; label: string; icon: (props: { className?: string }) => React.ReactNode; end?: boolean }
 
@@ -37,7 +38,10 @@ export default function Header() {
       <header className="bg-brand-600 text-white shadow-md [grid-area:header]">
         <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-6">
           <Link to="/" className="flex min-w-0 items-center gap-3">
-            <BusLogo className="h-10 w-10 shrink-0 text-brand-600" />
+            {/* Logo nền trắng: đặt trong khung tròn trắng cho hợp thanh xanh */}
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white p-0.5 shadow-sm">
+              <BrandLogo className="h-full w-full" />
+            </span>
             <span className="truncate text-lg font-bold tracking-wide uppercase md:text-xl">{APP_NAME}</span>
           </Link>
           <div className="flex min-w-0 items-center gap-3 text-sm font-medium">

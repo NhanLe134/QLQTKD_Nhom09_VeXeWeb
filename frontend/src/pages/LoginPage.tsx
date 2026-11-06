@@ -2,7 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 
 import FormField from '../components/FormField'
-import { BusLogo } from '../components/icons'
+import BrandLogo from '../components/BrandLogo'
 import { useAuth } from '../hooks/useAuth'
 
 type FieldErrors = Partial<Record<'ten_dang_nhap' | 'mat_khau', string>>
@@ -54,7 +54,7 @@ export default function LoginPage() {
   return (
     <section className="mx-auto max-w-md space-y-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-brand-100 sm:p-8">
       <div className="flex flex-col items-center gap-2 text-center">
-        <BusLogo className="h-20 w-20 text-brand-600" />
+        <BrandLogo className="h-28 w-28" />
         <h1 className="text-2xl font-bold text-brand-800">Đăng nhập</h1>
       </div>
       <p className="text-center text-sm text-slate-600">

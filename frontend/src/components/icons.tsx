@@ -103,22 +103,3 @@ export function SeatIcon({ className = 'h-9 w-9' }: IconProps) {
     </svg>
   )
 }
-
-/** Biểu tượng xe khách dùng làm logo tạm (chưa có file logo). */
-export function BusLogo({ className = 'h-10 w-10' }: IconProps) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 48 48" className={className}>
-      <circle cx="24" cy="24" r="23" fill="#ffffff" />
-      <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="M11 28v-7c0-3 2-5 5-5h14c3 0 5 2 7 5l1 2v5a2 2 0 0 1-2 2H13a2 2 0 0 1-2-2z"
-        fill="currentColor"
-      />
-      <path d="M15 19h6v4h-6zM23 19h6v4h-6z" fill="#ffffff" />
-      <path d="M31 19h1.5c1 0 2 1 2.5 2l.6 2H31z" fill="#ffffff" />
-      <circle cx="17" cy="30" r="2.6" fill="#ffffff" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="31" cy="30" r="2.6" fill="#ffffff" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M10 35c5-2 9 1 14-1s9-1 14 1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  )
-}
