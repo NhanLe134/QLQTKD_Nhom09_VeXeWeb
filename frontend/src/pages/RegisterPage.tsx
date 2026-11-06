@@ -107,33 +107,38 @@ export default function RegisterPage() {
   }
 
   return (
-    <section className="mx-auto max-w-md space-y-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-brand-100 sm:p-8">
+    <section className="mx-auto max-w-md space-y-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6">
       <div className="flex flex-col items-center gap-2 text-center">
-        <BrandLogo className="h-28 w-28" />
-        <h1 className="text-2xl font-bold text-brand-800">Đăng ký</h1>
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 p-2 shadow-2xs ring-1 ring-brand-100">
+          <BrandLogo className="h-full w-full object-contain" />
+        </span>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">Đăng ký</h1>
+        <p className="text-xs text-slate-500">
+          Nếu bạn từng đặt vé bằng số điện thoại này, các vé cũ sẽ được gắn vào tài khoản mới.
+        </p>
       </div>
-      <p className="text-center text-sm text-slate-600">
-        Nếu bạn từng đặt vé bằng số điện thoại này, các vé cũ sẽ được gắn vào tài khoản mới.
-      </p>
-      <form noValidate onSubmit={handleSubmit} className="space-y-4">
-        <FormField
-          id="ho_ten"
-          label="Họ tên"
-          autoComplete="name"
-          value={fields.ho_ten}
-          onChange={update('ho_ten')}
-          error={fieldErrors.ho_ten}
-        />
-        <FormField
-          id="so_dien_thoai"
-          label="Số điện thoại"
-          type="tel"
-          inputMode="numeric"
-          autoComplete="tel"
-          value={fields.so_dien_thoai}
-          onChange={update('so_dien_thoai')}
-          error={fieldErrors.so_dien_thoai}
-        />
+
+      <form noValidate onSubmit={handleSubmit} className="space-y-3 pt-1">
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          <FormField
+            id="ho_ten"
+            label="Họ tên"
+            autoComplete="name"
+            value={fields.ho_ten}
+            onChange={update('ho_ten')}
+            error={fieldErrors.ho_ten}
+          />
+          <FormField
+            id="so_dien_thoai"
+            label="Số điện thoại"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={fields.so_dien_thoai}
+            onChange={update('so_dien_thoai')}
+            error={fieldErrors.so_dien_thoai}
+          />
+        </div>
         <FormField
           id="email"
           label="Email"
@@ -151,41 +156,45 @@ export default function RegisterPage() {
           onChange={update('ten_dang_nhap')}
           error={fieldErrors.ten_dang_nhap}
         />
-        <FormField
-          id="mat_khau"
-          label="Mật khẩu"
-          type="password"
-          autoComplete="new-password"
-          value={fields.mat_khau}
-          onChange={update('mat_khau')}
-          error={fieldErrors.mat_khau}
-          hint={`Tối thiểu ${MIN_PASSWORD_LENGTH} ký tự`}
-        />
-        <FormField
-          id="nhap_lai_mat_khau"
-          label="Nhập lại mật khẩu"
-          type="password"
-          autoComplete="new-password"
-          value={fields.nhap_lai_mat_khau}
-          onChange={update('nhap_lai_mat_khau')}
-          error={fieldErrors.nhap_lai_mat_khau}
-        />
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          <FormField
+            id="mat_khau"
+            label="Mật khẩu"
+            type="password"
+            autoComplete="new-password"
+            value={fields.mat_khau}
+            onChange={update('mat_khau')}
+            error={fieldErrors.mat_khau}
+            hint={`Tối thiểu ${MIN_PASSWORD_LENGTH} ký tự`}
+          />
+          <FormField
+            id="nhap_lai_mat_khau"
+            label="Nhập lại mật khẩu"
+            type="password"
+            autoComplete="new-password"
+            value={fields.nhap_lai_mat_khau}
+            onChange={update('nhap_lai_mat_khau')}
+            error={fieldErrors.nhap_lai_mat_khau}
+          />
+        </div>
+
         {formError && (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="rounded-xl bg-rose-50 p-2.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
             {formError}
           </p>
         )}
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-brand-700 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-60"
+          className="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs transition-all hover:bg-brand-700 active:scale-[0.98] disabled:opacity-50"
         >
           {submitting ? 'Đang đăng ký…' : 'Đăng ký'}
         </button>
       </form>
-      <p className="text-center text-sm text-slate-600">
+
+      <p className="text-center text-xs text-slate-500 pt-1">
         Đã có tài khoản?{' '}
-        <Link to="/dang-nhap" className="font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
+        <Link to="/dang-nhap" className="font-bold text-brand-700 underline underline-offset-2 hover:text-brand-800">
           Đăng nhập
         </Link>
       </p>
