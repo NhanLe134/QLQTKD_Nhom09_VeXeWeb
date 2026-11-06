@@ -323,8 +323,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: (2) và (b); chuyến không hợp lệ → 400 "Chuyến xe đã khởi hành hoặc ngừng bán"; đơn đã thanh toán cách khác → 400 "Đơn đã được thanh toán"; UPDATE ghế kèm điều kiện, lệch số dòng thì rollback và trả 410.
 - Lý do: đáp ứng NFR-BUS-05; không bán vé cho chuyến đã chạy.
 - Hệ quả: frontend chỉ cần chặn bấm 2 lần cho trải nghiệm, an toàn nằm ở backend.
-- Người quyết định: Nhã (AI đề xuất; Q3 do AI hỏi, Nhã chốt có kiểm tra)
-
+- Người quyết định: Nhã
 ### D-36: Email vé chạy nền sau commit, chỉ nhận dữ liệu thường
 - Ngày: 04/11/2026 · Commit: Task #10 – feat: them thanh toan tien mat va ve dien tu
 - Bối cảnh: BR-BUS-35 yêu cầu lỗi email không làm hủy vé; email hiện chỉ giả lập bằng log.
@@ -340,8 +339,7 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: phương án 3; id là nhánh chạy thực tế, REF và băm là dự phòng.
 - Lý do: đúng tài liệu và log thật; SePay gửi lặp cùng giao dịch ra cùng khóa, hai lần chuyển thật ra hai khóa.
 - Hệ quả: rất hiếm khi trùng khóa băm; giao dịch cũ gửi lại ra khóa mới nhưng đi nhánh THAT_BAI vì đơn đã xác nhận.
-- Người quyết định: Nhã, Nhàn đồng ý (AI đề xuất cách tạo khóa)
-
+- Người quyết định: Nhã, Nhàn đồng ý 
 ### D-38: Webhook chỉ nhận header "Apikey <khóa>"
 - Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
 - Bối cảnh: code cũ nhận cả khóa trần không tiền tố; SePay Dashboard cấu hình API Key và gửi "Authorization: Apikey <khóa>".
@@ -365,4 +363,4 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Quyết định: (2) và (b).
 - Lý do: viết lại lịch sử nhánh chung làm hỏng code các thành viên; khóa lộ cho phép gửi webhook giả để xác nhận vé không trả tiền.
 - Hệ quả: số tài khoản cũ còn trong 2 commit cũ (ghi trong docs/API.md); quy ước: chụp màn hình phải che Authorization và số tài khoản; mỗi lần push kiểm tra Render Deploy live, /health và "Gửi thử".
-- Người quyết định: Nhã, Nhàn (AI đề xuất)
+- Người quyết định: Nhã, Nhàn 
