@@ -12,8 +12,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import access_code_matches, hash_access_code, new_access_code
 from app.db.ids import KHACH_HANG_ID, MA_DON, VE_ID, next_id
-from app.models import ChuyenXe, GheNgoi, KhachHang, TaiKhoan, TuyenXe, Ve
-from app.models.enums import TrangThaiGhe, TrangThaiThanhToanVe, TrangThaiVe
+from app.models import ChuyenXe, GheNgoi, KhachHang, TaiKhoan, ThanhToan, TuyenXe, Ve
+from app.models.enums import (
+    LoaiGiaoDich,
+    PhuongThucThanhToan,
+    TrangThaiGhe,
+    TrangThaiGiaoDich,
+    TrangThaiThanhToanVe,
+    TrangThaiVe,
+)
 from app.schemas.booking import (
     BookingOut,
     HeldSeatOut,
@@ -614,6 +621,17 @@ async def release_booking(
             GheNgoi.khach_hang_id == khach_hang_id,
         )
         .values(trang_thai=TrangThaiGhe.TRONG, han_giu_cho=None, khach_hang_id=None)
+    )
+    # Đơn bị nhả ghế: dòng SePay đang chờ chuyển THAT_BAI để nhà xe đối soát hoàn
+    await session.execute(
+        update(ThanhToan)
+        .where(
+            ThanhToan.ma_don == ma_don,
+            ThanhToan.phuong_thuc_tt == PhuongThucThanhToan.CHUYEN_KHOAN_SEPAY,
+            ThanhToan.loai_giao_dich == LoaiGiaoDich.THANH_TOAN,
+            ThanhToan.trang_thai_thanh_toan == TrangThaiGiaoDich.CHO_THANH_TOAN,
+        )
+        .values(trang_thai_thanh_toan=TrangThaiGiaoDich.THAT_BAI)
     )
     return len(held)
 

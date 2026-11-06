@@ -10,10 +10,12 @@ from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.models import TaiKhoan
 from app.schemas.booking import BookingOut, DetailsRequest, HoldRequest, HoldResponse
+from app.schemas.sepay import QrSePayOut
 from app.services import (
     booking_details_service,
     booking_service,
     cash_payment_service,
+    sepay_payment_service,
     ticket_notifier,
 )
 
@@ -126,3 +128,33 @@ async def confirm_cash(
             ticket_notifier.build_ticket_email(detail),
         )
     return detail
+
+
+@router.post(
+    "/{ma_don}/pay-sepay",
+    response_model=QrSePayOut,
+    responses={
+        400: {"description": '`{"detail": "...", "truong": "diem_don.khu_vuc" | null}`'},
+        404: {"description": "Không tìm thấy đơn hoặc không có quyền"},
+        410: {"description": "Đơn hết hạn giữ chỗ hoặc đã hủy"},
+        503: {"description": '`{"detail": "Chưa cấu hình thanh toán SePay"}`'},
+    },
+)
+async def thanh_toan_sepay(
+    booking: booking_service.Booking = Depends(get_accessible_booking),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+    now: datetime = Depends(get_now),
+) -> JSONResponse:
+    """Tạo mã QR chuyển khoản SePay; gọi lại trả đúng QR cũ (BR-BUS-29)."""
+    try:
+        return await sepay_payment_service.tao_qr(session, booking, now, settings)
+    except booking_details_service.FieldError as error:
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"detail": error.detail, "truong": error.truong},
+        )
+    except sepay_payment_service.LoiSePay as error:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+    except booking_service.BookingError as error:
+        raise HTTPException(error.status_code, detail=error.detail) from None

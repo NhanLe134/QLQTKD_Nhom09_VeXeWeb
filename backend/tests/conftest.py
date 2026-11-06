@@ -78,7 +78,15 @@ def test_settings(migrated_database_url: URL) -> Settings:
         database_url=migrated_database_url.render_as_string(hide_password=False),
         jwt_secret=TEST_JWT_SECRET,
         access_token_minutes=60,
+        # Test ghim 5 phút để các mốc thời gian quá hạn giữ chỗ không đổi khi
+        # mặc định production chuyển sang 10 phút (quyết định 04/11/2026)
+        seat_hold_minutes=5,
         release_job_enabled=False,
+        # SePay test: pay-sepay và webhook chạy được không cần biến môi trường
+        sepay_webhook_secret="khoa-webhook-test",
+        sepay_bank_bin="970422",
+        sepay_account_no="0367545235",
+        sepay_account_name="NHAXE DU LICH",
     )
 
 

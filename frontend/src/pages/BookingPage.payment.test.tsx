@@ -72,7 +72,7 @@ describe('BookingPage — thanh toán tiền mặt', () => {
 
     expect(screen.getByRole('region', { name: 'Chọn phương thức thanh toán' })).toBeInTheDocument()
     expect(screen.getByTestId('tong-tien-thanh-toan')).toHaveTextContent('390.000 đ')
-    expect(screen.getByRole('button', { name: /Chuyển khoản SePay/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Chuyển khoản SePay/ })).toBeEnabled()
     expect(screen.getByRole('timer', { name: 'Thời gian giữ chỗ còn lại' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hủy đặt vé' })).toBeInTheDocument()
   })
