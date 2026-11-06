@@ -9,6 +9,7 @@ Mỗi task bổ sung phần của mình vào file này.
 - Lỗi luôn có dạng `{"detail": "..."}`, thông báo tiếng Việt, hiển thị nguyên văn cho người dùng.
   Riêng 422 do Pydantic sinh ra thì `detail` là **mảng** lỗi tiếng Anh; frontend tự đổi thành thông báo chung.
 - **Lỗi kèm tên trường (từ task #9):** endpoint mới (`PUT /bookings/{ma_don}/details` và các endpoint từ task #10 trở đi) trả lỗi 400 và 422 dạng `{"detail": "...", "truong": "hanh_khach[1].so_dien_thoai"}`, để frontend hiện lỗi ngay dưới đúng ô. `truong` là `null` khi lỗi không gắn với trường nào. Chỉ số phần tử mảng đánh **từ 0, theo vị trí trong mảng gửi lên**. Endpoint cũ giữ nguyên dạng `{"detail": "..."}`. Lỗi sai kiểu JSON (ví dụ gửi số thay vì chuỗi) vẫn là mảng lỗi của Pydantic.
+- **Ngoại lệ — trường email:** lỗi ở `email` của `POST /auth/register` và `nguoi_dat.email` của `POST /bookings/hold` luôn trả `{"detail", "truong"}` tiếng Việt (`app/api/validation_errors.py`), kể cả khi `email` là `null` hoặc sai kiểu.
 
 | Mã | Ý nghĩa |
 |---|---|
@@ -43,7 +44,7 @@ Chỉ tạo tài khoản vai trò `KHACH` (BR-BUS-02). Không cần đăng nhậ
 | `mat_khau` | string | có | 8–128 ký tự (BR-BUS-03); lưu dạng băm Argon2 |
 | `ho_ten` | string | có | 1–100 ký tự |
 | `so_dien_thoai` | string | có | 10 chữ số, bắt đầu bằng `0` (BR-BUS-04) |
-| `email` | string \| null | không | ≤ 100 ký tự, dạng `a@b.c`; chuỗi rỗng được coi là không nhập |
+| `email` | string | **có** | ≤ 100 ký tự, dạng `a@b.c`, bỏ khoảng trắng hai đầu. Vé điện tử được gửi về email này |
 
 ```json
 {
@@ -60,7 +61,7 @@ Chỉ tạo tài khoản vai trò `KHACH` (BR-BUS-02). Không cần đăng nhậ
 | Tình huống | Kết quả |
 |---|---|
 | Chưa có hồ sơ khách hàng với SĐT này | Tạo tài khoản + hồ sơ khách hàng mới |
-| Có hồ sơ khách vãng lai (`user_id` NULL) | Tạo tài khoản và **gắn vào hồ sơ cũ** (BR-BUS-08): giữ `khach_hang_id`, cập nhật `ho_ten`, cập nhật `email` nếu có nhập, `ngay_dang_ky` = thời điểm đăng ký. Các vé đã đặt trước đó thuộc về tài khoản mới. |
+| Có hồ sơ khách vãng lai (`user_id` NULL) | Tạo tài khoản và **gắn vào hồ sơ cũ** (BR-BUS-08): giữ `khach_hang_id`, cập nhật `ho_ten` và `email`, `ngay_dang_ky` = thời điểm đăng ký. Các vé đã đặt trước đó thuộc về tài khoản mới. |
 | Hồ sơ với SĐT này đã có tài khoản | 409 |
 
 **Response 201**
@@ -87,7 +88,13 @@ Chỉ tạo tài khoản vai trò `KHACH` (BR-BUS-02). Không cần đăng nhậ
 |---|---|---|
 | 409 | `Tên đăng nhập đã được sử dụng` | Trùng `ten_dang_nhap` (kiểm tra trước SĐT) |
 | 409 | `Số điện thoại đã được đăng ký` | SĐT đã gắn với một tài khoản |
-| 422 | *(mảng lỗi Pydantic)* | Thiếu trường, SĐT sai định dạng, mật khẩu < 8 ký tự, email sai dạng |
+| 422 | `{"detail": "Vui lòng nhập email", "truong": "email"}` | Thiếu `email`, `null`, rỗng hoặc chỉ có khoảng trắng |
+| 422 | `{"detail": "Email không hợp lệ", "truong": "email"}` | Email sai dạng hoặc > 100 ký tự |
+| 422 | *(mảng lỗi Pydantic)* | Lỗi ở trường khác: thiếu trường, SĐT sai định dạng, mật khẩu < 8 ký tự |
+
+Lỗi ở trường email được ưu tiên: nếu request lỗi cả email lẫn trường khác, response chỉ báo lỗi email (dạng có `truong`). Response và log không chứa giá trị email đã gửi.
+
+**Giới hạn:** tài khoản tạo trước khi email trở thành bắt buộc có thể chưa có email. Các tài khoản này vẫn đặt vé được, nhưng **không nhận được vé qua email** (form người đặt có hiện ghi chú). Chưa có API cập nhật email hồ sơ.
 
 **Rủi ro đã chấp nhận (phạm vi đồ án): chiếm hồ sơ khách vãng lai.**
 Hệ thống không xác minh số điện thoại (không có OTP). Người nào biết SĐT của một khách vãng lai đều có thể đăng ký bằng số đó, được gắn vào hồ sơ cũ và xem các vé khách đó đã đặt (trái với tinh thần BR-BUS-37). Nhóm chấp nhận rủi ro này trong phạm vi đồ án. Khi triển khai thật cần xác minh SĐT bằng OTP trước khi gắn hồ sơ.
@@ -316,13 +323,13 @@ Header `Authorization` không bắt buộc. Gửi token sai hoặc hết hạn �
 | `chuyen_xe_id` | string | có | |
 | `ghe_ids` | string[] | một trong hai | Lấy `ghe_id` từ sơ đồ ghế; ít nhất 1, không trùng, tối đa `so_cho` (BR-BUS-15) |
 | `dat_ca_xe` | bool | một trong hai | `true`: giữ **mọi** ghế của chuyến, không gửi `ghe_ids` (BR-BUS-16) |
-| `nguoi_dat` | object | khách vãng lai: có | `ho_ten` (1–100 ký tự), `so_dien_thoai` (10 số, bắt đầu `0`), `email` (không bắt buộc, `""` coi như không nhập). Khách đã đăng nhập: **bỏ qua**, dùng hồ sơ của tài khoản |
+| `nguoi_dat` | object | khách vãng lai: có | `ho_ten` (1–100 ký tự), `so_dien_thoai` (10 số, bắt đầu `0`), `email` (**bắt buộc**, ≤ 100 ký tự, dạng `a@b.c`; vé gửi về email này). Khách đã đăng nhập: **bỏ qua**, dùng hồ sơ của tài khoản |
 
 ```json
 {
   "chuyen_xe_id": "CX00000001",
   "ghe_ids": ["GH00000001", "GH00000004"],
-  "nguoi_dat": { "ho_ten": "Trần Thị Bình", "so_dien_thoai": "0905111222", "email": null }
+  "nguoi_dat": { "ho_ten": "Trần Thị Bình", "so_dien_thoai": "0905111222", "email": "binh@example.com" }
 }
 ```
 
@@ -333,7 +340,7 @@ Header `Authorization` không bắt buộc. Gửi token sai hoặc hết hạn �
 | Đã đăng nhập, vai trò `KHACH` | Dùng hồ sơ `khach_hang` của tài khoản |
 | Đã đăng nhập, vai trò khác | 403 |
 | Khách vãng lai, SĐT chưa có hồ sơ | Tạo hồ sơ mới, `user_id` NULL |
-| Khách vãng lai, SĐT đã có hồ sơ vãng lai | Dùng lại hồ sơ. **Không đổi** họ tên hồ sơ; chỉ bổ sung email khi hồ sơ chưa có. Vé lưu họ tên vừa nhập |
+| Khách vãng lai, SĐT đã có hồ sơ vãng lai | Dùng lại hồ sơ. **Không đổi** họ tên hồ sơ (D-40); **cập nhật email hồ sơ thành email vừa nhập**, để vé gửi về đúng email này. Giữ ghế thất bại (409, 400…) thì rollback, email cũ giữ nguyên. Vé lưu họ tên vừa nhập |
 | Khách vãng lai, SĐT đã gắn tài khoản | 409, phải đăng nhập |
 
 **Xử lý** (một transaction):
@@ -380,7 +387,14 @@ Frontend phải giữ `ma_truy_cap` (sessionStorage) và gửi lại trong heade
 | 409 | `Số điện thoại này đang có đơn chưa hoàn tất` | BR-BUS-18 |
 | 409 | `Số điện thoại đã có tài khoản, vui lòng đăng nhập` | Khách vãng lai dùng SĐT đã gắn tài khoản |
 | 422 | `Vui lòng nhập thông tin người đặt` | Khách vãng lai không gửi `nguoi_dat` |
-| 422 | *(mảng lỗi Pydantic)* | `ghe_ids` rỗng hoặc trùng, gửi cả `ghe_ids` lẫn `dat_ca_xe`, không gửi cả hai, SĐT/email sai định dạng |
+| 422 | `{"detail": "Vui lòng nhập email", "truong": "nguoi_dat.email"}` | `nguoi_dat` thiếu `email`, `null`, rỗng hoặc chỉ có khoảng trắng |
+| 422 | `{"detail": "Email không hợp lệ", "truong": "nguoi_dat.email"}` | Email sai dạng hoặc > 100 ký tự |
+| 422 | *(mảng lỗi Pydantic)* | `ghe_ids` rỗng hoặc trùng, gửi cả `ghe_ids` lẫn `dat_ca_xe`, không gửi cả hai, SĐT sai định dạng |
+
+Khách đã đăng nhập không cần gửi `nguoi_dat`. Nếu vẫn gửi thì `nguoi_dat` vẫn được kiểm tra định dạng (kể cả email) trước khi bị bỏ qua.
+
+**Rủi ro đã chấp nhận (phạm vi đồ án): đổi email hồ sơ vãng lai.**
+Vì email hồ sơ vãng lai lấy theo lần giữ ghế mới nhất, người biết SĐT của một khách vãng lai có thể giữ ghế bằng SĐT đó kèm email khác, và **đổi email hồ sơ** của khách. Khi đó vé của các đơn khách đó xác nhận sau thời điểm này sẽ gửi về email mới. Đơn của khách đang giữ ghế thì người kia bị chặn bởi BR-BUS-18 (409, không đổi email). Khi triển khai thật cần xác minh SĐT (OTP) hoặc lưu email theo từng đơn.
 
 **Rủi ro bảo mật đã xử lý: 409 BR-BUS-18 không trả mã đơn.**
 Nếu thông báo 409 kèm `ma_don`, người chỉ biết SĐT của người khác có thể gọi giữ ghế bằng SĐT đó để lấy mã đơn, rồi dùng mã đơn + SĐT ở trang Tra cứu vé (task #13) để xem vé của họ (trái BR-BUS-37). Vì vậy 409 chỉ trả `Số điện thoại này đang có đơn chưa hoàn tất`, không có `ma_don` ở bất kỳ trường nào (có test kiểm tra). Khách tự mở lại đơn của mình bằng `ma_don` + `ma_truy_cap` đã lưu trên trình duyệt, hoặc bằng tài khoản. Thông báo này vẫn cho biết một SĐT đang có đơn (dò được); nhóm chấp nhận trong phạm vi đồ án, giống rủi ro ở `/auth/register`.

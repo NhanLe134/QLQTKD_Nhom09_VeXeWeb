@@ -83,6 +83,7 @@ async def test_other_account_cannot_view_without_code(client, guest_order):
             "mat_khau": "matkhau123",
             "ho_ten": "Người Khác",
             "so_dien_thoai": "0905999888",
+            "email": "nguoi.khac@vexe.example",
         },
     )
     assert register.status_code == 201

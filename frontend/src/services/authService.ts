@@ -19,7 +19,8 @@ export type RegisterRequest = {
   mat_khau: string
   ho_ten: string
   so_dien_thoai: string
-  email: string | null
+  /** Bắt buộc: vé điện tử được gửi về email này */
+  email: string
 }
 
 export type KhachHang = {

@@ -22,7 +22,7 @@ class TicketEmail:
     """Nội dung email vé của một đơn, dựng sẵn trước khi trả response."""
 
     ma_don: str
-    # Email người đặt; None thì không gửi (email không bắt buộc, BR-BUS-20)
+    # Email người đặt; None thì không gửi (chỉ còn với tài khoản cũ chưa có email)
     email: str | None
     tong_tien: int
     chuyen: dict[str, Any]

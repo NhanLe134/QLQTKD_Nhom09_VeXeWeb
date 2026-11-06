@@ -39,7 +39,7 @@
 
 | ID | Quy tắc | Nguồn | Task |
 |---|---|---|---|
-| BR-BUS-20 | **Người đặt (1 người/đơn)**: bắt buộc họ tên, số điện thoại; email không bắt buộc. Thông tin người đặt được nhập ngay khi giữ ghế (khách đã đăng nhập thì tự điền). Số điện thoại đã gắn với một tài khoản thì phải đăng nhập mới đặt được. | Quyết định 03/11 | #7, #9 |
+| BR-BUS-20 | **Người đặt** (1 người/đơn): bắt buộc **họ tên, số điện thoại, email** (để nhà xe gửi vé điện tử qua email). Thông tin người đặt được nhập **ngay khi giữ ghế** (khách đã đăng nhập thì tự điền). Số điện thoại đã gắn với một tài khoản thì phải **đăng nhập** mới đặt được. Khách vãng lai đặt lại bằng số điện thoại cũ: email được cập nhật theo lần nhập mới nhất, họ tên giữ nguyên. | Quyết định 03/11, 06/11 | #7, #9, #10 |
 | BR-BUS-21 | **Hành khách từng ghế** (mỗi ghế 1 vé): không bắt buộc; mặc định lấy thông tin người đặt, có thể sửa tên/SĐT cho từng ghế. | BPMN: Điền thông tin từng hành khách; quyết định 03/11 | #9 |
 | BR-BUS-22 | **Điểm đón/trả** nhập **một lần cho cả đơn**, tự điền sẵn: đón = điểm đi, trả = điểm đến. | Quyết định 03/11 | #9 |
 | BR-BUS-23 | Điểm đón phải là **điểm đi hoặc một điểm trung gian**; điểm trả phải là **một điểm trung gian hoặc điểm đến**; điểm đón phải **đứng trước** điểm trả trên tuyến. Ví dụ tuyến Đà Nẵng → Huế: đón ở Hội An bị từ chối. | Quyết định 03/11; RDM TuyenXe | #9 |

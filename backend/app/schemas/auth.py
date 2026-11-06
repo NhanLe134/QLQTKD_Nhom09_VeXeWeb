@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.models.enums import VaiTro
 
@@ -15,6 +15,15 @@ TenDangNhap = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
 ]
 
+# Email bắt buộc (để gửi vé qua email). Thiếu/rỗng/sai định dạng: 422 kèm "truong",
+# thông báo tiếng Việt do app.api.validation_errors dựng.
+Email = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=100, pattern=EMAIL_PATTERN
+    ),
+]
+
 
 class RegisterRequest(BaseModel):
     ten_dang_nhap: TenDangNhap
@@ -26,25 +35,7 @@ class RegisterRequest(BaseModel):
     so_dien_thoai: Annotated[
         str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)
     ]
-    email: (
-        Annotated[
-            str,
-            StringConstraints(
-                strip_whitespace=True,
-                max_length=100,
-                pattern=EMAIL_PATTERN,
-            ),
-        ]
-        | None
-    ) = None
-
-    @field_validator("email", mode="before")
-    @classmethod
-    def blank_email_is_none(cls, value: object) -> object:
-        # Ô email để trống trên form gửi "" → coi như không nhập
-        if isinstance(value, str) and value.strip() == "":
-            return None
-        return value
+    email: Email
 
 
 class LoginRequest(BaseModel):

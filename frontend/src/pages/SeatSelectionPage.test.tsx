@@ -131,6 +131,7 @@ function holdBody(): unknown {
 function fillGuest() {
   fireEvent.change(screen.getByLabelText('Họ tên'), { target: { value: 'Trần Thị Bình' } })
   fireEvent.change(screen.getByLabelText('Số điện thoại'), { target: { value: '0905111222' } })
+  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'binh@example.com' } })
   fireEvent.click(screen.getByRole('button', { name: 'Xác nhận giữ ghế' }))
 }
 
@@ -230,7 +231,7 @@ describe('SeatSelectionPage', () => {
     expect(holdBody()).toEqual({
       chuyen_xe_id: 'CX00000001',
       dat_ca_xe: true,
-      nguoi_dat: { ho_ten: 'Trần Thị Bình', so_dien_thoai: '0905111222', email: null },
+      nguoi_dat: { ho_ten: 'Trần Thị Bình', so_dien_thoai: '0905111222', email: 'binh@example.com' },
     })
     expect(readStoredBooking()).toEqual({ ma_don: 'DH00100000', ma_truy_cap: 'ma-bi-mat' })
   })
@@ -249,7 +250,7 @@ describe('SeatSelectionPage', () => {
     expect(holdBody()).toEqual({
       chuyen_xe_id: 'CX00000001',
       ghe_ids: ['GH00000002', 'GH00000004'],
-      nguoi_dat: { ho_ten: 'Trần Thị Bình', so_dien_thoai: '0905111222', email: null },
+      nguoi_dat: { ho_ten: 'Trần Thị Bình', so_dien_thoai: '0905111222', email: 'binh@example.com' },
     })
   })
 

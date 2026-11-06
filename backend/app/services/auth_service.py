@@ -78,8 +78,7 @@ async def register_customer(
         else:
             khach_hang.user_id = tai_khoan.user_id
             khach_hang.ho_ten = data.ho_ten
-            if data.email is not None:
-                khach_hang.email = data.email
+            khach_hang.email = data.email
             khach_hang.ngay_dang_ky = now
 
         await session.commit()

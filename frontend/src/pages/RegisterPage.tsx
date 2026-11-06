@@ -37,7 +37,10 @@ function validate(fields: Fields): FieldErrors {
   } else if (!isValidPhone(fields.so_dien_thoai)) {
     errors.so_dien_thoai = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0'
   }
-  if (fields.email.trim() && !isValidEmail(fields.email)) {
+  // Email bắt buộc: vé điện tử được gửi về email hồ sơ
+  if (!fields.email.trim()) {
+    errors.email = 'Vui lòng nhập email'
+  } else if (!isValidEmail(fields.email)) {
     errors.email = 'Email không hợp lệ'
   }
   if (!fields.ten_dang_nhap.trim()) {
@@ -86,7 +89,7 @@ export default function RegisterPage() {
         mat_khau: fields.mat_khau,
         ho_ten: fields.ho_ten.trim(),
         so_dien_thoai: fields.so_dien_thoai.trim(),
-        email: fields.email.trim() || null,
+        email: fields.email.trim(),
       })
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : String(error))
@@ -133,7 +136,7 @@ export default function RegisterPage() {
         />
         <FormField
           id="email"
-          label="Email (không bắt buộc)"
+          label="Email"
           type="email"
           autoComplete="email"
           value={fields.email}

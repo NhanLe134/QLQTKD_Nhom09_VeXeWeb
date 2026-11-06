@@ -2,13 +2,13 @@ import { type FormEvent, useEffect, useState } from 'react'
 
 import { useAuth } from '../hooks/useAuth'
 import { getMe, type MeResponse } from '../services/authService'
-import type { NguoiDat } from '../services/bookingService'
+import type { NguoiDatInput } from '../services/bookingService'
 import { isValidEmail, isValidPhone } from '../utils/validation'
 import FormField from './FormField'
 
 type Props = {
   /** null: khách đã đăng nhập, backend dùng hồ sơ tài khoản */
-  onSubmit: (nguoiDat: NguoiDat | null) => void
+  onSubmit: (nguoiDat: NguoiDatInput | null) => void
   onCancel: () => void
   submitting: boolean
 }
@@ -24,7 +24,10 @@ function validate(hoTen: string, soDienThoai: string, email: string): FieldError
   if (!isValidPhone(soDienThoai)) {
     errors.so_dien_thoai = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0'
   }
-  if (email.trim() && !isValidEmail(email)) {
+  // Email bắt buộc: vé được gửi về email này
+  if (!email.trim()) {
+    errors.email = 'Vui lòng nhập email'
+  } else if (!isValidEmail(email)) {
     errors.email = 'Email không hợp lệ'
   }
   return errors
@@ -95,6 +98,12 @@ function AccountBooker({ onSubmit, onCancel, submitting }: Props) {
           <dd>{profile?.email ?? 'Không có'}</dd>
         </dl>
       )}
+      {/* Giới hạn đã biết: tài khoản cũ chưa có email thì không nhận được vé qua email */}
+      {me && !profile?.email && (
+        <p role="note" className="text-sm text-amber-700">
+          Tài khoản chưa có email nên vé sẽ không được gửi qua email.
+        </p>
+      )}
       <Actions submitting={submitting} onCancel={onCancel} />
     </form>
   )
@@ -116,7 +125,7 @@ function GuestBooker({ onSubmit, onCancel, submitting }: Props) {
     onSubmit({
       ho_ten: hoTen.trim(),
       so_dien_thoai: soDienThoai.trim(),
-      email: email.trim() || null,
+      email: email.trim(),
     })
   }
 
@@ -142,12 +151,13 @@ function GuestBooker({ onSubmit, onCancel, submitting }: Props) {
       />
       <FormField
         id="nguoi-dat-email"
-        label="Email (không bắt buộc)"
+        label="Email"
         type="email"
         autoComplete="email"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         error={errors.email}
+        hint="Vé điện tử sẽ được gửi về email này"
       />
       <Actions submitting={submitting} onCancel={onCancel} />
     </form>

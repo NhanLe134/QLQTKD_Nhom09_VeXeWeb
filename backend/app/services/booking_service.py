@@ -147,9 +147,9 @@ async def _guest_customer(
     )
     if khach_hang.user_id is not None:
         raise ConflictError(PHONE_HAS_ACCOUNT)
-    # Giữ nguyên họ tên hồ sơ; chỉ bổ sung email khi hồ sơ chưa có
-    if khach_hang.email is None and nguoi_dat.email is not None:
-        khach_hang.email = nguoi_dat.email
+    # Giữ nguyên họ tên hồ sơ (D-40). Email lấy theo lần giữ ghế mới nhất để vé gửi
+    # về đúng email khách vừa nhập; giữ ghế thất bại thì rollback, email cũ còn nguyên.
+    khach_hang.email = nguoi_dat.email
     return khach_hang
 
 

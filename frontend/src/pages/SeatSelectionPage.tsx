@@ -5,7 +5,7 @@ import BookerForm from '../components/BookerForm'
 import CancelBookingButton from '../components/CancelBookingButton'
 import SeatMap from '../components/SeatMap'
 import { ApiError } from '../services/apiClient'
-import { getBooking, holdSeats, type NguoiDat } from '../services/bookingService'
+import { getBooking, holdSeats, type NguoiDatInput } from '../services/bookingService'
 import { getTripSeats, type SeatMap as SeatMapData } from '../services/tripService'
 import { clearStoredBooking, readStoredBooking } from '../utils/bookingStorage'
 import { formatCurrency, formatDate, formatTime, formatVehicleType } from '../utils/format'
@@ -113,7 +113,7 @@ export default function SeatSelectionPage() {
     setSelected([...selected, gheId])
   }
 
-  async function submitHold(nguoiDat: NguoiDat | null) {
+  async function submitHold(nguoiDat: NguoiDatInput | null) {
     setSubmitting(true)
     setMessage('')
     try {

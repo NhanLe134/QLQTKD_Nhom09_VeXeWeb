@@ -2,10 +2,18 @@ import { accessCodeFor, clearStoredBookingFor, moveToConfirmed, saveStoredBookin
 import { get, post, put, type RequestHeaders } from './apiClient'
 import type { TripInfo } from './tripService'
 
+/** Người đặt backend trả về; email có thể null với tài khoản cũ chưa có email */
 export type NguoiDat = {
   ho_ten: string
   so_dien_thoai: string
   email: string | null
+}
+
+/** Người đặt khách vãng lai gửi khi giữ ghế; email bắt buộc để nhận vé */
+export type NguoiDatInput = {
+  ho_ten: string
+  so_dien_thoai: string
+  email: string
 }
 
 export type HoldRequest = {
@@ -14,7 +22,7 @@ export type HoldRequest = {
   ghe_ids?: string[]
   dat_ca_xe?: boolean
   /** Chỉ khách vãng lai; khách đã đăng nhập thì backend dùng hồ sơ tài khoản */
-  nguoi_dat?: NguoiDat
+  nguoi_dat?: NguoiDatInput
 }
 
 export type HeldSeat = {
