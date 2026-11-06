@@ -31,7 +31,6 @@ export default function BookingPage() {
     getBooking(maDon)
       .then((data) => {
         if (cancelled) return
-        // Độ lệch giữa giờ server và máy khách, để đếm ngược đúng hạn giữ của server
         const clockOffsetMs = Date.parse(data.thoi_diem_hien_tai) - Date.now()
         setBooking({ state: 'loaded', data, clockOffsetMs })
       })
@@ -46,13 +45,16 @@ export default function BookingPage() {
   if (booking.state !== 'loaded') {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-bold text-brand-800">Đặt vé</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Đặt vé</h1>
         {booking.state === 'loading' ? (
-          <p role="status" className="text-slate-600">
-            Đang tải đơn…
-          </p>
+          <div className="flex items-center justify-center py-8">
+            <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-medium text-slate-600 shadow-2xs border border-slate-200/80">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+              Đang tải đơn…
+            </p>
+          </div>
         ) : (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
             {booking.message}
           </p>
         )}
@@ -60,7 +62,6 @@ export default function BookingPage() {
     )
   }
 
-  // Giữ nguyên độ lệch giờ khi cập nhật đơn: hạn giữ không đổi nên đồng hồ chạy tiếp (BR-BUS-26)
   const { clockOffsetMs } = booking
   return (
     <BookingDetail
@@ -81,24 +82,19 @@ type Step = 'details' | 'payment' | 'confirm-cash'
 
 type FieldError = { field: string; message: string }
 
-// Tách riêng để useCountdown bắt đầu đếm đúng lúc đã có dữ liệu đơn
 function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
   const [cancelled, setCancelled] = useState(false)
   const [gone, setGone] = useState(false)
-  // Đã lưu thông tin thì hiện tóm tắt, bấm "Sửa" để nhập lại
   const [editing, setEditing] = useState(!data.da_nhap_thong_tin)
   const [step, setStep] = useState<Step>('details')
-  // Lỗi kèm tên trường khi xác nhận thanh toán: mở lại form và báo đúng ô
   const [detailsError, setDetailsError] = useState<FieldError | null>(null)
   const dangGiu = data.trang_thai_don === 'DANG_GIU'
   const remainingMs = useCountdown(dangGiu ? data.han_giu_cho : null, clockOffsetMs)
-  // Hết giờ trên đồng hồ thì coi như hết giữ chỗ ngay, không chờ tải lại đơn
   const holding = remainingMs !== null && remainingMs > 0
   const failure = failureReason(data, cancelled, dangGiu && !holding, gone)
   const { chuyen } = data
   const heldTickets = data.ve.filter((ve) => ve.trang_thai_ve !== 'DA_HUY')
 
-  // ---- Chuyển khoản SePay (BR-BUS-29): QR hiện ngay khi chọn, đếm ngược 5 phút ở đây ----
   const [qrSePay, setQrSePay] = useState<QrSePay | null>(null)
   const [hanQr, setSepayDeadline] = useState<string | null>(null)
   const [dangTaoQr, setSepayLoading] = useState(false)
@@ -107,7 +103,6 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
 
   function xuLyChonChuyenKhoan() {
     if (qrSePay) {
-      // Chọn lại: cùng QR (backend idempotent), đồng hồ 5 phút bắt đầu lại
       setSepayDeadline(new Date(Date.now() + qrSePay.thoi_gian_cho_giay * 1000).toISOString())
       return
     }
@@ -117,8 +112,6 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       .then((qr) => {
         setQrSePay(qr)
         setSepayDeadline(new Date(Date.now() + qr.thoi_gian_cho_giay * 1000).toISOString())
-        // Backend gia hạn giữ chỗ thêm 10 phút khi tạo QR: tải lại đơn để
-        // đồng hồ giữ chỗ hiện hạn mới
         getBooking(data.ma_don).then(onChange).catch(() => {})
       })
       .catch((error: unknown) => {
@@ -127,9 +120,6 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       .finally(() => setSepayLoading(false))
   }
 
-  // Webhook SePay xác nhận đơn ở backend: hỏi lại đơn mỗi 2 giây để chuyển
-  // "Đặt vé thành công" ngay khi webhook ghi xong (US-BUS-05 AC2);
-  // dừng khi đơn không còn đang giữ
   useEffect(() => {
     if (!qrSePay || step !== 'payment' || data.trang_thai_don !== 'DANG_GIU') return
     const timer = setInterval(() => {
@@ -147,7 +137,6 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
     if (failure) clearStoredBookingFor(data.ma_don)
   }, [failure, data.ma_don])
 
-  // 410 khi lưu: tải lại đơn để hiện đúng lý do theo trạng thái backend
   function handleGone() {
     getBooking(data.ma_don)
       .then(onChange)
@@ -158,7 +147,6 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
     return <BookingFailed reason={failure} maDon={data.ma_don} chuyenXeId={chuyen.chuyen_xe_id} />
   }
 
-  // Trạng thái do backend quyết định; mở lại hoặc tải lại đơn đã xác nhận cũng hiện vé
   if (data.trang_thai_don === 'DA_XAC_NHAN') {
     return <BookingSuccess booking={data} />
   }
@@ -171,125 +159,140 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold text-brand-800">Đặt vé</h1>
-      <p className="text-slate-600">
-        Mã đơn: <span className="font-semibold text-slate-900">{data.ma_don}</span>
-      </p>
+      {/* Header trang đặt vé */}
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Đặt vé</h1>
+          <p className="text-xs text-slate-500">Hoàn tất thông tin hành khách và thanh toán để nhận vé.</p>
+        </div>
+        <p className="text-xs font-semibold text-slate-500">
+          Mã đơn: <span className="font-mono font-bold text-slate-900">{data.ma_don}</span>
+        </p>
+      </div>
 
       {dangGiu && <HoldCountdown remainingMs={remainingMs} />}
 
-      <div className="space-y-1 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
-        <p className="text-lg font-semibold">{chuyen.ten_tuyen}</p>
-        <p className="text-slate-700">
-          {formatTime(chuyen.gio_di)} ngày {formatDate(chuyen.ngay_khoi_hanh)}
-        </p>
-        <p className="text-sm text-slate-600">{formatVehicleType(chuyen.ten_loai_xe, chuyen.so_cho)}</p>
-      </div>
+      <div className="grid gap-4 md:grid-cols-[1fr_320px] items-start">
+        {/* Cột trái: Form & Quy trình thanh toán */}
+        <div className="space-y-4">
+          {holding && (
+            <>
+              {step === 'details' && (
+                <div className="space-y-3.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+                  <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">Thông tin hành khách</h2>
+                  <BookerInfo data={data} />
+                  {editing ? (
+                    <BookingDetailsForm
+                      key={detailsError ? `${detailsError.field}:${detailsError.message}` : 'form'}
+                      booking={data}
+                      initialError={detailsError}
+                      onSaved={(saved) => {
+                        onChange(saved)
+                        setEditing(false)
+                        setDetailsError(null)
+                      }}
+                      onGone={handleGone}
+                    />
+                  ) : (
+                    <BookingDetailsSummary
+                      booking={data}
+                      onEdit={() => setEditing(true)}
+                      onContinue={() => setStep('payment')}
+                    />
+                  )}
+                </div>
+              )}
 
-      <div className="space-y-2 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
-        <h2 className="font-semibold">Ghế đã giữ</h2>
-        <ul aria-label="Ghế đã giữ" className="divide-y divide-slate-100">
-          {heldTickets.map((ve) => (
-            <li key={ve.ve_id} className="flex justify-between py-1">
-              <span>Ghế {ve.so_ghe}</span>
-              <span>{formatCurrency(ve.gia_ve)}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="flex justify-between border-t border-slate-200 pt-2 font-semibold">
-          <span>Tổng tiền</span>
-          <span data-testid="tong-tien">{formatCurrency(data.tong_tien)}</span>
-        </p>
-      </div>
+              {step === 'payment' && (
+                <PaymentMethodPicker
+                  tongTien={data.tong_tien}
+                  onChooseCash={() => setStep('confirm-cash')}
+                  onChooseTransfer={xuLyChonChuyenKhoan}
+                  transferActive={qrSePay !== null}
+                  transferLoading={dangTaoQr}
+                  onBack={() => setStep('details')}
+                >
+                  {loiQr && (
+                    <p role="alert" className="rounded-xl bg-rose-50 p-2.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/60">
+                      {loiQr}
+                    </p>
+                  )}
+                  {qrSePay && <QrSePayPanel qr={qrSePay} conLaiMs={qrConLaiMs} />}
+                </PaymentMethodPicker>
+              )}
 
-      {holding && (
-        <>
-          {step === 'details' && (
-            <div className="space-y-4 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
-              <h2 className="text-lg font-semibold">Thông tin hành khách</h2>
-              <BookerInfo data={data} />
-              {editing ? (
-                <BookingDetailsForm
-                  key={detailsError ? `${detailsError.field}:${detailsError.message}` : 'form'}
-                  booking={data}
-                  initialError={detailsError}
-                  onSaved={(saved) => {
-                    onChange(saved)
-                    setEditing(false)
-                    setDetailsError(null)
-                  }}
+              {step === 'confirm-cash' && (
+                <CashConfirmDialog
+                  maDon={data.ma_don}
+                  tongTien={data.tong_tien}
+                  onConfirmed={onChange}
                   onGone={handleGone}
-                />
-              ) : (
-                <BookingDetailsSummary
-                  booking={data}
-                  onEdit={() => setEditing(true)}
-                  onContinue={() => setStep('payment')}
+                  onFieldError={showFieldError}
+                  onCancel={() => setStep('payment')}
                 />
               )}
+
+              <div className="pt-1">
+                <CancelBookingButton maDon={data.ma_don} onCancelled={() => setCancelled(true)} />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Cột phải: Tóm tắt chuyến xe & Ghế đã giữ */}
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs space-y-1">
+            <p className="text-sm font-bold text-slate-900">{chuyen.ten_tuyen}</p>
+            <p className="text-xs text-slate-600">
+              {formatTime(chuyen.gio_di)} ngày {formatDate(chuyen.ngay_khoi_hanh)}
+            </p>
+            <p className="text-[11px] text-slate-500">{formatVehicleType(chuyen.ten_loai_xe, chuyen.so_cho)}</p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">Ghế đã giữ</h2>
+            <ul aria-label="Ghế đã giữ" className="divide-y divide-slate-100 text-xs">
+              {heldTickets.map((ve) => (
+                <li key={ve.ve_id} className="flex justify-between py-1 text-slate-700">
+                  <span className="font-medium">Ghế {ve.so_ghe}</span>
+                  <span className="font-semibold text-slate-900">{formatCurrency(ve.gia_ve)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-between border-t border-slate-200 pt-2 text-xs font-bold text-slate-800">
+              <span>Tổng tiền</span>
+              <span data-testid="tong-tien" className="text-base font-black text-amber-600">
+                {formatCurrency(data.tong_tien)}
+              </span>
             </div>
-          )}
-          {step === 'payment' && (
-            <PaymentMethodPicker
-              tongTien={data.tong_tien}
-              onChooseCash={() => setStep('confirm-cash')}
-              onChooseTransfer={xuLyChonChuyenKhoan}
-              transferActive={qrSePay !== null}
-              transferLoading={dangTaoQr}
-              onBack={() => setStep('details')}
-            >
-              {loiQr && (
-                <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {loiQr}
-                </p>
-              )}
-              {qrSePay && <QrSePayPanel qr={qrSePay} conLaiMs={qrConLaiMs} />}
-            </PaymentMethodPicker>
-          )}
-          {step === 'confirm-cash' && (
-            <CashConfirmDialog
-              maDon={data.ma_don}
-              tongTien={data.tong_tien}
-              onConfirmed={onChange}
-              onGone={handleGone}
-              onFieldError={showFieldError}
-              onCancel={() => setStep('payment')}
-            />
-          )}
-          <CancelBookingButton maDon={data.ma_don} onCancelled={() => setCancelled(true)} />
-        </>
-      )}
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
 
-/**
- * Người đặt chỉ hiển thị, không sửa (đã nhập ở bước giữ ghế). Họ tên lấy theo tên đã ghi
- * trên vé lúc giữ ghế nếu backend xác định được, không thì theo hồ sơ `nguoi_dat`.
- */
 function BookerInfo({ data }: { data: Booking }) {
   const booker = bookerReference(data)
   return (
-    <section aria-label="Người đặt" className="space-y-1">
-      <h3 className="font-semibold">Người đặt</h3>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-        <dt className="text-slate-500">Họ tên</dt>
-        <dd>{booker.ho_ten}</dd>
-        <dt className="text-slate-500">Số điện thoại</dt>
-        <dd>{data.nguoi_dat.so_dien_thoai}</dd>
-        <dt className="text-slate-500">Email</dt>
-        <dd>{data.nguoi_dat.email ?? 'Không có'}</dd>
+    <section aria-label="Người đặt" className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3 space-y-1.5">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Người đặt</h3>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dt className="text-slate-400 font-medium">Họ tên</dt>
+        <dd className="font-semibold text-slate-800">{booker.ho_ten}</dd>
+        <dt className="text-slate-400 font-medium">Số điện thoại</dt>
+        <dd className="font-semibold text-slate-800">{data.nguoi_dat.so_dien_thoai}</dd>
+        <dt className="text-slate-400 font-medium">Email</dt>
+        <dd className="font-semibold text-slate-800">{data.nguoi_dat.email ?? 'Không có'}</dd>
       </dl>
     </section>
   )
 }
 
-/** Lý do biết ngay trên trang (tự hủy, hết giờ) ưu tiên hơn trạng thái tải từ backend. */
 function failureReason(data: Booking, cancelled: boolean, timedOut: boolean, gone: boolean): FailureReason | null {
   if (cancelled) return 'TU_HUY'
   if (timedOut) return 'HET_GIO'
   if (data.trang_thai_don === 'HET_HAN' || data.trang_thai_don === 'DA_HUY') return data.trang_thai_don
-  // 410 mà không tải lại được đơn: dùng câu trung tính
   if (gone) return 'DA_HUY'
   return null
 }
