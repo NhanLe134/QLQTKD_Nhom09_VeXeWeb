@@ -1,6 +1,6 @@
-"""Vé của tôi: vé đã xác nhận của khách đang đăng nhập, gom theo đơn (BR-BUS-35, 36, 37)."""
+"""Vé của tôi & Tra cứu vé: vé đã xác nhận gom theo đơn (BR-BUS-35, 36, 37)."""
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import GheNgoi, KhachHang, TaiKhoan, Ve
@@ -10,25 +10,7 @@ from app.schemas.trip import TripInfo
 from app.services.seat_map_service import load_trip
 
 
-async def my_bookings(session: AsyncSession, tai_khoan: TaiKhoan) -> list[MyBookingOut]:
-    """Chỉ đơn DA_XAC_NHAN của hồ sơ gắn với tài khoản; mới nhất trước."""
-    khach_hang_id = await session.scalar(
-        select(KhachHang.khach_hang_id).where(KhachHang.user_id == tai_khoan.user_id)
-    )
-    if khach_hang_id is None:
-        return []
-    rows = (
-        await session.execute(
-            select(Ve, GheNgoi.so_ghe)
-            .join(GheNgoi, GheNgoi.ghe_id == Ve.ghe_id)
-            .where(
-                Ve.khach_hang_id == khach_hang_id,
-                Ve.trang_thai_ve == TrangThaiVe.DA_XAC_NHAN,
-            )
-            .order_by(Ve.ngay_dat.desc(), Ve.ma_don.desc(), GheNgoi.so_ghe, Ve.ve_id)
-        )
-    ).all()
-
+async def _build_bookings_out(session: AsyncSession, rows) -> list[MyBookingOut]:
     groups: dict[str, list[tuple[Ve, str]]] = {}
     for row in rows:
         groups.setdefault(row.Ve.ma_don, []).append((row.Ve, row.so_ghe))
@@ -64,3 +46,44 @@ async def my_bookings(session: AsyncSession, tai_khoan: TaiKhoan) -> list[MyBook
             )
         )
     return result
+
+
+async def my_bookings(session: AsyncSession, tai_khoan: TaiKhoan) -> list[MyBookingOut]:
+    """Chỉ đơn DA_XAC_NHAN của hồ sơ gắn với tài khoản; mới nhất trước."""
+    khach_hang_id = await session.scalar(
+        select(KhachHang.khach_hang_id).where(KhachHang.user_id == tai_khoan.user_id)
+    )
+    if khach_hang_id is None:
+        return []
+    rows = (
+        await session.execute(
+            select(Ve, GheNgoi.so_ghe)
+            .join(GheNgoi, GheNgoi.ghe_id == Ve.ghe_id)
+            .where(
+                Ve.khach_hang_id == khach_hang_id,
+                Ve.trang_thai_ve == TrangThaiVe.DA_XAC_NHAN,
+            )
+            .order_by(Ve.ngay_dat.desc(), Ve.ma_don.desc(), GheNgoi.so_ghe, Ve.ve_id)
+        )
+    ).all()
+    return await _build_bookings_out(session, rows)
+
+
+async def bookings_by_phone(session: AsyncSession, phone: str) -> list[MyBookingOut]:
+    """Tra cứu các vé DA_XAC_NHAN theo số điện thoại (trên vé hoặc của người đặt)."""
+    khach_subquery = select(KhachHang.khach_hang_id).where(KhachHang.so_dien_thoai == phone)
+    rows = (
+        await session.execute(
+            select(Ve, GheNgoi.so_ghe)
+            .join(GheNgoi, GheNgoi.ghe_id == Ve.ghe_id)
+            .where(
+                or_(
+                    Ve.so_dien_thoai == phone,
+                    Ve.khach_hang_id.in_(khach_subquery),
+                ),
+                Ve.trang_thai_ve == TrangThaiVe.DA_XAC_NHAN,
+            )
+            .order_by(Ve.ngay_dat.desc(), Ve.ma_don.desc(), GheNgoi.so_ghe, Ve.ve_id)
+        )
+    ).all()
+    return await _build_bookings_out(session, rows)

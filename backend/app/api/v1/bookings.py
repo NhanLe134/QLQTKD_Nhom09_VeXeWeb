@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+import httpx
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,18 +10,108 @@ from app.core.clock import get_now
 from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.models import TaiKhoan
-from app.schemas.booking import BookingOut, DetailsRequest, HoldRequest, HoldResponse
+from app.schemas.booking import (
+    BookingOut,
+    DetailsRequest,
+    ExchangeRequest,
+    ExchangeResponse,
+    HoldRequest,
+    HoldResponse,
+    MyBookingOut,
+)
 from app.schemas.sepay import QrSePayOut
 from app.services import (
     booking_details_service,
     booking_service,
     cash_payment_service,
+    my_tickets_service,
     sepay_payment_service,
     ticket_notifier,
 )
 
 # Không bắt buộc đăng nhập: khách vãng lai giữ ghế được (BR-BUS-01, 20)
 router = APIRouter(prefix="/bookings", tags=["bookings"])
+
+
+@router.get(
+    "/lookup",
+    response_model=list[MyBookingOut],
+    summary="Tra cứu vé theo số điện thoại",
+)
+async def lookup_tickets(
+    phone: str = Query(..., pattern=r"^0\d{9}$", description="Số điện thoại gồm 10 chữ số, bắt đầu bằng 0"),
+    session: AsyncSession = Depends(get_session),
+) -> list[MyBookingOut]:
+    """Tra cứu vé đã xác nhận theo số điện thoại người đặt hoặc hành khách."""
+    return await my_tickets_service.bookings_by_phone(session, phone)
+
+
+@router.post(
+    "/exchange",
+    response_model=ExchangeResponse,
+    summary="Đổi vé qua luồng tự động hoá n8n",
+)
+async def exchange_ticket(
+    data: ExchangeRequest,
+    settings: Settings = Depends(get_settings),
+) -> ExchangeResponse:
+    """Gửi yêu cầu đổi vé tới n8n webhook để xử lý tự động."""
+    webhook_url = settings.n8n_exchange_webhook_url
+    if not webhook_url:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Hệ thống tự động hoá n8n chưa được cấu hình webhook.",
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                webhook_url,
+                json={
+                    "ve_id": data.ve_id,
+                    "chuyen_xe_moi_id": data.chuyen_xe_moi_id,
+                    "ghe_moi_id": data.ghe_moi_id,
+                },
+            )
+    except httpx.ConnectError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Không thể kết nối đến n8n Webhook tại {webhook_url}. Vui lòng đảm bảo n8n đang chạy và workflow đã được kích hoạt.",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Lỗi khi gửi yêu cầu tới n8n: {str(exc)}",
+        )
+
+    if response.status_code >= 400:
+        error_msg = "Yêu cầu đổi vé bị từ chối bởi n8n."
+        try:
+            res_json = response.json()
+            if isinstance(res_json, dict) and "message" in res_json:
+                error_msg = res_json["message"]
+            elif isinstance(res_json, dict) and "detail" in res_json:
+                error_msg = res_json["detail"]
+        except Exception:
+            pass
+        raise HTTPException(status_code=response.status_code, detail=error_msg)
+
+    try:
+        res_json = response.json()
+        return ExchangeResponse(
+            status=res_json.get("status", "success"),
+            message=res_json.get("message", "Đổi vé thành công"),
+            ve_id=res_json.get("ve_id", data.ve_id),
+            chuyen_xe_moi_id=res_json.get("chuyen_xe_moi_id", data.chuyen_xe_moi_id),
+            so_ghe_moi=res_json.get("so_ghe_moi"),
+        )
+    except Exception:
+        return ExchangeResponse(
+            status="success",
+            message="Đổi vé thành công qua n8n",
+            ve_id=data.ve_id,
+            chuyen_xe_moi_id=data.chuyen_xe_moi_id,
+        )
 
 
 @router.post("/hold", status_code=status.HTTP_201_CREATED)

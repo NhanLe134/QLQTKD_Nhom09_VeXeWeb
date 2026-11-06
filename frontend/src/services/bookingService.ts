@@ -193,3 +193,28 @@ export function taoQrSePay(maDon: string): Promise<QrSePay> {
     accessHeaders(maDon),
   )
 }
+
+
+/** Tra cứu vé đã xác nhận bằng số điện thoại (BR-BUS-36, 37). */
+export function lookupTicketsByPhone(phone: string): Promise<MyBooking[]> {
+  return get<MyBooking[]>(`/api/v1/bookings/lookup?phone=${encodeURIComponent(phone)}`)
+}
+
+export type ExchangeRequest = {
+  ve_id: string
+  chuyen_xe_moi_id: string
+  ghe_moi_id: string
+}
+
+export type ExchangeResponse = {
+  status: string
+  message: string
+  ve_id?: string
+  chuyen_xe_moi_id?: string
+  so_ghe_moi?: string
+}
+
+/** Đổi vé: chuyển tiếp yêu cầu sang n8n tự động hoá. */
+export function exchangeTicket(data: ExchangeRequest): Promise<ExchangeResponse> {
+  return post<ExchangeResponse>('/api/v1/bookings/exchange', data)
+}

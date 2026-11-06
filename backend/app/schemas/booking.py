@@ -172,3 +172,17 @@ class MyBookingOut(BaseModel):
     tong_tien: int
     trang_thai_don: TrangThaiDon
     ve: list[TicketOut]
+
+
+class ExchangeRequest(BaseModel):
+    ve_id: MaSo
+    chuyen_xe_moi_id: MaSo
+    ghe_moi_id: MaSo
+
+
+class ExchangeResponse(BaseModel):
+    status: str
+    message: str
+    ve_id: str | None = None
+    chuyen_xe_moi_id: str | None = None
+    so_ghe_moi: str | None = None
