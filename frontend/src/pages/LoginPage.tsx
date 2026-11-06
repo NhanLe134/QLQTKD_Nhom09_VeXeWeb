@@ -52,15 +52,18 @@ export default function LoginPage() {
   }
 
   return (
-    <section className="mx-auto max-w-md space-y-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-brand-100 sm:p-8">
+    <section className="mx-auto max-w-sm space-y-4 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs">
       <div className="flex flex-col items-center gap-2 text-center">
-        <BrandLogo className="h-28 w-28" />
-        <h1 className="text-2xl font-bold text-brand-800">Đăng nhập</h1>
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 p-2 shadow-2xs ring-1 ring-brand-100">
+          <BrandLogo className="h-full w-full object-contain" />
+        </span>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">Đăng nhập</h1>
+        <p className="text-xs text-slate-500">
+          Không bắt buộc: bạn vẫn tìm chuyến và đặt vé được khi chưa đăng nhập.
+        </p>
       </div>
-      <p className="text-center text-sm text-slate-600">
-        Không bắt buộc: bạn vẫn tìm chuyến và đặt vé được khi chưa đăng nhập.
-      </p>
-      <form noValidate onSubmit={handleSubmit} className="space-y-4">
+
+      <form noValidate onSubmit={handleSubmit} className="space-y-3 pt-1">
         <FormField
           id="ten_dang_nhap"
           label="Tên đăng nhập"
@@ -79,21 +82,22 @@ export default function LoginPage() {
           error={fieldErrors.mat_khau}
         />
         {formError && (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="rounded-xl bg-rose-50 p-2.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
             {formError}
           </p>
         )}
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-brand-700 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-60"
+          className="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs transition-all hover:bg-brand-700 active:scale-[0.98] disabled:opacity-50"
         >
           {submitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
         </button>
       </form>
-      <p className="text-center text-sm text-slate-600">
+
+      <p className="text-center text-xs text-slate-500 pt-1">
         Chưa có tài khoản?{' '}
-        <Link to="/dang-ky" className="font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
+        <Link to="/dang-ky" className="font-bold text-brand-700 underline underline-offset-2 hover:text-brand-800">
           Đăng ký
         </Link>
       </p>
