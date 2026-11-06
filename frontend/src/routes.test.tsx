@@ -36,14 +36,18 @@ describe('routes', () => {
     expect(screen.getByRole('navigation', { name: 'Menu chính' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Tìm chuyến' })).toHaveAttribute('href', '/tim-chuyen')
     expect(screen.getByRole('link', { name: 'Tra cứu vé' })).toHaveAttribute('href', '/tra-cuu-ve')
-    expect(screen.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute('href', '/dang-nhap')
+    // Header có 2 nút "Đăng nhập": bản điện thoại và bản máy tính; cả hai cùng trỏ /dang-nhap
+    const loginLinks = screen.getAllByRole('link', { name: 'Đăng nhập' })
+    expect(loginLinks).toHaveLength(2)
+    for (const link of loginLinks) expect(link).toHaveAttribute('href', '/dang-nhap')
   })
 
-  it('/tra-cuu-ve hiện trang tạm "Đang xây dựng"', () => {
+  it('/tra-cuu-ve hiện trang tra cứu vé theo số điện thoại', () => {
     renderAt('/tra-cuu-ve')
 
     expect(screen.getByRole('heading', { name: 'Tra cứu vé' })).toBeInTheDocument()
-    expect(screen.getByText('Đang xây dựng.')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Nhập số điện thoại')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tra cứu' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Tra cứu vé' })).toHaveAttribute('aria-current', 'page')
   })
 

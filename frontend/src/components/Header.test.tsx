@@ -30,7 +30,10 @@ describe('Header', () => {
   it('chưa đăng nhập: hiện "Đăng nhập"', () => {
     renderHeader()
 
-    expect(screen.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute('href', '/dang-nhap')
+    // Bản điện thoại và bản máy tính đều có nút "Đăng nhập"
+    const loginLinks = screen.getAllByRole('link', { name: 'Đăng nhập' })
+    expect(loginLinks).toHaveLength(2)
+    for (const link of loginLinks) expect(link).toHaveAttribute('href', '/dang-nhap')
     expect(screen.queryByRole('button', { name: 'Đăng xuất' })).not.toBeInTheDocument()
   })
 
@@ -41,12 +44,16 @@ describe('Header', () => {
     )
     renderHeader()
 
-    expect(screen.getByText('Nguyễn Văn An')).toBeInTheDocument()
+    // Bản điện thoại và bản máy tính đều hiện họ tên và nút "Đăng xuất"
+    expect(screen.getAllByText('Nguyễn Văn An')).toHaveLength(2)
     expect(screen.queryByRole('link', { name: 'Đăng nhập' })).not.toBeInTheDocument()
+    const logoutButtons = screen.getAllByRole('button', { name: 'Đăng xuất' })
+    expect(logoutButtons).toHaveLength(2)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Đăng xuất' }))
+    fireEvent.click(logoutButtons[0])
 
-    expect(screen.getByRole('link', { name: 'Đăng nhập' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Đăng nhập' })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'Đăng xuất' })).not.toBeInTheDocument()
     expect(screen.queryByText('Nguyễn Văn An')).not.toBeInTheDocument()
     expect(sessionStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
   })

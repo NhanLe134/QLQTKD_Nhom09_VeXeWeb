@@ -154,7 +154,8 @@ describe('BookingPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(message)
     expect(screen.getByRole('link', { name: 'Chọn lại ghế' })).toHaveAttribute('href', '/chuyen/CX00000001')
     expect(screen.queryByRole('button', { name: 'Hủy đặt vé' })).not.toBeInTheDocument()
-    expect(readStoredBooking()).toBeNull()
+    // Xóa đơn khỏi tab chạy trong effect sau khi hiện màn thất bại (D-42)
+    await vi.waitFor(() => expect(readStoredBooking()).toBeNull())
   })
 
   it('mở đơn không phải của tab thì không xóa đơn đang lưu', async () => {
@@ -258,7 +259,9 @@ describe('BookingPage', () => {
     expect(putCalls()[0][1]?.headers).toMatchObject({ 'X-Ma-Truy-Cap': 'ma-bi-mat' })
     expect(screen.getByTestId('tom-tat-diem-don')).toHaveTextContent('Lăng Cô – 12 Lê Lợi')
     expect(screen.getByTestId('tom-tat-diem-tra')).toHaveTextContent('Huế')
-    expect(within(summary).getByRole('list', { name: 'Hành khách' })).toHaveTextContent('Ghế A01: Trần Thị Bình · 0905111222')
+    // Mỗi ghế một dòng; nhãn "Ghế A01:" và thông tin khách nằm ở 2 phần tử riêng
+    const passengers = within(within(summary).getByRole('list', { name: 'Hành khách' })).getAllByRole('listitem')
+    expect(passengers[0]).toHaveTextContent(/^Ghế A01:\s*Trần Thị Bình · 0905111222$/)
     expect(screen.getByRole('button', { name: 'Tiếp tục thanh toán' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Hủy đặt vé' })).toBeInTheDocument()
 
