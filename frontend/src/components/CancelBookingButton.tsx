@@ -32,7 +32,7 @@ export default function CancelBookingButton({ maDon, label = 'Hủy đặt vé',
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-lg border border-red-300 px-4 py-2 font-medium text-red-700 hover:bg-red-50"
+        className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition-colors"
       >
         {label}
       </button>
@@ -40,22 +40,22 @@ export default function CancelBookingButton({ maDon, label = 'Hủy đặt vé',
   }
 
   return (
-    <div role="alertdialog" aria-labelledby={titleId} className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
-      <p id={titleId} className="font-semibold text-red-800">
+    <div role="alertdialog" aria-labelledby={titleId} className="space-y-2.5 rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 text-xs">
+      <p id={titleId} className="font-bold text-rose-900">
         Hủy đơn {maDon}?
       </p>
-      <p className="text-sm text-red-700">Các ghế đang giữ sẽ được nhả ngay cho người khác.</p>
+      <p className="text-rose-700">Các ghế đang giữ sẽ được nhả ngay cho người khác.</p>
       {message && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-xs font-semibold text-rose-800">
           {message}
         </p>
       )}
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <button
           type="button"
           onClick={confirm}
           disabled={submitting}
-          className="rounded-lg bg-red-700 px-4 py-2 font-medium text-white hover:bg-red-800 disabled:opacity-50"
+          className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-rose-700 disabled:opacity-50 transition-all"
         >
           {submitting ? 'Đang hủy…' : 'Đồng ý hủy'}
         </button>
@@ -66,7 +66,7 @@ export default function CancelBookingButton({ maDon, label = 'Hủy đặt vé',
             setMessage('')
           }}
           disabled={submitting}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
         >
           Không hủy
         </button>
