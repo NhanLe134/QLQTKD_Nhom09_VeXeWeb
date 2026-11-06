@@ -11,14 +11,14 @@ export default function FormField({ id, label, error, hint, ...inputProps }: Pro
   const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+      <label htmlFor={id} className="block text-sm font-semibold text-brand-800">
         {label}
       </label>
       <input
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className={`w-full rounded-md border px-3 py-2 text-base outline-none focus:ring-2 focus:ring-blue-500 ${
+        className={`w-full rounded-lg border px-3 py-2 text-base outline-none focus:ring-2 focus:ring-brand-400 ${
           error ? 'border-red-500' : 'border-slate-300'
         }`}
         {...inputProps}

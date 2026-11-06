@@ -1,7 +1,5 @@
 # Quy tắc nghiệp vụ — Luồng Đặt vé & Thanh toán
 
-> Nguồn: BPMN to-be (lane Khách hàng: SP "Tìm và chọn chuyến xe", Transaction "Giữ chỗ & Thanh toán vé", Event SP "Khách hủy thao tác"), RDM (`docs/RDM_TheoMauNhom.drawio`) và quyết định của Nhã ngày 03/11/2026.
-> Người viết: Nhã · Trạng thái: ĐÃ CHỐT (chờ nhóm trưởng xem) · Cột "Task" là STT trong bảng task 14 commit.
 
 ## 1. Khách hàng, tài khoản & đăng nhập
 
@@ -69,3 +67,4 @@
 | BR-BUS-35 | Đặt vé thành công → **mỗi ghế 1 vé điện tử** có mã vé, hiển thị gom theo mã đơn. Gửi email lỗi **không** làm hủy vé. | BPMN: Gửi vé điện tử cho từng hành khách | #10 |
 | BR-BUS-36 | Khách đã đăng nhập xem vé ở **"Vé của tôi"**. Khách vãng lai tra cứu ở **"Tra cứu vé"** bằng **mã đơn + số điện thoại người đặt**. | Quyết định 03/11 | #10, #13 |
 | BR-BUS-37 | Mỗi người chỉ xem và thao tác **đơn, vé của chính mình** (theo tài khoản, mã truy cập, hoặc mã đơn + SĐT). | Bảo mật | #5–#13 |
+| BR-BUS-38 | Hệ thống phục vụ **duy nhất một nhà xe: Nhà xe Thịnh Vượng**. Mọi tuyến, xe, tài xế, chuyến thuộc nhà xe này; tiền chuyển khoản về tài khoản của nhà xe này. | Quyết định 06/11 | #11 |

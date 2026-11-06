@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 
 import type { Locations, TripSearchQuery } from '../services/tripService'
 import { todayInVietnam } from '../utils/format'
+import { PinIcon, SearchIcon, SwapIcon } from './icons'
 
 type Props = {
   /** null khi đang tải danh sách điểm */
@@ -50,7 +51,7 @@ type SelectProps = {
 function SelectField({ id, label, placeholder, options, value, disabled, error, onChange }: SelectProps) {
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+      <label htmlFor={id} className="block text-sm font-semibold text-brand-800">
         {label}
       </label>
       <select
@@ -60,7 +61,7 @@ function SelectField({ id, label, placeholder, options, value, disabled, error, 
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full rounded-md border bg-white px-3 py-2 text-base outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 ${
+        className={`w-full rounded-lg border bg-white px-3 py-2 text-base outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-slate-100 ${
           error ? 'border-red-500' : 'border-slate-300'
         }`}
       >
@@ -104,7 +105,7 @@ export default function TripSearchForm({ locations, initialValues, onSearch }: P
       noValidate
       onSubmit={handleSubmit}
       aria-label="Tìm chuyến"
-      className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-4 sm:items-start"
+      className="grid gap-4 rounded-2xl bg-white p-5 shadow-md ring-1 ring-brand-100 sm:grid-cols-[1fr_auto_1fr] sm:gap-x-6"
     >
       <SelectField
         id="diem_di"
@@ -116,6 +117,14 @@ export default function TripSearchForm({ locations, initialValues, onSearch }: P
         error={errors.diemDi}
         onChange={update('diemDi')}
       />
+      {/* Chỉ để trang trí: đường nối điểm đi → điểm đến */}
+      <div aria-hidden="true" className="hidden items-center gap-1 self-start pt-9 text-brand-500 sm:flex">
+        <span className="h-2 w-2 rounded-full bg-green-500" />
+        <span className="w-6 border-t-2 border-dashed border-brand-300" />
+        <SwapIcon className="h-5 w-5" />
+        <span className="w-6 border-t-2 border-dashed border-brand-300" />
+        <PinIcon className="h-4 w-4 text-red-500" />
+      </div>
       <SelectField
         id="diem_den"
         label="Điểm đến"
@@ -126,8 +135,8 @@ export default function TripSearchForm({ locations, initialValues, onSearch }: P
         error={errors.diemDen}
         onChange={update('diemDen')}
       />
-      <div className="space-y-1">
-        <label htmlFor="ngay" className="block text-sm font-medium text-slate-700">
+      <div className="space-y-1 sm:col-start-1">
+        <label htmlFor="ngay" className="block text-sm font-semibold text-brand-800">
           Ngày đi
         </label>
         <input
@@ -138,7 +147,7 @@ export default function TripSearchForm({ locations, initialValues, onSearch }: P
           aria-invalid={errors.ngay ? true : undefined}
           aria-describedby={errors.ngay ? 'ngay-error' : undefined}
           onChange={(event) => update('ngay')(event.target.value)}
-          className={`w-full rounded-md border px-3 py-2 text-base outline-none focus:ring-2 focus:ring-blue-500 ${
+          className={`w-full rounded-lg border px-3 py-2 text-base outline-none focus:ring-2 focus:ring-brand-400 ${
             errors.ngay ? 'border-red-500' : 'border-slate-300'
           }`}
         />
@@ -151,8 +160,9 @@ export default function TripSearchForm({ locations, initialValues, onSearch }: P
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:opacity-60 sm:mt-6"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-700 px-5 py-2.5 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-60 sm:col-start-3 sm:mt-7 sm:w-auto sm:self-start sm:justify-self-end"
       >
+        <SearchIcon className="h-4 w-4" />
         Tìm chuyến
       </button>
     </form>

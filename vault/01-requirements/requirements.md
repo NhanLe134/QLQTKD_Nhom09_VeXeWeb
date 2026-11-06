@@ -45,7 +45,7 @@
 | **Must** | REQ-BUS-01, 03, 05–14 · NFR-BUS-01–06 |
 | **Should** | REQ-BUS-02, 04, 15, 16 · NFR-BUS-07, 08 |
 | **Could** | Gửi vé qua email thật (SMTP), hiện tại giả lập; gửi vé qua SMS/Zalo |
-| **Ngoài phạm vi** | Hủy/đổi vé sau khi đã xác nhận, hoàn tiền tự động; quản trị tạo nhà xe; nhà xe thêm tuyến, loại xe, tài xế, lịch chuyến; phần tài xế đón khách, thu tiền, nộp tiền mặt; thanh toán bằng thẻ |
+| **Ngoài phạm vi** | Hủy/đổi vé sau khi đã xác nhận, hoàn tiền tự động; quản trị tạo nhà xe; nhà xe thêm tuyến, loại xe, tài xế, lịch chuyến; phần tài xế đón khách, thu tiền, nộp tiền mặt; thanh toán bằng thẻ; nhiều nhà xe trên cùng hệ thống|
 
 ## 4. Rủi ro & mâu thuẫn đã biết
 

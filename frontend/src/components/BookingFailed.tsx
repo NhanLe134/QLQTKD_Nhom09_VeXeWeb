@@ -21,8 +21,8 @@ type Props = {
 export default function BookingFailed({ reason, maDon, chuyenXeId }: Props) {
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Đặt vé thất bại</h1>
-      <p role="alert" className="rounded-md bg-red-50 px-3 py-2 font-medium text-red-700">
+      <h1 className="text-2xl font-bold text-brand-800">Đặt vé thất bại</h1>
+      <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 font-medium text-red-700">
         {REASONS[reason]}
       </p>
       <p className="text-slate-600">
@@ -31,13 +31,13 @@ export default function BookingFailed({ reason, maDon, chuyenXeId }: Props) {
       <div className="flex flex-col gap-2 sm:flex-row">
         <Link
           to={`/chuyen/${encodeURIComponent(chuyenXeId)}`}
-          className="rounded-md bg-blue-700 px-4 py-2 text-center font-medium text-white hover:bg-blue-800"
+          className="rounded-lg bg-brand-700 px-4 py-2 text-center font-semibold text-white shadow-sm hover:bg-brand-800"
         >
           Chọn lại ghế
         </Link>
         <Link
           to="/tim-chuyen"
-          className="rounded-md border border-slate-300 px-4 py-2 text-center font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 px-4 py-2 text-center font-medium text-slate-700 hover:bg-slate-50"
         >
           Tìm chuyến khác
         </Link>

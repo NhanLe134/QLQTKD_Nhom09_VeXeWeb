@@ -556,7 +556,7 @@ Log chỉ ghi `Lưu thông tin đơn ma_don=... so_hanh_khach_sua=...`, không c
 - Đã lưu: ghế được tích khi họ tên và SĐT trên vé trùng `nguoi_dat_luc_giu`. Nếu `nguoi_dat_luc_giu` là `null` thì so với `nguoi_dat`.
 - Tích lại một ghế đã sửa: gửi họ tên, SĐT trong `nguoi_dat_luc_giu`. Nếu `nguoi_dat_luc_giu` là `null` thì không gửi, vé giữ nguyên.
 
-**Giới hạn của `nguoi_dat_luc_giu` (tên người đặt lúc giữ ghế, D-40).** Khách vãng lai đặt lại bằng SĐT cũ nhưng nhập tên khác thì hồ sơ `khach_hang` vẫn giữ tên cũ; tên vừa nhập chỉ có trên vé. CSDL không có cột riêng cho tên này (schema không đổi), nên backend suy ra từ các vé của đơn:
+**Giới hạn của `nguoi_dat_luc_giu` (tên người đặt lúc giữ ghế, D-20).** Khách vãng lai đặt lại bằng SĐT cũ nhưng nhập tên khác thì hồ sơ `khach_hang` vẫn giữ tên cũ; tên vừa nhập chỉ có trên vé. CSDL không có cột riêng cho tên này (schema không đổi), nên backend suy ra từ các vé của đơn:
 
 - Lúc giữ ghế, mọi vé mang SĐT của hồ sơ và cùng một họ tên vừa nhập.
 - Backend xét các vé còn mang SĐT người đặt. Nếu các vé đó chỉ có **một** họ tên thì họ tên này là `nguoi_dat_luc_giu`.

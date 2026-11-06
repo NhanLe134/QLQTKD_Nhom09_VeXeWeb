@@ -16,7 +16,7 @@ export default function RequireCustomer({ children }: { children: ReactNode }) {
   }
   if (user.vai_tro !== 'KHACH') {
     return (
-      <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+      <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
         Trang này chỉ dành cho tài khoản khách hàng.
       </p>
     )

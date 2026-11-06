@@ -36,7 +36,7 @@ function Actions({ submitting, onCancel }: Pick<Props, 'submitting' | 'onCancel'
       <button
         type="submit"
         disabled={submitting}
-        className="flex-1 rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:bg-slate-400"
+        className="flex-1 rounded-lg bg-brand-700 px-4 py-2 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:bg-slate-400"
       >
         {submitting ? 'Đang giữ ghế…' : 'Xác nhận giữ ghế'}
       </button>
@@ -44,7 +44,7 @@ function Actions({ submitting, onCancel }: Pick<Props, 'submitting' | 'onCancel'
         type="button"
         onClick={onCancel}
         disabled={submitting}
-        className="rounded-md border border-slate-300 px-4 py-2 font-medium text-slate-700"
+        className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700"
       >
         Hủy
       </button>

@@ -77,13 +77,13 @@ export default function SeatSelectionPage() {
   if (seatMap.state !== 'loaded') {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-bold">Chọn ghế</h1>
+        <h1 className="text-2xl font-bold text-brand-800">Chọn ghế</h1>
         {seatMap.state === 'loading' ? (
           <p role="status" className="text-slate-600">
             Đang tải sơ đồ ghế…
           </p>
         ) : (
-          <div role="alert" className="flex items-center justify-between gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
             <span>{seatMap.message}</span>
             <button type="button" onClick={() => setReloadKey((value) => value + 1)} className="font-medium underline">
               Thử lại
@@ -136,9 +136,9 @@ export default function SeatSelectionPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Chọn ghế</h1>
+      <h1 className="text-2xl font-bold text-brand-800">Chọn ghế</h1>
 
-      <div className="space-y-1 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="space-y-1 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
         <p className="text-lg font-semibold">{chuyen.ten_tuyen}</p>
         <p className="text-slate-700">
           {formatTime(chuyen.gio_di)} ngày {formatDate(chuyen.ngay_khoi_hanh)}
@@ -148,19 +148,19 @@ export default function SeatSelectionPage() {
         <p className="text-sm text-slate-600">
           {formatVehicleType(chuyen.ten_loai_xe, chuyen.so_cho)} · {chuyen.so_cho} chỗ
         </p>
-        <p className="font-semibold text-blue-700">
+        <p className="font-semibold text-brand-700">
           {formatCurrency(chuyen.gia_ve)} <span className="text-sm font-normal text-slate-500">/ ghế</span>
         </p>
       </div>
 
       {!bookable && (
-        <p role="status" className="rounded-md bg-slate-100 px-3 py-2 text-slate-700">
+        <p role="status" className="rounded-lg bg-slate-100 px-3 py-2 text-slate-700">
           Chuyến này hiện không nhận đặt vé.
         </p>
       )}
 
       {activeOrder && (
-        <div className="space-y-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div className="space-y-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           <p role="status">Bạn đang có một đơn giữ ghế chưa hoàn tất. Mỗi lần chỉ giữ được một đơn.</p>
           <Link to={`/dat-ve/${encodeURIComponent(activeOrder)}`} className="block font-medium underline">
             Mở lại đơn {activeOrder}
@@ -178,39 +178,47 @@ export default function SeatSelectionPage() {
       )}
 
       {message && (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {message}
         </p>
       )}
 
       <SeatMap seats={ghe} selected={selected} onToggle={toggle} disabled={!canHold || holdMode !== null} />
 
-      <p className="text-slate-700">
-        Đã chọn: <span className="font-semibold">{selected.length} ghế</span>
-        {selectedCodes.length > 0 && ` (${selectedCodes.join(', ')})`}
-      </p>
+      {/* Tiền chỉ hiện giá mỗi ghế backend trả; tổng tiền do backend tính sau khi giữ ghế */}
+      <div className="flex flex-col gap-3 rounded-2xl bg-white p-4 shadow-md ring-1 ring-brand-100 sm:flex-row sm:items-center sm:justify-between">
+        <p className="flex items-center gap-3 text-slate-700">
+          <span className="text-3xl font-bold text-brand-700">{String(selected.length).padStart(2, '0')}</span>
+          <span>
+            Đã chọn: <span className="font-semibold">{selected.length} ghế</span>
+            {selectedCodes.length > 0 && ` (${selectedCodes.join(', ')})`}
+            <span className="block text-sm text-slate-500">{formatCurrency(chuyen.gia_ve)} / ghế</span>
+          </span>
+        </p>
+        {holdMode === null && (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              disabled={!canHold || selected.length === 0}
+              onClick={() => setHoldMode('seats')}
+              className="rounded-lg bg-amber-400 px-5 py-2 font-semibold text-slate-900 shadow-sm hover:bg-amber-300 disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+            >
+              Giữ ghế
+            </button>
+            <button
+              type="button"
+              disabled={!canHold || !allFree}
+              onClick={() => setHoldMode('whole')}
+              className="rounded-lg border border-brand-600 px-5 py-2 font-semibold text-brand-700 hover:bg-brand-50 disabled:border-slate-300 disabled:text-slate-400"
+            >
+              Đặt cả xe
+            </button>
+          </div>
+        )}
+      </div>
 
-      {holdMode === null ? (
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            disabled={!canHold || selected.length === 0}
-            onClick={() => setHoldMode('seats')}
-            className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:bg-slate-300 disabled:text-slate-600"
-          >
-            Giữ ghế
-          </button>
-          <button
-            type="button"
-            disabled={!canHold || !allFree}
-            onClick={() => setHoldMode('whole')}
-            className="rounded-md border border-blue-700 px-4 py-2 font-medium text-blue-700 hover:bg-blue-50 disabled:border-slate-300 disabled:text-slate-400"
-          >
-            Đặt cả xe
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+      {holdMode !== null && (
+        <div className="space-y-3 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
           <h2 className="font-semibold">
             {holdMode === 'whole' ? `Đặt cả xe (${ghe.length} ghế)` : 'Thông tin người đặt'}
           </h2>

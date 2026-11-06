@@ -11,7 +11,7 @@ type Props = {
 export default function HoldCountdown({ remainingMs }: Props) {
   if (remainingMs === null || remainingMs <= 0) {
     return (
-      <p role="alert" className="rounded-md bg-red-50 px-3 py-2 font-medium text-red-700">
+      <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 font-medium text-red-700">
         Hết thời gian giữ chỗ
       </p>
     )
@@ -25,13 +25,13 @@ export default function HoldCountdown({ remainingMs }: Props) {
         <span
           role="timer"
           aria-label="Thời gian giữ chỗ còn lại"
-          className={`font-mono text-lg font-semibold ${warning ? 'text-red-600' : 'text-blue-700'}`}
+          className={`font-mono text-lg font-semibold ${warning ? 'text-red-600' : 'text-brand-700'}`}
         >
           {formatCountdown(remainingMs)}
         </span>
       </p>
       {warning && (
-        <p role="alert" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           Sắp hết thời gian giữ chỗ, vui lòng hoàn tất đặt vé.
         </p>
       )}

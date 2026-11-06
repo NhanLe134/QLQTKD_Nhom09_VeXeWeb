@@ -475,7 +475,7 @@ def _booker_at_hold(booking: Booking) -> NguoiDatLucGiuOut | None:
     """Họ tên người đặt đã ghi trên vé lúc giữ ghế.
 
     Lúc giữ ghế mọi vé mang SĐT của hồ sơ và cùng họ tên vừa nhập; hồ sơ khách vãng lai
-    cũ có thể giữ tên khác (D-40). CSDL không lưu riêng tên này, nên lấy từ các vé còn
+    cũ có thể giữ tên khác (D-20). CSDL không lưu riêng tên này, nên lấy từ các vé còn
     mang SĐT người đặt: chỉ có một họ tên thì dùng, có nhiều họ tên thì None.
     """
     so_dien_thoai = booking.khach_hang.so_dien_thoai
