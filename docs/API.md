@@ -704,13 +704,31 @@ Log: `Xác nhận tiền mặt ma_don=... so_ve=...`. Không ghi mã truy cập,
 
 ## POST `/api/v1/webhooks/sepay` — Webhook SePay
 
-- **Công khai**, không JWT: xác thực bằng header `Authorization: Apikey {SEPAY_WEBHOOK_SECRET}` (so sánh constant-time). Thiếu cấu hình → 503; sai/thiếu khóa → 401.
+- **Công khai**, không JWT. Header bắt buộc đúng dạng SePay gửi: `Authorization: Apikey {SEPAY_WEBHOOK_SECRET}`. Tiền tố `Apikey` không phân biệt hoa thường; khóa so sánh constant-time. Thiếu cấu hình → 503. Thiếu header, thiếu tiền tố `Apikey` (gửi khóa trần, `Bearer ...`), thiếu khóa hoặc sai khóa → 401.
 - Chỉ xử lý giao dịch `transferType = "in"` có `content` chứa `THANH TOAN VE {ma_don}`; còn lại bỏ qua, trả 200.
-- **Idempotency:** `ma_giao_dich` UNIQUE — SePay gửi lặp → `ket_qua: TRUNG_LAP`, không xác nhận lần hai (BR-BUS-31).
-- Đơn đang giữ + đủ số tiền → xác nhận vé (ghế `DA_BAN`, vé `DA_XAC_NHAN` + `DA_THANH_TOAN`), dòng SePay → `DA_THANH_TOAN`, gửi vé email nền; trả `{"error": 0, "message": "success", "ket_qua": "XAC_NHAN"}`.
-- Đến muộn / sai số tiền / đơn đã hủy hoặc không tồn tại → ghi dòng `THAT_BAI` kèm `ma_giao_dich` để nhà xe hoàn thủ công (quyết định 04/11/2026), trả `ket_qua: THAT_BAI`.
-- Khóa theo thứ tự chuẩn (`lock_booking`) như `confirm-cash`, không tranh chấp với job nhả ghế.
-- **Khi nối thật:** chỉnh khối hằng số `FIELD_*` trong `app/services/sepay_webhook_service.py` khớp payload SePay thật, đặt `SEPAY_WEBHOOK_SECRET` từ SePay Dashboard, và cấu hình Webhook URL trỏ tới `{backend}/api/v1/webhooks/sepay` (cần URL công khai HTTPS).
+- **Khóa chống trùng `ma_giao_dich`** (UNIQUE, VARCHAR(50)) định danh **chính giao dịch ngân hàng**, không dùng mã đơn hay trường `code` (mọi giao dịch của một đơn có cùng `code`). Thứ tự ưu tiên:
+  1. `id` của SePay, giữ nguyên (VD `10001`). Theo tài liệu SePay và log webhook thật trên SePay Dashboard, SePay **luôn gửi** `id` (số nguyên) kèm `referenceCode`; `id` không đổi qua mọi lần gửi lại. Đây là nhánh chạy thực tế.
+
+  Hai nhánh sau **chỉ là dự phòng** khi payload thiếu `id`:
+
+  2. `REF:{referenceCode}` (mã tham chiếu ngân hàng); dài quá 50 ký tự thì `REF:` + 40 ký tự đầu của SHA-256.
+  3. `SP:` + 40 ký tự đầu của SHA-256 các trường của giao dịch: `gateway, accountNumber, subAccount, transactionDate, transferType, transferAmount, accumulated, content, description`. Số tiền được chuẩn hóa (`200000` và `"200000"` cho cùng khóa). Các trường này do ngân hàng ghi lúc phát sinh giao dịch (`transactionDate` là giờ giao dịch, không phải giờ gửi webhook), nên SePay gửi lặp cùng giao dịch vẫn ra cùng khóa.
+  - Không có `id`, `referenceCode` và `transactionDate` → bỏ qua (`BO_QUA`, "thieu ma giao dich").
+- **Idempotency:** SePay gửi lặp cùng giao dịch → `ket_qua: TRUNG_LAP`, không ghi thêm, không xác nhận lần hai (BR-BUS-31).
+- Đơn đang giữ + đủ số tiền → xác nhận vé (ghế `DA_BAN`, vé `DA_XAC_NHAN` + `DA_THANH_TOAN`), dòng SePay → `DA_THANH_TOAN`, gửi vé email nền; trả `{"success": true, "message": "success", "ket_qua": "XAC_NHAN"}`.
+- Đến muộn / sai số tiền / đơn đã hủy, đã xác nhận hoặc không tồn tại → ghi dòng `THAT_BAI` kèm `ma_giao_dich` để nhà xe hoàn thủ công (quyết định 04/11/2026), trả `ket_qua: THAT_BAI`. Ví dụ:
+  - Khách chuyển 2 lần cho cùng đơn: lần 1 `XAC_NHAN`, lần 2 `THAT_BAI` (khoản thừa được ghi để hoàn, BR-BUS-32).
+  - Khách chuyển sai số tiền rồi chuyển lại đúng: lần sai `THAT_BAI`, lần đúng `XAC_NHAN` (nếu đơn còn giữ chỗ).
+- Khóa theo thứ tự chuẩn (`lock_booking`) như `confirm-cash`, không tranh chấp với job nhả ghế. Sau khi khóa, đơn được kiểm tra lại (còn vé đang giữ, còn `DANG_GIU`, đủ số tiền): nếu một giao dịch khác của cùng đơn vừa xác nhận trong lúc chờ khóa thì giao dịch này ghi `THAT_BAI`. Hai lần gửi đồng thời cùng một giao dịch bị UNIQUE chặn → `TRUNG_LAP`.
+- Lỗi xử lý ngoài dự kiến → trả 200 `{"success": false, "ket_qua": "LOI"}`; log chỉ ghi thông báo và traceback, không ghi payload, nội dung chuyển khoản hay số tài khoản.
+- **Khi nối thật:** chỉnh khối hằng số `TRUONG_*` trong `app/services/sepay_webhook_service.py` khớp payload SePay thật, đặt `SEPAY_WEBHOOK_SECRET` từ SePay Dashboard (chọn xác thực API Key), và cấu hình Webhook URL trỏ tới `{backend}/api/v1/webhooks/sepay` (cần URL công khai HTTPS).
+
+**Giới hạn**
+
+- **Trùng khóa băm (hiếm):** khi payload thiếu cả `id` lẫn `referenceCode`, hai lần chuyển thật cùng tài khoản, cùng giây, cùng số tiền, cùng nội dung, và ngân hàng không trả số dư (`accumulated = 0`) sẽ ra cùng khóa; lần sau bị coi là `TRUNG_LAP` và không được ghi. Nhà xe đối soát bằng sao kê ngân hàng. SePay luôn gửi `id` và `referenceCode`, nên trên thực tế nhánh băm không được dùng tới; giới hạn này chỉ áp dụng cho nhánh dự phòng.
+- **Số tài khoản cũ trong lịch sử git:** test từng dùng số và tên chủ tài khoản thật; nay đã thay bằng giá trị giả (`0000000000`, `NGUYEN VAN A`), nhưng giá trị cũ vẫn còn trong 2 commit cũ của lịch sử git. Không viết lại lịch sử; nếu cần xóa hẳn, nhóm tự quyết.
+
+Nguồn: [SePay – Tích hợp Webhooks](https://docs.sepay.vn/tich-hop-webhooks.html), [SePay Developer – Tạo Webhooks](https://developer.sepay.vn/vi/sepay-webhooks/tich-hop-webhook).
 
 ### Gửi vé qua email (giả lập)
 

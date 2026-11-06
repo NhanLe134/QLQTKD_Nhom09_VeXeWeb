@@ -85,8 +85,9 @@ def test_settings(migrated_database_url: URL) -> Settings:
         # SePay test: pay-sepay và webhook chạy được không cần biến môi trường
         sepay_webhook_secret="khoa-webhook-test",
         sepay_bank_bin="970422",
-        sepay_account_no="0367545235",
-        sepay_account_name="NHAXE DU LICH",
+        # Số và tên tài khoản GIẢ, chỉ dùng trong test
+        sepay_account_no="0000000000",
+        sepay_account_name="NGUYEN VAN A",
     )
 
 

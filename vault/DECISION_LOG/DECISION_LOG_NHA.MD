@@ -333,3 +333,36 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Lý do: (1) làm email lỗi kéo theo hủy vé; (2) lỗi detached vì session đã đóng, bị try/except nuốt nên email không bao giờ gửi (Nhã phát hiện khi rà soát PLAN).
 - Hệ quả: tiến trình chết giữa chừng thì mất email (vé vẫn còn); gửi email thật sau này nên dùng hàng đợi.
 - Người quyết định: Nhã (lỗi do Nhã phát hiện; AI cài đặt)
+### D-37: Khóa chống trùng giao dịch SePay: id → referenceCode → mã băm, không dùng mã đơn
+- Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
+- Bối cảnh: code cũ lấy ma_giao_dich = id, nếu không có thì = code (chính là mã đơn); mọi giao dịch của một đơn trùng khóa → chuyển 2 lần hoặc sai rồi đúng thì giao dịch sau bị bỏ qua (vi phạm BR-BUS-31, 32). Tài liệu SePay: id không đổi qua retry/replay; code không phải mã giao dịch. Log thật trên SePay Dashboard: payload có id và referenceCode.
+- Các phương án đã cân nhắc: (1) giữ id hoặc code; (2) chỉ dùng id, thiếu thì bỏ qua; (3) id → "REF:" + referenceCode → "SP:" + sha256 các trường của chính giao dịch (≤ 50 ký tự).
+- Quyết định: phương án 3; id là nhánh chạy thực tế, REF và băm là dự phòng.
+- Lý do: đúng tài liệu và log thật; SePay gửi lặp cùng giao dịch ra cùng khóa, hai lần chuyển thật ra hai khóa.
+- Hệ quả: rất hiếm khi trùng khóa băm; giao dịch cũ gửi lại ra khóa mới nhưng đi nhánh THAT_BAI vì đơn đã xác nhận.
+- Người quyết định: Nhã, Nhàn đồng ý (AI đề xuất cách tạo khóa)
+
+### D-38: Webhook chỉ nhận header "Apikey <khóa>"
+- Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
+- Bối cảnh: code cũ nhận cả khóa trần không tiền tố; SePay Dashboard cấu hình API Key và gửi "Authorization: Apikey <khóa>".
+- Các phương án đã cân nhắc: (1) nhận cả khóa trần; (2) chỉ nhận Apikey, phân biệt hoa thường; (3) chỉ nhận Apikey, không phân biệt hoa thường (RFC 9110).
+- Quyết định: phương án 3; khóa so bằng secrets.compare_digest; khóa trần, Bearer, thiếu khóa → 401.
+- Lý do: đúng định dạng SePay gửi và chuẩn HTTP; bỏ đường vào không cần thiết.
+- Hệ quả: đổi kiểu chứng thực trên Dashboard thì webhook bị 401 — phải giữ "API Key".
+- Người quyết định: Nhã (AI đề xuất; Nhã kiểm chứng trên SePay Dashboard)
+### D-39: Kiểm tra lại đơn sau khi khóa; không hợp lệ thì ghi THAT_BAI để hoàn tiền
+- Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
+- Bối cảnh: hai webhook khác nhau cho cùng đơn đến cùng lúc đều qua bước kiểm tra trước khi khóa; giao dịch sau bị ghi DA_THANH_TOAN dù đơn đã xác nhận → không được đánh dấu để hoàn.
+- Các phương án đã cân nhắc: (1) giữ nguyên; (2) sau khi khóa và đọc lại, nếu không còn vé đang giữ, đơn không còn DANG_GIU hoặc sai số tiền thì ghi THAT_BAI.
+- Quyết định: phương án 2, có test giả lập đồng thời.
+- Lý do: BR-BUS-32 — tiền đến không được mất dấu.
+- Hệ quả: mọi khoản tiền thừa hoặc đến muộn nằm ở dòng THAT_BAI để nhà xe hoàn thủ công.
+- Người quyết định: Nhã (AI tự phát hiện khi lập PLAN và đề xuất)
+### D-40: Thay số tài khoản thật trong test, không viết lại lịch sử git; đổi khóa API đã lộ
+- Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
+- Bối cảnh: file test trong repo public chứa số tài khoản và tên chủ tài khoản thật; ảnh chụp phần Headers trên SePay làm lộ khóa API webhook; backend tự deploy lên Render từ nhánh này.
+- Các phương án đã cân nhắc: (1) viết lại lịch sử git; (2) thay bằng dữ liệu giả từ bây giờ; về khóa: (a) giữ; (b) đổi trên SePay và Render trước khi push.
+- Quyết định: (2) và (b).
+- Lý do: viết lại lịch sử nhánh chung làm hỏng code các thành viên; khóa lộ cho phép gửi webhook giả để xác nhận vé không trả tiền.
+- Hệ quả: số tài khoản cũ còn trong 2 commit cũ (ghi trong docs/API.md); quy ước: chụp màn hình phải che Authorization và số tài khoản; mỗi lần push kiểm tra Render Deploy live, /health và "Gửi thử".
+- Người quyết định: Nhã, Nhàn (AI đề xuất)

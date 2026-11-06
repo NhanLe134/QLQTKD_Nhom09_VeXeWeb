@@ -1,11 +1,16 @@
 """Xử lý webhook giao dịch ngân hàng từ SePay (BR-BUS-31; task #11).
 
 Idempotency (NFR-BUS-05): `thanh_toan.ma_giao_dich` UNIQUE — SePay gửi lặp cùng
-mã giao dịch bị chặn UNIQUE, không xác nhận lần hai. Giao dịch đến muộn/sai số
-tiền/đơn đã hủy → ghi THAT_BAI (quyết định 04/11/2026) để nhà xe đối soát hoàn
-thủ công. Nội dung không có mã đơn → bỏ qua, chỉ ghi log.
+mã giao dịch bị chặn UNIQUE, không xác nhận lần hai. Mã giao dịch định danh
+CHÍNH giao dịch ngân hàng (xem `ma_giao_dich_tu`), không dùng mã đơn: một đơn
+có thể nhận nhiều giao dịch (chuyển 2 lần, chuyển sai rồi chuyển lại).
+Giao dịch đến muộn/sai số tiền/đơn đã hủy hoặc đã xác nhận → ghi THAT_BAI
+(quyết định 04/11/2026) để nhà xe đối soát hoàn thủ công. Nội dung không có mã
+đơn → bỏ qua, chỉ ghi log.
 """
 
+import hashlib
+import json
 import logging
 import re
 import secrets
@@ -38,11 +43,36 @@ logger = logging.getLogger(__name__)
 # Định dạng webhook SePay: tên trường và giá trị theo tài liệu webhook của
 # SePay. Khi nối thật, chỉ chỉnh khối hằng số này khớp du_lieu từ Dashboard.
 # ------------------------------------------------------------------
+# "id": ID giao dịch trên SePay, không đổi qua mọi lần retry/replay — khóa
+# chống trùng chính theo tài liệu SePay; payload thật (log SePay Dashboard
+# 06/11) luôn có "id" (số nguyên) và "referenceCode". Nhánh REF/băm trong
+# ma_giao_dich_tu chỉ là lớp dự phòng khi thiếu "id". KHÔNG dùng "code": đó là
+# mã thanh toán SePay tách từ nội dung (= mã đơn), mọi giao dịch của một đơn
+# đều có cùng "code"
 TRUONG_MA_GIAO_DICH = "id"
-# SePay tự tách "mã thanh toán" từ nội dung chuyển khoản. Payload thật ngày
-# 06/11 không có "id", chỉ có "code" (VD: "DH00100013") — dùng làm mã giao
-# dịch dự phòng để vẫn đối soát idempotent được
-TRUONG_MA_THANH_TOAN = "code"
+# Mã tham chiếu do ngân hàng cấp, có thể rỗng
+TRUONG_THAM_CHIEU = "referenceCode"
+# Trường của chính giao dịch dùng để băm khi thiếu cả "id" và "referenceCode".
+# Đều là dữ liệu ngân hàng ghi lúc phát sinh giao dịch (transactionDate là giờ
+# giao dịch, không phải giờ gửi webhook), nên SePay gửi lặp vẫn ra cùng khóa
+CAC_TRUONG_KHOA_BAM = (
+    "gateway",
+    "accountNumber",
+    "subAccount",
+    "transactionDate",
+    "transferType",
+    "transferAmount",
+    "accumulated",
+    "content",
+    "description",
+)
+CAC_TRUONG_SO = frozenset({"transferAmount", "accumulated"})
+TIEN_TO_THAM_CHIEU = "REF:"
+TIEN_TO_BAM = "SP:"
+TIEN_TO_ID_DAI = "ID:"
+# thanh_toan.ma_giao_dich là VARCHAR(50)
+DO_DAI_MA_GIAO_DICH = 50
+DO_DAI_BAM = 40
 # Payload SePay thật ngày 06/11 dùng "transferAmount" (không phải "amount")
 TRUONG_SO_TIEN = "transferAmount"
 TRUONG_SO_TIEN_DU_PHONG = "amount"
@@ -71,15 +101,74 @@ class LoiWebhook(Exception):
         self.detail = detail
 
 
+SCHEME_XAC_THUC = "apikey"
+
+
 def kiem_tra_khoa_webhook(authorization: str | None, settings: Settings) -> None:
-    """Khóa SePay gửi trong header Authorization: "Apikey <secret>" (nối thật)."""
+    """SePay gửi header đúng dạng "Authorization: Apikey <khóa>" (tài liệu SePay).
+
+    Tiền tố Apikey không phân biệt hoa thường (RFC 9110 §11.1); thiếu tiền tố
+    hoặc thiếu khóa → 401. Khóa so bằng compare_digest (constant-time).
+    """
     if not settings.sepay_webhook_secret:
         raise LoiWebhook(503, "Chưa cấu hình webhook SePay")
     if not authorization:
         raise LoiWebhook(401, "Thiếu khóa xác thực webhook")
-    token = authorization[7:] if authorization.lower().startswith("apikey ") else authorization
+    scheme, _, token = authorization.strip().partition(" ")
+    token = token.strip()
+    if scheme.lower() != SCHEME_XAC_THUC or not token:
+        raise LoiWebhook(401, "Khóa xác thực webhook sai định dạng")
     if not secrets.compare_digest(token, settings.sepay_webhook_secret):
         raise LoiWebhook(401, "Khóa xác thực webhook không đúng")
+
+
+def _co_gia_tri(gia_tri: object) -> bool:
+    return gia_tri is not None and str(gia_tri).strip() != ""
+
+
+def _bam(gia_tri: str) -> str:
+    return hashlib.sha256(gia_tri.encode("utf-8")).hexdigest()[:DO_DAI_BAM]
+
+
+def _chuan_hoa(truong: str, gia_tri: object) -> str:
+    """Chuẩn hóa để 200000 và "200000" (JSON hay form) cho cùng khóa."""
+    if gia_tri is None:
+        return ""
+    if truong in CAC_TRUONG_SO:
+        try:
+            return str(Decimal(str(gia_tri)).normalize())
+        except (InvalidOperation, ArithmeticError):
+            pass
+    return str(gia_tri)
+
+
+def ma_giao_dich_tu(du_lieu: dict) -> str | None:
+    """Khóa chống trùng (≤ 50 ký tự) định danh CHÍNH giao dịch ngân hàng.
+
+    1. "id" của SePay (giữ nguyên dạng cũ, VD "10001").
+    2. "REF:" + referenceCode của ngân hàng.
+    3. "SP:" + sha256 các trường của giao dịch (CAC_TRUONG_KHOA_BAM).
+    Không dùng mã đơn/"code". Thiếu cả ba (không có transactionDate thì không
+    phân biệt được hai lần chuyển) → None, giao dịch bị bỏ qua.
+    """
+    ma_sepay = du_lieu.get(TRUONG_MA_GIAO_DICH)
+    if _co_gia_tri(ma_sepay):
+        ma = str(ma_sepay)
+        return ma if len(ma) <= DO_DAI_MA_GIAO_DICH else TIEN_TO_ID_DAI + _bam(ma)
+    tham_chieu = du_lieu.get(TRUONG_THAM_CHIEU)
+    if _co_gia_tri(tham_chieu):
+        ma = TIEN_TO_THAM_CHIEU + str(tham_chieu).strip()
+        if len(ma) <= DO_DAI_MA_GIAO_DICH:
+            return ma
+        return TIEN_TO_THAM_CHIEU + _bam(str(tham_chieu).strip())
+    if not _co_gia_tri(du_lieu.get(TRUONG_NGAY_GIAO_DICH)):
+        return None
+    chuoi = json.dumps(
+        [_chuan_hoa(truong, du_lieu.get(truong)) for truong in CAC_TRUONG_KHOA_BAM],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return TIEN_TO_BAM + _bam(chuoi)
 
 
 @dataclass(frozen=True)
@@ -111,6 +200,21 @@ async def _da_co_giao_dich(session: AsyncSession, ma_giao_dich: str) -> bool:
 
 def _ve_dang_giu(don_hang: booking_service.Booking) -> list:
     return [t.ve for t in don_hang.tickets if t.ve.trang_thai_ve == TrangThaiVe.GIU_CHO]
+
+
+def _don_hop_le(
+    don_hang: booking_service.Booking | None, so_tien: Decimal, now: datetime
+) -> bool:
+    """Đơn còn giữ chỗ, còn vé đang giữ và số tiền khớp tổng giá vé (BR-BUS-31)."""
+    if don_hang is None:
+        return False
+    ve_giu = _ve_dang_giu(don_hang)
+    so_tien_du_kien = sum((Decimal(ve.gia_ve) for ve in ve_giu), Decimal(0))
+    return (
+        bool(ve_giu)
+        and booking_service.booking_status(don_hang, now) == TrangThaiDon.DANG_GIU
+        and so_tien == so_tien_du_kien
+    )
 
 
 async def _dong_cho(session: AsyncSession, ma_don: str) -> ThanhToan | None:
@@ -159,12 +263,9 @@ async def xu_ly_giao_dich(
     """Xử lý một giao dịch từ du_lieu webhook; endpoint tự quản lý phiên."""
     if str(du_lieu.get(TRUONG_CHIEU_GIAO_DICH)) != CHIEU_TIEN_VAO:
         return KetQuaWebhook(KET_QUA_BO_QUA, chi_tiet="khong phai tien vao")
-    # Mã giao dịch: ưu tiên "id"; payload thật của SePay có thể chỉ có "code"
-    # (mã thanh toán SePay tự tách từ nội dung chuyển khoản)
-    gia_tri_ma = du_lieu.get(TRUONG_MA_GIAO_DICH) or du_lieu.get(TRUONG_MA_THANH_TOAN)
-    if gia_tri_ma is None:
+    ma_giao_dich = ma_giao_dich_tu(du_lieu)
+    if ma_giao_dich is None:
         return KetQuaWebhook(KET_QUA_BO_QUA, chi_tiet="thieu ma giao dich")
-    ma_giao_dich = str(gia_tri_ma)
     noi_dung = str(du_lieu.get(TRUONG_NOI_DUNG) or "")
     khop = MAU_NOI_DUNG.search(noi_dung)
     if khop is None:
@@ -183,24 +284,16 @@ async def xu_ly_giao_dich(
         return KetQuaWebhook(KET_QUA_TRUNG_LAP, ma_don=ma_don)
 
     don_hang = await booking_service.load_booking(session, ma_don)
-    ve_giu = _ve_dang_giu(don_hang) if don_hang is not None else []
-    trang_thai = (
-        booking_service.booking_status(don_hang, now) if don_hang is not None else None
-    )
-    so_tien_du_kien = sum((Decimal(ve.gia_ve) for ve in ve_giu), Decimal(0))
-
-    don_hop_le = (
-        don_hang is not None
-        and bool(ve_giu)
-        and trang_thai == TrangThaiDon.DANG_GIU
-        and so_tien == so_tien_du_kien
-    )
-    if not don_hop_le:
+    if not _don_hop_le(don_hang, so_tien, now):
         return await _ghi_that_bai(session, ma_don, ma_giao_dich, so_tien, ngay)
 
     # Xác nhận: khóa theo đúng thứ tự chuẩn rồi đọc lại, như confirm-cash
     await booking_service.lock_booking(session, don_hang)
     don_hien_tai = await booking_service.load_booking(session, ma_don)
+    # Kiểm tra lại sau khóa: giao dịch khác của cùng đơn có thể vừa xác nhận
+    # trong lúc chờ khóa → khoản tiền này phải ghi THAT_BAI để hoàn (BR-BUS-32)
+    if not _don_hop_le(don_hien_tai, so_tien, now):
+        return await _ghi_that_bai(session, ma_don, ma_giao_dich, so_tien, ngay)
     ve_giu = _ve_dang_giu(don_hien_tai)
     ve_ids = [ve.ve_id for ve in ve_giu]
     ghe_ids = [ve.ghe_id for ve in ve_giu]
