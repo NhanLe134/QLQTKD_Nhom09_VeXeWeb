@@ -28,7 +28,7 @@ export default function PaymentMethodPicker({
   children,
 }: Props) {
   return (
-    <section aria-label="Chọn phương thức thanh toán" className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+    <section aria-label="Chọn phương thức thanh toán" className="space-y-3 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
       <h2 className="text-lg font-semibold">Chọn phương thức thanh toán</h2>
       <p className="flex justify-between font-semibold">
         <span>Số tiền cần trả</span>
@@ -38,9 +38,9 @@ export default function PaymentMethodPicker({
         <button
           type="button"
           onClick={onChooseCash}
-          className="rounded-md border border-blue-300 px-4 py-3 text-left hover:bg-blue-50"
+          className="rounded-lg border border-brand-300 px-4 py-3 text-left hover:bg-brand-50"
         >
-          <span className="block font-medium text-blue-800">Tiền mặt khi lên xe</span>
+          <span className="block font-medium text-brand-800">Tiền mặt khi lên xe</span>
           <span className="block text-sm text-slate-600">Trả cho tài xế lúc lên xe</span>
         </button>
         <button
@@ -48,11 +48,11 @@ export default function PaymentMethodPicker({
           onClick={onChooseTransfer}
           aria-pressed={transferActive}
           disabled={transferLoading}
-          className={`rounded-md border px-4 py-3 text-left hover:bg-blue-50 ${
-            transferActive ? 'border-blue-600 bg-blue-100' : 'border-blue-300'
+          className={`rounded-lg border px-4 py-3 text-left hover:bg-brand-50 ${
+            transferActive ? 'border-brand-600 bg-brand-100' : 'border-brand-300'
           }`}
         >
-          <span className="block font-medium text-blue-800">Chuyển khoản SePay</span>
+          <span className="block font-medium text-brand-800">Chuyển khoản SePay</span>
           <span className="block text-sm text-slate-600">
             {transferLoading ? 'Đang tạo mã QR…' : 'Quét mã QR để thanh toán'}
           </span>

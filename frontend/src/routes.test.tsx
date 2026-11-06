@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,10 +26,13 @@ afterEach(() => {
 })
 
 describe('routes', () => {
-  it('header có tên hệ thống và 3 mục menu', () => {
+  it('header có logo, tên nhà xe và 3 mục menu', () => {
     renderAt('/')
 
-    expect(screen.getByRole('link', { name: 'VeXe Nhóm 09' })).toHaveAttribute('href', '/')
+    const homeLink = screen.getByRole('link', { name: 'Nhà xe Thịnh Vượng' })
+    expect(homeLink).toHaveAttribute('href', '/')
+    // Logo trang trí (alt rỗng): tên link chỉ là tên nhà xe, không đọc lặp
+    expect(within(homeLink).getByTestId('brand-logo')).toHaveAttribute('alt', '')
     expect(screen.getByRole('navigation', { name: 'Menu chính' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Tìm chuyến' })).toHaveAttribute('href', '/tim-chuyen')
     expect(screen.getByRole('link', { name: 'Tra cứu vé' })).toHaveAttribute('href', '/tra-cuu-ve')

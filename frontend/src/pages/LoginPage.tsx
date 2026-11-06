@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 
 import FormField from '../components/FormField'
+import BrandLogo from '../components/BrandLogo'
 import { useAuth } from '../hooks/useAuth'
 
 type FieldErrors = Partial<Record<'ten_dang_nhap' | 'mat_khau', string>>
@@ -51,9 +52,12 @@ export default function LoginPage() {
   }
 
   return (
-    <section className="mx-auto max-w-sm space-y-4">
-      <h1 className="text-2xl font-bold">Đăng nhập</h1>
-      <p className="text-sm text-slate-600">
+    <section className="mx-auto max-w-md space-y-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-brand-100 sm:p-8">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <BrandLogo className="h-28 w-28" />
+        <h1 className="text-2xl font-bold text-brand-800">Đăng nhập</h1>
+      </div>
+      <p className="text-center text-sm text-slate-600">
         Không bắt buộc: bạn vẫn tìm chuyến và đặt vé được khi chưa đăng nhập.
       </p>
       <form noValidate onSubmit={handleSubmit} className="space-y-4">
@@ -75,21 +79,21 @@ export default function LoginPage() {
           error={fieldErrors.mat_khau}
         />
         {formError && (
-          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
             {formError}
           </p>
         )}
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+          className="w-full rounded-lg bg-brand-700 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-60"
         >
           {submitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
         </button>
       </form>
-      <p className="text-sm text-slate-600">
+      <p className="text-center text-sm text-slate-600">
         Chưa có tài khoản?{' '}
-        <Link to="/dang-ky" className="font-medium text-blue-700 hover:underline">
+        <Link to="/dang-ky" className="font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
           Đăng ký
         </Link>
       </p>

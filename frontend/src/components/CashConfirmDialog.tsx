@@ -48,11 +48,11 @@ export default function CashConfirmDialog({ maDon, tongTien, onConfirmed, onGone
   }
 
   return (
-    <div role="alertdialog" aria-labelledby={titleId} className="space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
-      <p id={titleId} className="font-semibold text-blue-900">
+    <div role="alertdialog" aria-labelledby={titleId} className="space-y-3 rounded-lg border border-brand-200 bg-brand-50 p-4">
+      <p id={titleId} className="font-semibold text-brand-900">
         Xác nhận trả tiền mặt
       </p>
-      <p className="text-sm text-blue-900">Bạn sẽ trả {formatCurrency(tongTien)} cho tài xế khi lên xe.</p>
+      <p className="text-sm text-brand-900">Bạn sẽ trả {formatCurrency(tongTien)} cho tài xế khi lên xe.</p>
       {message && (
         <p role="alert" className="text-sm text-red-700">
           {message}
@@ -63,7 +63,7 @@ export default function CashConfirmDialog({ maDon, tongTien, onConfirmed, onGone
           type="button"
           onClick={confirm}
           disabled={submitting}
-          className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:opacity-50"
+          className="rounded-lg bg-brand-700 px-4 py-2 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-50"
         >
           {submitting ? 'Đang xác nhận…' : 'Đồng ý'}
         </button>
@@ -71,7 +71,7 @@ export default function CashConfirmDialog({ maDon, tongTien, onConfirmed, onGone
           type="button"
           onClick={onCancel}
           disabled={submitting}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         >
           Quay lại
         </button>

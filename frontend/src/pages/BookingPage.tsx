@@ -46,13 +46,13 @@ export default function BookingPage() {
   if (booking.state !== 'loaded') {
     return (
       <section className="space-y-4">
-        <h1 className="text-2xl font-bold">Đặt vé</h1>
+        <h1 className="text-2xl font-bold text-brand-800">Đặt vé</h1>
         {booking.state === 'loading' ? (
           <p role="status" className="text-slate-600">
             Đang tải đơn…
           </p>
         ) : (
-          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
             {booking.message}
           </p>
         )}
@@ -117,6 +117,9 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       .then((qr) => {
         setQrSePay(qr)
         setSepayDeadline(new Date(Date.now() + qr.thoi_gian_cho_giay * 1000).toISOString())
+        // Backend gia hạn giữ chỗ thêm 10 phút khi tạo QR: tải lại đơn để
+        // đồng hồ giữ chỗ hiện hạn mới
+        getBooking(data.ma_don).then(onChange).catch(() => {})
       })
       .catch((error: unknown) => {
         setSepayError(error instanceof ApiError ? error.detail : 'Không tạo được mã QR, vui lòng thử lại.')
@@ -124,8 +127,9 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       .finally(() => setSepayLoading(false))
   }
 
-  // Webhook SePay xác nhận đơn ở backend: hỏi lại đơn định kỳ để tự chuyển
-  // "Đặt vé thành công" (US-BUS-05 AC2); dừng khi đơn không còn đang giữ
+  // Webhook SePay xác nhận đơn ở backend: hỏi lại đơn mỗi 2 giây để chuyển
+  // "Đặt vé thành công" ngay khi webhook ghi xong (US-BUS-05 AC2);
+  // dừng khi đơn không còn đang giữ
   useEffect(() => {
     if (!qrSePay || step !== 'payment' || data.trang_thai_don !== 'DANG_GIU') return
     const timer = setInterval(() => {
@@ -135,7 +139,7 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
           if (latest.trang_thai_don !== 'DANG_GIU') onChange(latest)
         })
         .catch(() => {})
-    }, 3000)
+    }, 2000)
     return () => clearInterval(timer)
   }, [qrSePay, step, data.ma_don, data.trang_thai_don, onChange])
 
@@ -167,14 +171,14 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Đặt vé</h1>
+      <h1 className="text-2xl font-bold text-brand-800">Đặt vé</h1>
       <p className="text-slate-600">
         Mã đơn: <span className="font-semibold text-slate-900">{data.ma_don}</span>
       </p>
 
       {dangGiu && <HoldCountdown remainingMs={remainingMs} />}
 
-      <div className="space-y-1 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="space-y-1 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
         <p className="text-lg font-semibold">{chuyen.ten_tuyen}</p>
         <p className="text-slate-700">
           {formatTime(chuyen.gio_di)} ngày {formatDate(chuyen.ngay_khoi_hanh)}
@@ -182,7 +186,7 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
         <p className="text-sm text-slate-600">{formatVehicleType(chuyen.ten_loai_xe, chuyen.so_cho)}</p>
       </div>
 
-      <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="space-y-2 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
         <h2 className="font-semibold">Ghế đã giữ</h2>
         <ul aria-label="Ghế đã giữ" className="divide-y divide-slate-100">
           {heldTickets.map((ve) => (
@@ -201,7 +205,7 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       {holding && (
         <>
           {step === 'details' && (
-            <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+            <div className="space-y-4 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
               <h2 className="text-lg font-semibold">Thông tin hành khách</h2>
               <BookerInfo data={data} />
               {editing ? (

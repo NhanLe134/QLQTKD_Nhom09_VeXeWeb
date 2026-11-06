@@ -17,7 +17,7 @@ function jsonResponse(status: number, body: unknown): Response {
 const VALID = {
   'Họ tên': 'Nguyễn Văn An',
   'Số điện thoại': '0905123456',
-  'Email (không bắt buộc)': '',
+  Email: 'an@example.com',
   'Tên đăng nhập': 'an_nguyen',
   'Mật khẩu': 'matkhau123',
   'Nhập lại mật khẩu': 'matkhau123',
@@ -64,6 +64,7 @@ describe('RegisterPage', () => {
 
     expect(screen.getByText('Vui lòng nhập họ tên')).toBeInTheDocument()
     expect(screen.getByText('Vui lòng nhập số điện thoại')).toBeInTheDocument()
+    expect(screen.getByText('Vui lòng nhập email')).toBeInTheDocument()
     expect(screen.getByText('Vui lòng nhập tên đăng nhập')).toBeInTheDocument()
     expect(screen.getByText('Mật khẩu tối thiểu 8 ký tự')).toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalled()
@@ -74,7 +75,8 @@ describe('RegisterPage', () => {
     [{ 'Số điện thoại': '1905123456' }, 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0'],
     [{ 'Mật khẩu': '1234567', 'Nhập lại mật khẩu': '1234567' }, 'Mật khẩu tối thiểu 8 ký tự'],
     [{ 'Nhập lại mật khẩu': 'khac-nhau' }, 'Mật khẩu nhập lại không khớp'],
-    [{ 'Email (không bắt buộc)': 'khong-phai-email' }, 'Email không hợp lệ'],
+    [{ Email: 'khong-phai-email' }, 'Email không hợp lệ'],
+    [{ Email: '   ' }, 'Vui lòng nhập email'],
   ])('báo lỗi sớm %j', (overrides, message) => {
     renderRegister()
 
@@ -82,6 +84,15 @@ describe('RegisterPage', () => {
 
     expect(screen.getByText(message)).toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('hiện nguyên văn lỗi 422 email từ backend', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(422, { detail: 'Email không hợp lệ', truong: 'email' }))
+    renderRegister()
+
+    fillAndSubmit()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Email không hợp lệ')
   })
 
   it('hiện nguyên văn lỗi 409 từ backend', async () => {
@@ -102,7 +113,7 @@ describe('RegisterPage', () => {
       )
     renderRegister()
 
-    fillAndSubmit({ 'Họ tên': '  Nguyễn Văn An ' })
+    fillAndSubmit({ 'Họ tên': '  Nguyễn Văn An ', Email: ' an@example.com ' })
 
     expect(await screen.findByRole('heading', { name: 'Trang chủ' })).toBeInTheDocument()
     const [registerUrl, registerInit] = fetchMock.mock.calls[0]
@@ -112,7 +123,7 @@ describe('RegisterPage', () => {
       mat_khau: 'matkhau123',
       ho_ten: 'Nguyễn Văn An',
       so_dien_thoai: '0905123456',
-      email: null,
+      email: 'an@example.com',
     })
     expect(fetchMock.mock.calls[1][0]).toBe('http://api.test/api/v1/auth/login')
   })

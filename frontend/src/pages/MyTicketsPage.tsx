@@ -30,21 +30,21 @@ export default function MyTicketsPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Vé của tôi</h1>
+      <h1 className="text-2xl font-bold text-brand-800">Vé của tôi</h1>
       {result.state === 'loading' && (
         <p role="status" className="text-slate-600">
           Đang tải vé…
         </p>
       )}
       {result.state === 'error' && (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {result.message}
         </p>
       )}
       {result.state === 'loaded' && result.data.length === 0 && (
         <div className="space-y-2">
           <p className="text-slate-600">Bạn chưa có vé nào.</p>
-          <Link to="/tim-chuyen" className="font-medium text-blue-700 underline">
+          <Link to="/tim-chuyen" className="font-medium text-brand-700 underline">
             Tìm chuyến
           </Link>
         </div>
@@ -55,7 +55,7 @@ export default function MyTicketsPage() {
             <li
               key={order.ma_don}
               aria-label={`Đơn ${order.ma_don}`}
-              className="space-y-3 rounded-lg border border-slate-200 bg-white p-4"
+              className="space-y-3 rounded-xl border border-brand-100 bg-white shadow-sm p-4"
             >
               <div className="space-y-1">
                 <p className="text-slate-600">

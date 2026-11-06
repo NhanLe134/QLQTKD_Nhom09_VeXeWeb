@@ -347,7 +347,7 @@ async def test_guest_reuses_profile_keeps_name_and_fills_missing_email(
     assert ve.ho_ten == "Tên Mới"
 
 
-async def test_guest_reuse_does_not_overwrite_existing_email(client, seeded, set_now):
+async def test_guest_reuse_updates_email_to_latest(client, seeded, set_now):
     async with seeded() as session, session.begin():
         await session.execute(
             update(KhachHang)
@@ -355,10 +355,54 @@ async def test_guest_reuse_does_not_overwrite_existing_email(client, seeded, set
             .values(email="cu@example.com")
         )
 
-    response = await hold(client, nguoi_dat=guest("0900000004", email="moi@example.com"))
+    response = await hold(
+        client, nguoi_dat=guest("0900000004", ho_ten="Tên Khác", email="moi@example.com")
+    )
 
     assert response.status_code == 201
-    assert (await customer_by_phone(seeded, "0900000004")).email == "cu@example.com"
+    customer = await customer_by_phone(seeded, "0900000004")
+    # Vé gửi về email khách vừa nhập; họ tên hồ sơ vẫn giữ (D-40)
+    assert customer.email == "moi@example.com"
+    assert customer.ho_ten == "Khách Vãng Lai Mẫu"
+
+
+async def test_rejected_hold_keeps_old_email(client, seeded, set_now):
+    first = await hold(client, ["A01"], nguoi_dat=guest(email="cu@example.com"))
+    assert first.status_code == 201
+
+    # BR-BUS-18: đơn cũ còn hạn giữ → từ chối, email hồ sơ không đổi
+    response = await hold(client, ["A02"], nguoi_dat=guest(email="moi@example.com"))
+
+    assert response.status_code == 409
+    assert (await customer_by_phone(seeded, "0905111222")).email == "cu@example.com"
+
+
+@pytest.mark.parametrize(
+    ("email", "detail"),
+    [
+        (None, "Vui lòng nhập email"),
+        ("", "Vui lòng nhập email"),
+        ("   ", "Vui lòng nhập email"),
+        ("khong-phai-email", "Email không hợp lệ"),
+    ],
+    ids=["null", "rong", "khoang-trang", "sai-dinh-dang"],
+)
+async def test_guest_email_required(client, seeded, set_now, email, detail):
+    response = await hold(client, nguoi_dat=guest(email=email))
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": detail, "truong": "nguoi_dat.email"}
+    assert await customer_by_phone(seeded, "0905111222") is None
+
+
+async def test_guest_without_email_key_returns_422(client, seeded, set_now):
+    booker = guest()
+    del booker["email"]
+
+    response = await hold(client, nguoi_dat=booker)
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Vui lòng nhập email", "truong": "nguoi_dat.email"}
 
 
 async def test_guest_with_phone_of_account_returns_409(client, seeded, set_now):

@@ -2,10 +2,10 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Self
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.models.enums import TrangThaiThanhToanVe, TrangThaiVe
-from app.schemas.auth import EMAIL_PATTERN, PHONE_PATTERN
+from app.schemas.auth import PHONE_PATTERN, Email
 from app.schemas.trip import TripInfo
 
 MaSo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=10)]
@@ -29,22 +29,8 @@ class NguoiDatIn(BaseModel):
     so_dien_thoai: Annotated[
         str, StringConstraints(strip_whitespace=True, pattern=PHONE_PATTERN)
     ]
-    email: (
-        Annotated[
-            str,
-            StringConstraints(
-                strip_whitespace=True, max_length=100, pattern=EMAIL_PATTERN
-            ),
-        ]
-        | None
-    ) = None
-
-    @field_validator("email", mode="before")
-    @classmethod
-    def blank_email_is_none(cls, value: object) -> object:
-        if isinstance(value, str) and value.strip() == "":
-            return None
-        return value
+    # Bắt buộc: vé gửi về email này (cập nhật vào hồ sơ vãng lai khi giữ ghế)
+    email: Email
 
 
 class HoldRequest(BaseModel):

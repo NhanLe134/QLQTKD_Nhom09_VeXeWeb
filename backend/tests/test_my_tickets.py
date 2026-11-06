@@ -35,6 +35,7 @@ async def register(client, ten_dang_nhap: str, so_dien_thoai: str) -> dict[str, 
             "mat_khau": "mat-khau-test",
             "ho_ten": "Khách Khác",
             "so_dien_thoai": so_dien_thoai,
+            "email": f"{ten_dang_nhap}@vexe.example",
         },
     )
     assert response.status_code == 201

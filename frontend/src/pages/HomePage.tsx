@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+
+import BrandLogo from '../components/BrandLogo'
+import { SearchIcon } from '../components/icons'
 
 import { getHealth } from '../services/healthService'
-import { APP_NAME } from '../utils/constants'
+import { APP_NAME, SERVICE_AREA } from '../utils/constants'
 
 type BackendStatus =
   | { state: 'checking' }
@@ -28,10 +32,22 @@ export default function HomePage() {
   }, [])
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-bold">{APP_NAME}</h1>
-      <p className="text-slate-600">Đặt vé xe Đà Nẵng – Hội An – Huế trực tuyến.</p>
-      <p role="status" className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
+    <section className="space-y-6">
+      <div className="flex flex-col items-center gap-4 rounded-2xl bg-white p-6 text-center shadow-md ring-1 ring-brand-100 sm:flex-row sm:text-left">
+        <BrandLogo className="h-32 w-32" />
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold text-brand-800">{APP_NAME}</h1>
+          <p className="text-slate-600">Đặt vé xe {SERVICE_AREA} trực tuyến, trả tiền mặt khi lên xe.</p>
+          <Link
+            to="/tim-chuyen"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-700 px-5 py-2.5 font-semibold text-white shadow-sm hover:bg-brand-800"
+          >
+            <SearchIcon className="h-4 w-4" />
+            Tìm chuyến ngay
+          </Link>
+        </div>
+      </div>
+      <p role="status" className="rounded-lg bg-white px-3 py-2 text-sm shadow-sm ring-1 ring-brand-100">
         {backend.state === 'checking' && 'Đang kiểm tra kết nối backend…'}
         {backend.state === 'connected' && <span className="text-green-700">Đã kết nối backend.</span>}
         {backend.state === 'error' && (

@@ -43,6 +43,13 @@ export default function QrSePayPanel({ qr, conLaiMs }: Props) {
       <p className="text-xs text-slate-600">
         Vui lòng chuyển đúng số tiền và nội dung trên để vé được xác nhận tự động.
       </p>
+      <p role="status" className="flex items-center justify-center gap-2 text-sm text-blue-700">
+        <span
+          aria-hidden="true"
+          className="h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700"
+        />
+        Đang chờ xác nhận thanh toán…
+      </p>
       {expired ? (
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
           Quá thời gian chuyển khoản. Bấm "Chuyển khoản SePay" để nhận lại mã QR.

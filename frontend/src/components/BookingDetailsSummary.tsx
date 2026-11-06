@@ -12,7 +12,7 @@ export default function BookingDetailsSummary({ booking, onEdit, onContinue }: P
   const tickets = booking.ve.filter((ve) => ve.trang_thai_ve !== 'DA_HUY')
   return (
     <section aria-label="Tóm tắt thông tin" className="space-y-3">
-      <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+      <p role="status" className="rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
         Đã lưu thông tin hành khách.
       </p>
       <ul aria-label="Hành khách" className="divide-y divide-slate-100">
@@ -34,14 +34,14 @@ export default function BookingDetailsSummary({ booking, onEdit, onContinue }: P
           type="button"
           onClick={onContinue}
           disabled={!booking.da_nhap_thong_tin}
-          className="rounded-md bg-blue-700 px-4 py-2 font-medium text-white disabled:bg-slate-400"
+          className="rounded-lg bg-brand-700 px-4 py-2 font-semibold text-white shadow-sm disabled:bg-slate-400"
         >
           Tiếp tục thanh toán
         </button>
         <button
           type="button"
           onClick={onEdit}
-          className="rounded-md border border-slate-300 px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 hover:bg-slate-50"
         >
           Sửa
         </button>

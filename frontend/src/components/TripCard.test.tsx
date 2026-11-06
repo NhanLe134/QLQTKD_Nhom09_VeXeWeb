@@ -32,7 +32,8 @@ describe('TripCard', () => {
   it('hiển thị giờ đi → giờ đến (giờ Việt Nam), tuyến, loại xe, giá, số ghế trống', () => {
     renderCard(TRIP)
 
-    expect(screen.getByText('06:00 → 08:30')).toBeInTheDocument()
+    expect(screen.getByText('06:00')).toBeInTheDocument()
+    expect(screen.getByText('08:30')).toBeInTheDocument()
     expect(screen.getByText('Đà Nẵng - Huế')).toBeInTheDocument()
     expect(screen.getByText('Qua: Lăng Cô')).toBeInTheDocument()
     expect(screen.getByText('Xe 4 chỗ')).toBeInTheDocument()
@@ -53,7 +54,8 @@ describe('TripCard', () => {
     renderCard({ ...TRIP, ten_loai_xe: null, so_cho: 16, gio_den: null, diem_trung_gian: null })
 
     expect(screen.getByText('Xe 16 chỗ')).toBeInTheDocument()
-    expect(screen.getByText('06:00 → --:--')).toBeInTheDocument()
+    expect(screen.getByText('06:00')).toBeInTheDocument()
+    expect(screen.getByText('--:--')).toBeInTheDocument()
     expect(screen.queryByText(/^Qua:/)).not.toBeInTheDocument()
   })
 })

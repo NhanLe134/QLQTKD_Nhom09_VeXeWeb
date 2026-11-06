@@ -147,9 +147,9 @@ async def _guest_customer(
     )
     if khach_hang.user_id is not None:
         raise ConflictError(PHONE_HAS_ACCOUNT)
-    # Giữ nguyên họ tên hồ sơ; chỉ bổ sung email khi hồ sơ chưa có
-    if khach_hang.email is None and nguoi_dat.email is not None:
-        khach_hang.email = nguoi_dat.email
+    # Giữ nguyên họ tên hồ sơ (D-40). Email lấy theo lần giữ ghế mới nhất để vé gửi
+    # về đúng email khách vừa nhập; giữ ghế thất bại thì rollback, email cũ còn nguyên.
+    khach_hang.email = nguoi_dat.email
     return khach_hang
 
 
@@ -482,7 +482,7 @@ def _booker_at_hold(booking: Booking) -> NguoiDatLucGiuOut | None:
     """Họ tên người đặt đã ghi trên vé lúc giữ ghế.
 
     Lúc giữ ghế mọi vé mang SĐT của hồ sơ và cùng họ tên vừa nhập; hồ sơ khách vãng lai
-    cũ có thể giữ tên khác (D-40). CSDL không lưu riêng tên này, nên lấy từ các vé còn
+    cũ có thể giữ tên khác (D-20). CSDL không lưu riêng tên này, nên lấy từ các vé còn
     mang SĐT người đặt: chỉ có một họ tên thì dùng, có nhiều họ tên thì None.
     """
     so_dien_thoai = booking.khach_hang.so_dien_thoai

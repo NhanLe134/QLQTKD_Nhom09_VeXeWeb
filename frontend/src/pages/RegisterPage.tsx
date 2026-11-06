@@ -2,6 +2,7 @@ import { type ChangeEvent, type FormEvent, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 
 import FormField from '../components/FormField'
+import BrandLogo from '../components/BrandLogo'
 import { useAuth } from '../hooks/useAuth'
 import { register } from '../services/authService'
 import { isValidEmail, isValidPhone, MIN_PASSWORD_LENGTH } from '../utils/validation'
@@ -36,7 +37,10 @@ function validate(fields: Fields): FieldErrors {
   } else if (!isValidPhone(fields.so_dien_thoai)) {
     errors.so_dien_thoai = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0'
   }
-  if (fields.email.trim() && !isValidEmail(fields.email)) {
+  // Email bắt buộc: vé điện tử được gửi về email hồ sơ
+  if (!fields.email.trim()) {
+    errors.email = 'Vui lòng nhập email'
+  } else if (!isValidEmail(fields.email)) {
     errors.email = 'Email không hợp lệ'
   }
   if (!fields.ten_dang_nhap.trim()) {
@@ -85,7 +89,7 @@ export default function RegisterPage() {
         mat_khau: fields.mat_khau,
         ho_ten: fields.ho_ten.trim(),
         so_dien_thoai: fields.so_dien_thoai.trim(),
-        email: fields.email.trim() || null,
+        email: fields.email.trim(),
       })
     } catch (error: unknown) {
       setFormError(error instanceof Error ? error.message : String(error))
@@ -103,9 +107,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <section className="mx-auto max-w-sm space-y-4">
-      <h1 className="text-2xl font-bold">Đăng ký</h1>
-      <p className="text-sm text-slate-600">
+    <section className="mx-auto max-w-md space-y-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-brand-100 sm:p-8">
+      <div className="flex flex-col items-center gap-2 text-center">
+        <BrandLogo className="h-28 w-28" />
+        <h1 className="text-2xl font-bold text-brand-800">Đăng ký</h1>
+      </div>
+      <p className="text-center text-sm text-slate-600">
         Nếu bạn từng đặt vé bằng số điện thoại này, các vé cũ sẽ được gắn vào tài khoản mới.
       </p>
       <form noValidate onSubmit={handleSubmit} className="space-y-4">
@@ -129,7 +136,7 @@ export default function RegisterPage() {
         />
         <FormField
           id="email"
-          label="Email (không bắt buộc)"
+          label="Email"
           type="email"
           autoComplete="email"
           value={fields.email}
@@ -164,21 +171,21 @@ export default function RegisterPage() {
           error={fieldErrors.nhap_lai_mat_khau}
         />
         {formError && (
-          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
             {formError}
           </p>
         )}
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-md bg-blue-700 px-4 py-2 font-medium text-white hover:bg-blue-800 disabled:opacity-60"
+          className="w-full rounded-lg bg-brand-700 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:opacity-60"
         >
           {submitting ? 'Đang đăng ký…' : 'Đăng ký'}
         </button>
       </form>
-      <p className="text-sm text-slate-600">
+      <p className="text-center text-sm text-slate-600">
         Đã có tài khoản?{' '}
-        <Link to="/dang-nhap" className="font-medium text-blue-700 hover:underline">
+        <Link to="/dang-nhap" className="font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-800">
           Đăng nhập
         </Link>
       </p>

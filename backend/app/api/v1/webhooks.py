@@ -43,8 +43,9 @@ async def webhook_sepay(
         ket_qua = await sepay_webhook_service.xu_ly_giao_dich(session, du_lieu, now)
     except Exception:
         logger.exception("Webhook SePay xử lý lỗi")
-        # Trả 200 để SePay không gửi lại vô hạn; lỗi đã ghi log đầy đủ
-        return JSONResponse(content={"error": 1, "message": "loi xu ly", "ket_qua": "LOI"})
+        # Trả 200 với success=false: SePay đọc "success" để đánh dấu xác thực;
+        # không trả lỗi HTTP để tránh gửi lại vô hạn, lỗi đã ghi log đầy đủ
+        return JSONResponse(content={"success": False, "message": "loi xu ly", "ket_qua": "LOI"})
     if ket_qua.ket_qua == sepay_webhook_service.KET_QUA_XAC_NHAN and ket_qua.ma_don:
         # Gửi vé điện tử nền sau khi commit, như confirm-cash (BR-BUS-35)
         don_hang = await booking_service.load_booking(session, ket_qua.ma_don)
@@ -54,6 +55,7 @@ async def webhook_sepay(
                 ticket_notifier.deliver_tickets_safely,
                 ticket_notifier.build_ticket_email(chi_tiet),
             )
+    # SePay đọc "success" của response để đánh dấu "Xác thực thanh toán" thành công
     return JSONResponse(
-        content={"error": 0, "message": "success", "ket_qua": ket_qua.ket_qua}
+        content={"success": True, "message": "success", "ket_qua": ket_qua.ket_qua}
     )

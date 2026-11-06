@@ -1,1 +1,25 @@
 @import "tailwindcss";
+
+/*
+ * Bảng màu chung: xanh trời làm màu chính (thanh trên, chân trang, nút),
+ * vàng cho nút hành động chính trên thẻ chuyến và sơ đồ ghế.
+ * Mọi component dùng lớp brand-*, đổi màu ở đây là đổi toàn giao diện.
+ */
+@theme {
+  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand-50: #eef9fe;
+  --color-brand-100: #d8f1fc;
+  --color-brand-200: #b3e3f8;
+  --color-brand-300: #7dd0f2;
+  --color-brand-400: #3fb9ea;
+  --color-brand-500: #1ba6e0;
+  --color-brand-600: #128ac0;
+  --color-brand-700: #0f6f9c;
+  --color-brand-800: #115d80;
+  --color-brand-900: #134d6a;
+}
+
+body {
+  background-color: var(--color-brand-50);
+}

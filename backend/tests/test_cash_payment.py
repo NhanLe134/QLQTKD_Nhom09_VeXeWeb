@@ -20,7 +20,8 @@ from booking_utils import (
 from conftest import DEFAULT_NOW
 from sqlalchemy import func, select, update
 
-from app.models import ChuyenXe, GheNgoi, ThanhToan, Ve
+from app.db.seed import KHACH_HANG
+from app.models import ChuyenXe, GheNgoi, KhachHang, ThanhToan, Ve
 from app.models.enums import (
     LoaiGiaoDich,
     PhuongThucThanhToan,
@@ -343,11 +344,38 @@ async def test_email_failure_keeps_ticket_confirmed(client, seeded, set_now, mon
     assert BOOKER_EMAIL not in caplog.text
 
 
-async def test_booker_without_email_is_skipped(client, seeded, set_now, sent, caplog):
-    order = await place(client, nguoi_dat=guest(so_dien_thoai="0905333444"))
+async def test_ticket_goes_to_latest_guest_email(client, seeded, set_now, sent):
+    """Đặt lại bằng SĐT cũ với email mới: hồ sơ đổi email, giữ họ tên, vé gửi email mới."""
+    first = await place(client, ["A01"])
+    assert (await confirm(client, first)).status_code == 200
+
+    order = await place(
+        client,
+        ["A02"],
+        nguoi_dat=guest(so_dien_thoai="0905111222", ho_ten="Tên Khác", email="moi@vexe.example"),
+    )
+    response = await confirm(client, order)
+
+    assert response.status_code == 200
+    assert response.json()["nguoi_dat"] == {
+        "ho_ten": "Trần Thị Bình",
+        "so_dien_thoai": "0905111222",
+        "email": "moi@vexe.example",
+    }
+    assert [message.email for message in sent] == [BOOKER_EMAIL, "moi@vexe.example"]
+
+
+async def test_account_without_email_is_skipped(client, seeded, set_now, sent, caplog):
+    # Giới hạn: tài khoản cũ không có email thì không nhận được vé qua email
+    async with seeded() as session, session.begin():
+        await session.execute(
+            update(KhachHang).where(KhachHang.khach_hang_id == KHACH_HANG).values(email=None)
+        )
+    headers = await login_headers(client)
+    order = await place(client, headers=headers)
 
     with caplog.at_level(logging.INFO):
-        response = await confirm(client, order)
+        response = await confirm(client, order, headers)
 
     assert response.status_code == 200
     assert sent[0].email is None
