@@ -28,40 +28,46 @@ export default function PaymentMethodPicker({
   children,
 }: Props) {
   return (
-    <section aria-label="Chọn phương thức thanh toán" className="space-y-3 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
-      <h2 className="text-lg font-semibold">Chọn phương thức thanh toán</h2>
-      <p className="flex justify-between font-semibold">
-        <span>Số tiền cần trả</span>
-        <span data-testid="tong-tien-thanh-toan">{formatCurrency(tongTien)}</span>
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <section aria-label="Chọn phương thức thanh toán" className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+      <h2 className="text-sm font-bold text-slate-900">Chọn phương thức thanh toán</h2>
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 text-xs font-semibold">
+        <span className="text-slate-500">Số tiền cần trả</span>
+        <span data-testid="tong-tien-thanh-toan" className="text-base font-black text-amber-600">
+          {formatCurrency(tongTien)}
+        </span>
+      </div>
+      <div className="grid gap-2.5 sm:grid-cols-2">
         <button
           type="button"
           onClick={onChooseCash}
-          className="rounded-lg border border-brand-300 px-4 py-3 text-left hover:bg-brand-50"
+          className="rounded-xl border border-slate-200/90 bg-white p-3 text-left transition-all hover:border-brand-400 hover:bg-brand-50/40"
         >
-          <span className="block font-medium text-brand-800">Tiền mặt khi lên xe</span>
-          <span className="block text-sm text-slate-600">Trả cho tài xế lúc lên xe</span>
+          <span className="block text-xs font-bold text-slate-900">Tiền mặt khi lên xe</span>
+          <span className="block text-[11px] text-slate-500 mt-0.5">Trả cho tài xế lúc lên xe</span>
         </button>
         <button
           type="button"
           onClick={onChooseTransfer}
           aria-pressed={transferActive}
           disabled={transferLoading}
-          className={`rounded-lg border px-4 py-3 text-left hover:bg-brand-50 ${
-            transferActive ? 'border-brand-600 bg-brand-100' : 'border-brand-300'
+          className={`rounded-xl border p-3 text-left transition-all ${
+            transferActive
+              ? 'border-brand-600 bg-brand-50/70 shadow-2xs ring-1 ring-brand-200'
+              : 'border-slate-200/90 bg-white hover:border-brand-400 hover:bg-brand-50/40'
           }`}
         >
-          <span className="block font-medium text-brand-800">Chuyển khoản SePay</span>
-          <span className="block text-sm text-slate-600">
+          <span className="block text-xs font-bold text-slate-900">Chuyển khoản SePay</span>
+          <span className="block text-[11px] text-slate-500 mt-0.5">
             {transferLoading ? 'Đang tạo mã QR…' : 'Quét mã QR để thanh toán'}
           </span>
         </button>
       </div>
       {children && <div className="pt-2">{children}</div>}
-      <button type="button" onClick={onBack} className="text-sm font-medium text-slate-700 underline">
-        Quay lại thông tin hành khách
-      </button>
+      <div className="pt-1">
+        <button type="button" onClick={onBack} className="text-xs font-semibold text-slate-500 hover:text-brand-700 underline">
+          Quay lại thông tin hành khách
+        </button>
+      </div>
     </section>
   )
 }
