@@ -64,5 +64,6 @@ describe('Header', () => {
     sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 't', vai_tro: 'KHACH', ho_ten: 'An' }))
     renderHeader()
     expect(screen.getByRole('link', { name: 'Vé của tôi' })).toHaveAttribute('href', '/ve-cua-toi')
+    expect(screen.queryByRole('link', { name: 'Tra cứu vé' })).not.toBeInTheDocument()
   })
 })

@@ -18,7 +18,6 @@ type LocationsState =
   | { state: 'loaded'; data: Locations }
   | { state: 'error'; message: string }
 
-// Kết quả gắn với khóa tìm kiếm: khóa trên URL đổi thì kết quả cũ tự thành "đang tải"
 type SearchOutcome =
   | { key: string; state: 'done'; data: TripSearchResult }
   | { key: string; state: 'error'; message: string }
@@ -29,21 +28,31 @@ function errorMessage(error: unknown): string {
 
 function SuggestionList({ trips, onPick }: { trips: Trip[]; onPick: (ngay: string) => void }) {
   return (
-    <div className="space-y-2">
-      <p className="font-medium">Gợi ý chuyến cùng tuyến ngày lân cận:</p>
-      <ul className="space-y-2">
+    <div className="space-y-2 pt-1">
+      <p className="text-xs font-bold text-slate-700">Gợi ý chuyến cùng tuyến ngày lân cận:</p>
+      <ul className="space-y-1.5">
         {trips.map((trip) => (
           <li key={trip.chuyen_xe_id}>
             <button
               type="button"
               onClick={() => onPick(trip.ngay_khoi_hanh)}
-              className="w-full rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-left text-sm hover:bg-brand-100"
+              className="w-full rounded-lg border border-brand-200/80 bg-brand-50/50 px-3 py-2 text-left text-xs transition-all hover:bg-brand-100/70"
             >
-              <span className="font-semibold">Ngày {formatDate(trip.ngay_khoi_hanh)}</span>
-              {' · '}
-              {formatTime(trip.gio_di)} · {formatVehicleType(trip.ten_loai_xe, trip.so_cho)} ·{' '}
-              {formatCurrency(trip.gia_ve)} / ghế ·{' '}
-              {trip.so_ghe_trong > 0 ? `Còn ${trip.so_ghe_trong} ghế trống` : 'Hết ghế'}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="font-bold text-brand-900">Ngày {formatDate(trip.ngay_khoi_hanh)}</span>
+                  {' · '}
+                  <span className="font-semibold text-slate-800">{formatTime(trip.gio_di)}</span>
+                  {' · '}
+                  <span className="text-slate-600">{formatVehicleType(trip.ten_loai_xe, trip.so_cho)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-amber-600">{formatCurrency(trip.gia_ve)} / ghế</span>
+                  <span className={`text-[11px] font-semibold ${trip.so_ghe_trong > 0 ? 'text-emerald-700' : 'text-slate-400'}`}>
+                    {trip.so_ghe_trong > 0 ? `Còn ${trip.so_ghe_trong} ghế trống` : 'Hết ghế'}
+                  </span>
+                </div>
+              </div>
             </button>
           </li>
         ))}
@@ -100,7 +109,6 @@ export default function TripSearchPage() {
   }, [hasQuery, diemDi, diemDen, ngay, searchKey])
 
   function search(next: TripSearchQuery) {
-    // Tham số nằm trên URL để tải lại trang vẫn giữ kết quả
     setSearchParams({ di: next.diemDi, den: next.diemDen, ngay: next.ngay })
   }
 
@@ -113,12 +121,15 @@ export default function TripSearchPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold text-brand-800">Tìm chuyến</h1>
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Tìm chuyến</h1>
+        <p className="mt-0.5 text-xs text-slate-500">Tra cứu lịch trình xe và giá vé các tuyến trong ngày.</p>
+      </div>
 
       {locations.state === 'error' && (
-        <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-800 ring-1 ring-rose-200/70">
           <span>Không tải được danh sách điểm đi, điểm đến: {locations.message}</span>
-          <button type="button" onClick={retryLocations} className="font-medium underline">
+          <button type="button" onClick={retryLocations} className="font-bold underline hover:no-underline">
             Thử lại
           </button>
         </div>
@@ -132,15 +143,18 @@ export default function TripSearchPage() {
       />
 
       {hasQuery && !current && (
-        <p role="status" className="text-slate-600">
-          Đang tìm chuyến…
-        </p>
+        <div className="flex items-center justify-center py-8">
+          <p role="status" className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-medium text-slate-600 shadow-2xs border border-slate-200/80">
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+            Đang tìm chuyến…
+          </p>
+        </div>
       )}
 
       {current?.state === 'error' && (
-        <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl bg-rose-50 p-3 text-xs text-rose-800 ring-1 ring-rose-200/70">
           <span>{current.message}</span>
-          <button type="button" onClick={() => setSearchAttempt((value) => value + 1)} className="font-medium underline">
+          <button type="button" onClick={() => setSearchAttempt((value) => value + 1)} className="font-bold underline hover:no-underline">
             Thử lại
           </button>
         </div>
@@ -148,10 +162,10 @@ export default function TripSearchPage() {
 
       {current?.state === 'done' && current.data.chuyen.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
             {current.data.chuyen.length} chuyến ngày {formatDate(ngay)}
           </p>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {current.data.chuyen.map((trip) => (
               <li key={trip.chuyen_xe_id}>
                 <TripCard trip={trip} />
@@ -162,14 +176,14 @@ export default function TripSearchPage() {
       )}
 
       {current?.state === 'done' && current.data.chuyen.length === 0 && (
-        <div className="space-y-3 rounded-xl border border-brand-100 bg-white shadow-sm p-4">
-          <p role="status" className="font-medium">
+        <div className="space-y-2.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+          <p role="status" className="text-sm font-bold text-slate-800">
             Không có chuyến phù hợp ngày {formatDate(ngay)}.
           </p>
           {current.data.goi_y.length > 0 ? (
             <SuggestionList trips={current.data.goi_y} onPick={(nearbyDay) => search({ ...query, ngay: nearbyDay })} />
           ) : (
-            <p className="text-sm text-slate-600">Không có chuyến cùng tuyến vào ngày trước hoặc sau.</p>
+            <p className="text-xs text-slate-500">Không có chuyến cùng tuyến vào ngày trước hoặc sau.</p>
           )}
         </div>
       )}

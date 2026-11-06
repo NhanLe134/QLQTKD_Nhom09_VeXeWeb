@@ -66,12 +66,6 @@ function initialPoint(saved: Booking['diem_don'], options: string[], fallback: s
   return { khu_vuc: khuVuc, dia_chi: saved && khuVuc === saved.khu_vuc ? (saved.dia_chi ?? '') : '' }
 }
 
-/**
- * Giá trị một ghế còn tích "Giống người đặt" sẽ mang sau khi lưu.
- * Vé đã khớp người đặt: giữ nguyên, không gửi. Vé từng sửa rồi tích lại: lấy họ tên, SĐT
- * ghi trên vé lúc giữ ghế; backend không xác định được thì giữ nguyên vé
- * (không lấy tên hồ sơ khách hàng ghi đè vé).
- */
 function tickedValues(booking: Booking, ticket: Ticket): { values: BookerAtHold; send: boolean } {
   const current = ticketValues(ticket)
   const atHold = booking.nguoi_dat_luc_giu
@@ -175,7 +169,6 @@ export default function BookingDetailsForm({ booking, onSaved, onGone, initialEr
         return
       }
       const message = error instanceof Error ? error.message : String(error)
-      // Lỗi kèm tên trường hiện ngay dưới ô đó (BR-BUS-26); đồng hồ vẫn chạy
       if (error instanceof ApiError && error.field) {
         setErrors({ [errorKey(error.field, request.hanh_khach.map((p) => p.ve_id))]: message })
       } else {
@@ -187,7 +180,7 @@ export default function BookingDetailsForm({ booking, onSaved, onGone, initialEr
   return (
     <form aria-label="Thông tin hành khách" noValidate onSubmit={handleSubmit} className="space-y-4">
       <fieldset className="space-y-3">
-        <legend className="font-semibold">Hành khách</legend>
+        <legend className="text-xs font-bold uppercase tracking-wider text-slate-700">Hành khách</legend>
         {tickets.map((ticket) => {
           const state = passengers[ticket.ve_id]
           const shown = state.same ? tickedValues(booking, ticket).values : state
@@ -197,42 +190,46 @@ export default function BookingDetailsForm({ booking, onSaved, onGone, initialEr
               key={ticket.ve_id}
               role="group"
               aria-label={`Ghế ${ticket.so_ghe}`}
-              className="space-y-3 rounded-lg border border-slate-200 p-3"
+              className="space-y-2.5 rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-2xs"
             >
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-medium">Ghế {ticket.so_ghe}</p>
-                <label className="flex items-center gap-2 text-sm text-slate-700">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                <span className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 ring-1 ring-brand-200/60">
+                  Ghế {ticket.so_ghe}
+                </span>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={state.same}
                     onChange={(event) => updatePassenger(ticket.ve_id, { same: event.target.checked })}
-                    className="h-4 w-4"
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                   />
-                  Giống người đặt
+                  <span>Giống người đặt</span>
                 </label>
               </div>
-              <FormField
-                id={`${prefix}-ho-ten`}
-                label="Họ tên"
-                autoComplete="off"
-                value={shown.ho_ten}
-                disabled={state.same}
-                onChange={(event) => updatePassenger(ticket.ve_id, { ho_ten: event.target.value })}
-                error={errors[`ve:${ticket.ve_id}.ho_ten`]}
-              />
-              <FormField
-                id={`${prefix}-so-dien-thoai`}
-                label="Số điện thoại"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="off"
-                value={shown.so_dien_thoai}
-                disabled={state.same}
-                onChange={(event) => updatePassenger(ticket.ve_id, { so_dien_thoai: event.target.value })}
-                error={errors[`ve:${ticket.ve_id}.so_dien_thoai`]}
-              />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <FormField
+                  id={`${prefix}-ho-ten`}
+                  label="Họ tên"
+                  autoComplete="off"
+                  value={shown.ho_ten}
+                  disabled={state.same}
+                  onChange={(event) => updatePassenger(ticket.ve_id, { ho_ten: event.target.value })}
+                  error={errors[`ve:${ticket.ve_id}.ho_ten`]}
+                />
+                <FormField
+                  id={`${prefix}-so-dien-thoai`}
+                  label="Số điện thoại"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={shown.so_dien_thoai}
+                  disabled={state.same}
+                  onChange={(event) => updatePassenger(ticket.ve_id, { so_dien_thoai: event.target.value })}
+                  error={errors[`ve:${ticket.ve_id}.so_dien_thoai`]}
+                />
+              </div>
               {errors[`ve:${ticket.ve_id}.ve_id`] && (
-                <p className="text-sm text-red-600">{errors[`ve:${ticket.ve_id}.ve_id`]}</p>
+                <p className="text-[11px] font-semibold text-rose-600">{errors[`ve:${ticket.ve_id}.ve_id`]}</p>
               )}
             </div>
           )
@@ -240,7 +237,7 @@ export default function BookingDetailsForm({ booking, onSaved, onGone, initialEr
       </fieldset>
 
       <fieldset className="space-y-3">
-        <legend className="font-semibold">Điểm đón/trả</legend>
+        <legend className="text-xs font-bold uppercase tracking-wider text-slate-700">Điểm đón/trả</legend>
         <PointFields
           id="diem-don"
           field="diem_don"
@@ -262,14 +259,14 @@ export default function BookingDetailsForm({ booking, onSaved, onGone, initialEr
       </fieldset>
 
       {formError && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/70">
           {formError}
         </p>
       )}
       <button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-lg bg-brand-700 px-4 py-2 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:bg-slate-400"
+        className="w-full rounded-xl bg-brand-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-2xs transition-all hover:bg-brand-700 active:scale-[0.98] disabled:bg-slate-300"
       >
         {submitting ? 'Đang lưu…' : 'Lưu thông tin'}
       </button>
@@ -290,9 +287,9 @@ type PointFieldsProps = {
 function PointFields({ id, field, label, options, value, onChange, errors }: PointFieldsProps) {
   const areaError = errors[`${field}.khu_vuc`]
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-2xs">
       <div className="space-y-1">
-        <label htmlFor={`${id}-khu-vuc`} className="block text-sm font-semibold text-brand-800">
+        <label htmlFor={`${id}-khu-vuc`} className="block text-xs font-bold uppercase tracking-wider text-slate-700">
           {label}
         </label>
         <select
@@ -301,8 +298,8 @@ function PointFields({ id, field, label, options, value, onChange, errors }: Poi
           onChange={(event) => onChange({ ...value, khu_vuc: event.target.value })}
           aria-invalid={areaError ? true : undefined}
           aria-describedby={areaError ? `${id}-khu-vuc-error` : undefined}
-          className={`w-full rounded-lg border bg-white px-3 py-2 text-base outline-none focus:ring-2 focus:ring-brand-400 ${
-            areaError ? 'border-red-500' : 'border-slate-300'
+          className={`w-full rounded-lg border bg-white px-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-900 outline-none transition-all focus:border-brand-500 focus:ring-2 focus:ring-brand-100 ${
+            areaError ? 'border-rose-400 bg-rose-50/20' : 'border-slate-300 hover:border-slate-400'
           }`}
         >
           {options.map((stop) => (
@@ -312,7 +309,7 @@ function PointFields({ id, field, label, options, value, onChange, errors }: Poi
           ))}
         </select>
         {areaError && (
-          <p id={`${id}-khu-vuc-error`} className="text-sm text-red-600">
+          <p id={`${id}-khu-vuc-error`} className="text-[11px] font-medium text-rose-600">
             {areaError}
           </p>
         )}

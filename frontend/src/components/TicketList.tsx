@@ -10,47 +10,67 @@ type Props = {
 }
 
 /**
- * Vé điện tử: mỗi ghế một vé, mã vé là `ve_id` (BR-BUS-35). Dùng ở màn đặt vé thành công,
- * "Vé của tôi" và "Tra cứu vé".
+ * Vé điện tử: mỗi ghế một vé, hiển thị gọn gàng, rõ ràng
  */
 export default function TicketList({ tickets, label = 'Vé điện tử', onExchange }: Props) {
   return (
-    <ul aria-label={label} className="space-y-3">
+    <ul aria-label={label} className="space-y-2.5">
       {tickets.map((ve) => (
         <li
           key={ve.ve_id}
           aria-label={`Vé ${ve.ve_id}`}
-          className="rounded-lg border border-dashed border-slate-300 bg-white p-3"
+          className="rounded-xl border border-slate-200/90 bg-white p-3 shadow-2xs transition-all hover:border-brand-200 hover:shadow-xs"
         >
-          <div className="flex items-baseline justify-between gap-2">
-            <p className="font-semibold">
-              Mã vé: <span className="font-mono">{ve.ve_id}</span>
+          {/* Hàng tiêu đề vé */}
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <p className="text-xs font-bold text-slate-700">
+              Mã vé: <span className="font-mono font-bold text-brand-800">{ve.ve_id}</span>
             </p>
-            <p className="text-sm font-medium text-slate-700">Ghế {ve.so_ghe}</p>
+            <span className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 ring-1 ring-brand-200/60">
+              Ghế {ve.so_ghe}
+            </span>
           </div>
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-            <dt className="text-slate-500">Hành khách</dt>
-            <dd>{ve.ho_ten ?? '—'}</dd>
-            <dt className="text-slate-500">Điểm đón</dt>
-            <dd>{ve.diem_don ?? '—'}</dd>
-            <dt className="text-slate-500">Điểm trả</dt>
-            <dd>{ve.diem_tra ?? '—'}</dd>
-            <dt className="text-slate-500">Giá vé</dt>
-            <dd>{formatCurrency(ve.gia_ve)}</dd>
-            <dt className="text-slate-500">Trạng thái</dt>
-            <dd className="font-medium text-amber-700">{formatPaymentStatus(ve.trang_thai_thanh_toan)}</dd>
+
+          {/* Chi tiết thông tin vé */}
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs sm:grid-cols-3">
+            <div>
+              <dt className="text-[11px] font-medium text-slate-400">Hành khách</dt>
+              <dd className="font-semibold text-slate-800 truncate">{ve.ho_ten ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-medium text-slate-400">Giá vé</dt>
+              <dd className="font-bold text-amber-600">{formatCurrency(ve.gia_ve)}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] font-medium text-slate-400">Trạng thái</dt>
+              <dd className={`font-semibold ${ve.trang_thai_thanh_toan === 'DA_THANH_TOAN' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {formatPaymentStatus(ve.trang_thai_thanh_toan)}
+              </dd>
+            </div>
+            <div className="col-span-2 sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 pt-1.5 border-t border-slate-100">
+              <div>
+                <dt className="text-[11px] font-medium text-slate-400">Điểm đón</dt>
+                <dd className="text-slate-600 truncate">{ve.diem_don ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] font-medium text-slate-400">Điểm trả</dt>
+                <dd className="text-slate-600 truncate">{ve.diem_tra ?? '—'}</dd>
+              </div>
+            </div>
           </dl>
+
+          {/* Nút Đổi vé */}
           {onExchange && ve.trang_thai_ve === 'DA_XAC_NHAN' && (
-            <div className="mt-3 flex justify-end border-t border-slate-100 pt-2">
+            <div className="mt-2.5 flex justify-end border-t border-slate-100 pt-2">
               <button
                 type="button"
                 onClick={() => onExchange(ve)}
-                className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700 hover:bg-brand-100 transition-colors"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                 </svg>
-                Đổi vé
+                <span>Đổi vé</span>
               </button>
             </div>
           )}

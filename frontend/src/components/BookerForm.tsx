@@ -15,7 +15,6 @@ type Props = {
 
 type FieldErrors = Partial<Record<'ho_ten' | 'so_dien_thoai' | 'email', string>>
 
-// Kiểm tra phía client chỉ để báo lỗi sớm; backend vẫn kiểm tra lại (BR-BUS-20)
 function validate(hoTen: string, soDienThoai: string, email: string): FieldErrors {
   const errors: FieldErrors = {}
   if (!hoTen.trim()) {
@@ -24,7 +23,6 @@ function validate(hoTen: string, soDienThoai: string, email: string): FieldError
   if (!isValidPhone(soDienThoai)) {
     errors.so_dien_thoai = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0'
   }
-  // Email bắt buộc: vé được gửi về email này
   if (!email.trim()) {
     errors.email = 'Vui lòng nhập email'
   } else if (!isValidEmail(email)) {
@@ -35,11 +33,11 @@ function validate(hoTen: string, soDienThoai: string, email: string): FieldError
 
 function Actions({ submitting, onCancel }: Pick<Props, 'submitting' | 'onCancel'>) {
   return (
-    <div className="flex gap-2">
+    <div className="flex items-center gap-3 pt-2">
       <button
         type="submit"
         disabled={submitting}
-        className="flex-1 rounded-lg bg-brand-700 px-4 py-2 font-semibold text-white shadow-sm hover:bg-brand-800 disabled:bg-slate-400"
+        className="flex-1 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-2xs transition-all hover:bg-brand-700 active:scale-[0.98] disabled:opacity-50"
       >
         {submitting ? 'Đang giữ ghế…' : 'Xác nhận giữ ghế'}
       </button>
@@ -47,7 +45,7 @@ function Actions({ submitting, onCancel }: Pick<Props, 'submitting' | 'onCancel'
         type="button"
         onClick={onCancel}
         disabled={submitting}
-        className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700"
+        className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
       >
         Hủy
       </button>
@@ -80,27 +78,34 @@ function AccountBooker({ onSubmit, onCancel, submitting }: Props) {
 
   const profile = me?.khach_hang
   return (
-    <form aria-label="Thông tin người đặt" onSubmit={handleSubmit} className="space-y-3">
-      <p className="text-sm text-slate-600">Vé được đặt theo hồ sơ tài khoản của bạn.</p>
+    <form aria-label="Thông tin người đặt" onSubmit={handleSubmit} className="space-y-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        Vé sẽ được đặt theo hồ sơ tài khoản:
+      </p>
       {loadError && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs font-semibold text-rose-700">
           {loadError}
         </p>
       )}
-      {!me && !loadError && <p role="status">Đang tải thông tin tài khoản…</p>}
-      {me && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          <dt className="text-slate-500">Họ tên</dt>
-          <dd>{profile?.ho_ten ?? me.ten_dang_nhap}</dd>
-          <dt className="text-slate-500">Số điện thoại</dt>
-          <dd>{profile?.so_dien_thoai ?? me.so_dien_thoai}</dd>
-          <dt className="text-slate-500">Email</dt>
-          <dd>{profile?.email ?? 'Không có'}</dd>
-        </dl>
+      {!me && !loadError && (
+        <p role="status" className="text-sm text-slate-500">
+          Đang tải thông tin tài khoản…
+        </p>
       )}
-      {/* Giới hạn đã biết: tài khoản cũ chưa có email thì không nhận được vé qua email */}
+      {me && (
+        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">Họ tên</dt>
+            <dd className="font-semibold text-slate-800">{profile?.ho_ten ?? me.ten_dang_nhap}</dd>
+            <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">Số điện thoại</dt>
+            <dd className="font-semibold text-slate-800">{profile?.so_dien_thoai ?? me.so_dien_thoai}</dd>
+            <dt className="text-xs font-bold uppercase tracking-wider text-slate-400">Email</dt>
+            <dd className="font-semibold text-slate-800">{profile?.email ?? 'Không có'}</dd>
+          </dl>
+        </div>
+      )}
       {me && !profile?.email && (
-        <p role="note" className="text-sm text-amber-700">
+        <p role="note" className="text-xs font-medium text-amber-700">
           Tài khoản chưa có email nên vé sẽ không được gửi qua email.
         </p>
       )}
@@ -130,7 +135,7 @@ function GuestBooker({ onSubmit, onCancel, submitting }: Props) {
   }
 
   return (
-    <form aria-label="Thông tin người đặt" noValidate onSubmit={handleSubmit} className="space-y-3">
+    <form aria-label="Thông tin người đặt" noValidate onSubmit={handleSubmit} className="space-y-3.5">
       <FormField
         id="nguoi-dat-ho-ten"
         label="Họ tên"
@@ -164,7 +169,6 @@ function GuestBooker({ onSubmit, onCancel, submitting }: Props) {
   )
 }
 
-/** Người đặt (BR-BUS-20): khách vãng lai nhập, khách đã đăng nhập chỉ xác nhận. */
 export default function BookerForm(props: Props) {
   const { user } = useAuth()
   return user ? <AccountBooker {...props} /> : <GuestBooker {...props} />

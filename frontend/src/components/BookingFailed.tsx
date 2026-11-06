@@ -8,7 +8,6 @@ const REASONS: Record<FailureReason, string> = {
   TU_HUY: 'Bạn đã hủy đặt vé',
   HET_GIO: 'Hết thời gian giữ chỗ',
   HET_HAN: 'Hết thời gian giữ chỗ',
-  // Backend không phân biệt đơn tự hủy với đơn hết hạn đã được nhả (docs/API.md)
   DA_HUY: 'Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ',
 }
 
@@ -21,23 +20,27 @@ type Props = {
 export default function BookingFailed({ reason, maDon, chuyenXeId }: Props) {
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold text-brand-800">Đặt vé thất bại</h1>
-      <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 font-medium text-red-700">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Đặt vé thất bại</h1>
+        <p className="text-xs font-semibold text-slate-500">
+          Mã đơn: <span className="font-mono font-bold text-slate-900">{maDon}</span>
+        </p>
+      </div>
+
+      <p role="alert" className="rounded-xl bg-rose-50 p-3.5 text-xs sm:text-sm font-semibold text-rose-700 ring-1 ring-rose-200/70">
         {REASONS[reason]}
       </p>
-      <p className="text-slate-600">
-        Mã đơn: <span className="font-semibold text-slate-900">{maDon}</span>
-      </p>
-      <div className="flex flex-col gap-2 sm:flex-row">
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <Link
           to={`/chuyen/${encodeURIComponent(chuyenXeId)}`}
-          className="rounded-lg bg-brand-700 px-4 py-2 text-center font-semibold text-white shadow-sm hover:bg-brand-800"
+          className="rounded-lg bg-brand-600 px-4 py-2 text-center text-xs font-bold text-white shadow-2xs transition-all hover:bg-brand-700 active:scale-[0.98]"
         >
           Chọn lại ghế
         </Link>
         <Link
           to="/tim-chuyen"
-          className="rounded-lg border border-slate-300 px-4 py-2 text-center font-medium text-slate-700 hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
         >
           Tìm chuyến khác
         </Link>

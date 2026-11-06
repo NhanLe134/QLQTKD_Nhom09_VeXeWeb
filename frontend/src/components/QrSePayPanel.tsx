@@ -17,50 +17,52 @@ export default function QrSePayPanel({ qr, conLaiMs }: Props) {
     <section
       aria-label="Mã QR chuyển khoản SePay"
       data-testid="qr-se-pay-panel"
-      className="mx-auto w-full max-w-sm space-y-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-center"
+      className="mx-auto w-full max-w-xs space-y-2.5 rounded-2xl border border-brand-200/90 bg-brand-50/50 p-4 text-center shadow-2xs"
     >
-      <h3 className="font-semibold text-blue-900">Quét mã QR để chuyển khoản</h3>
-      <img
-        src={qr.qr_url}
-        alt={`Mã QR chuyển khoản ${formatCurrency(qr.so_tien)}`}
-        data-testid="qr-se-pay-hinh"
-        className="mx-auto h-48 w-48 rounded-md bg-white p-1"
-      />
-      <dl className="space-y-1 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-slate-600">Số tiền</dt>
-          <dd data-testid="qr-se-pay-so-tien" className="font-semibold">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-brand-900">Quét mã QR để chuyển khoản</h3>
+      <div className="flex justify-center py-1">
+        <img
+          src={qr.qr_url}
+          alt={`Mã QR chuyển khoản ${formatCurrency(qr.so_tien)}`}
+          data-testid="qr-se-pay-hinh"
+          className="h-40 w-40 rounded-xl bg-white p-2 shadow-2xs border border-brand-100 object-contain"
+        />
+      </div>
+      <dl className="space-y-1.5 rounded-xl bg-white p-2.5 text-xs border border-brand-100/80">
+        <div className="flex items-center justify-between">
+          <dt className="text-slate-500 font-medium">Số tiền</dt>
+          <dd data-testid="qr-se-pay-so-tien" className="font-extrabold text-amber-600">
             {formatCurrency(qr.so_tien)}
           </dd>
         </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-slate-600">Nội dung chuyển khoản</dt>
-          <dd data-testid="qr-se-pay-noi-dung" className="font-mono font-semibold">
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-1">
+          <dt className="text-slate-500 font-medium">Nội dung chuyển khoản</dt>
+          <dd data-testid="qr-se-pay-noi-dung" className="font-mono font-bold text-brand-800 bg-brand-50 px-1.5 py-0.5 rounded">
             {qr.noi_dung}
           </dd>
         </div>
       </dl>
-      <p className="text-xs text-slate-600">
+      <p className="text-[11px] text-slate-500">
         Vui lòng chuyển đúng số tiền và nội dung trên để vé được xác nhận tự động.
       </p>
-      <p role="status" className="flex items-center justify-center gap-2 text-sm text-blue-700">
+      <p role="status" className="flex items-center justify-center gap-1.5 text-xs font-semibold text-brand-700">
         <span
           aria-hidden="true"
-          className="h-4 w-4 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700"
+          className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-300 border-t-brand-700"
         />
         Đang chờ xác nhận thanh toán…
       </p>
       {expired ? (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+        <p role="alert" className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200/60">
           Quá thời gian chuyển khoản. Bấm "Chuyển khoản SePay" để nhận lại mã QR.
         </p>
       ) : (
-        <p className="text-slate-700">
+        <p className="text-xs text-slate-600 font-medium">
           Thời gian chuyển khoản còn lại:{' '}
           <span
             role="timer"
             aria-label="Thời gian chuyển khoản còn lại"
-            className="font-mono text-lg font-semibold text-blue-700"
+            className="font-mono text-sm font-bold text-brand-700"
           >
             {conLaiMs === null ? formatCountdown(0) : formatCountdown(conLaiMs)}
           </span>

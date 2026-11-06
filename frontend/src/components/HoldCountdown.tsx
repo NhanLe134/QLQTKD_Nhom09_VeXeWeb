@@ -11,7 +11,7 @@ type Props = {
 export default function HoldCountdown({ remainingMs }: Props) {
   if (remainingMs === null || remainingMs <= 0) {
     return (
-      <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 font-medium text-red-700">
+      <p role="alert" className="rounded-xl bg-rose-50 px-3.5 py-2 text-xs font-bold text-rose-700 ring-1 ring-rose-200/70">
         Hết thời gian giữ chỗ
       </p>
     )
@@ -20,18 +20,22 @@ export default function HoldCountdown({ remainingMs }: Props) {
   const warning = remainingMs <= HOLD_WARNING_MS
   return (
     <div className="space-y-2">
-      <p className="text-slate-700">
-        Thời gian giữ chỗ còn lại:{' '}
+      <div className={`flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2 text-xs shadow-2xs transition-colors ${
+        warning ? 'border-amber-300 bg-amber-50/70' : 'border-slate-200/90 bg-white'
+      }`}>
+        <span className="font-medium text-slate-700">
+          Thời gian giữ chỗ còn lại:{' '}
+        </span>
         <span
           role="timer"
           aria-label="Thời gian giữ chỗ còn lại"
-          className={`font-mono text-lg font-semibold ${warning ? 'text-red-600' : 'text-brand-700'}`}
+          className={`font-mono text-sm font-black ${warning ? 'text-rose-600 animate-pulse' : 'text-brand-700'}`}
         >
           {formatCountdown(remainingMs)}
         </span>
-      </p>
+      </div>
       {warning && (
-        <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <p role="alert" className="rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 ring-1 ring-amber-200/60">
           Sắp hết thời gian giữ chỗ, vui lòng hoàn tất đặt vé.
         </p>
       )}
