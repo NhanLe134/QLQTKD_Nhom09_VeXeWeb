@@ -669,7 +669,7 @@ Khách bấm **Hủy** ở bất kỳ bước nào trước khi xác nhận thì
 | `DANG_GIU` | Nhả ghế, trả **200**, `trang_thai_don = DA_HUY` |
 | `HET_HAN` | Nhả ghế (dọn trước job), trả **200**, `trang_thai_don = DA_HUY` |
 | `DA_HUY` | Không đổi gì, trả **200** (gọi lại nhiều lần đều thành công) |
-| `DA_XAC_NHAN` | **400** (hủy vé sau xác nhận nằm ngoài phạm vi task này) |
+| `DA_XAC_NHAN` | **400**; hủy vé đã xác nhận dùng `POST /bookings/{ma_don}/cancel-tickets` (mục "Hủy vé đã xác nhận và hoàn tiền") |
 
 Khi nhả ghế:
 
@@ -901,3 +901,166 @@ Nhận thông tin vé cần đổi và ghế/chuyến mới từ Frontend, sau �
 **Mã lỗi**
 - `400`: n8n từ chối do vi phạm chính sách đổi (sau 24h, vé mới đắt hơn vé cũ, ghế đã có người đặt).
 - `502`: Không thể kết nối tới n8n Webhook.
+
+---
+
+## Hủy vé đã xác nhận và hoàn tiền — BPMN "Xử lý hủy vé" (F-37 → F-59)
+
+Theo BPMN, **hệ thống tự duyệt** yêu cầu hủy bằng quy tắc (cổng XOR "Được phép hủy?"). Nhà xe **không duyệt** yêu cầu hủy; nhà xe chỉ chuyển tiền hoàn bằng tay rồi đánh dấu "Đã hoàn". Hoàn tự động qua SePay nằm ngoài phạm vi.
+
+### Quy tắc
+
+`con_lai = chuyen_xe.gio_di − thời điểm hiện tại` (đồng hồ `get_now()` của backend). Frontend **không tự tính** mức hoàn.
+
+| Điều kiện | Kết quả |
+|---|---|
+| Vé không ở `DA_XAC_NHAN` | Từ chối: `Chỉ hủy được vé đã xác nhận` / `Vé đã bị hủy` |
+| Chuyến `HOAN_THANH` hoặc `DA_HUY` | Từ chối: `Chuyến xe đã kết thúc hoặc đã bị hủy, không thể hủy vé` |
+| `con_lai > 24 giờ` | Hoàn **100%** giá vé |
+| `12 giờ ≤ con_lai ≤ 24 giờ` (đúng mốc 24 giờ và đúng mốc 12 giờ đều được 50%) | Hoàn **50%** (làm tròn tới đồng) |
+| `con_lai < 12 giờ` | Từ chối: `Không thể hủy vé khi còn dưới 12 giờ trước giờ khởi hành` |
+| Vé `CHO_THU_TIEN_MAT` (tiền mặt chưa thu) | Được hủy, `muc_hoan = 0`, không tạo khoản hoàn |
+| Vé `DA_THANH_TOAN` và `muc_hoan > 0` | Bắt buộc `ngan_hang_nhan`, `so_tai_khoan_nhan` |
+
+Định dạng tài khoản nhận: `ngan_hang_nhan` dài 2–100 ký tự sau khi bỏ khoảng trắng đầu/cuối; `so_tai_khoan_nhan` chỉ gồm chữ số, 6–20 số.
+
+### GET `/api/v1/bookings/{ma_don}/cancel-quote` — Xem trước mức hoàn
+
+Quyền giống `GET /bookings/{ma_don}`: tài khoản sở hữu đơn hoặc header `X-Ma-Truy-Cap` đúng; sai quyền → **404**. Chỉ đọc, không ghi.
+
+**Response 200**
+```json
+{
+  "ma_don": "DH00100000",
+  "thoi_diem_hien_tai": "2026-12-13T17:00:00Z",
+  "ve": [
+    {
+      "ve_id": "VE00100001", "so_ghe": "A01", "gia_ve": 200000,
+      "trang_thai_ve": "DA_XAC_NHAN", "trang_thai_thanh_toan": "DA_THANH_TOAN",
+      "duoc_huy": true, "ly_do": null, "ti_le_hoan": 100, "muc_hoan": 200000,
+      "ghi_chu": null, "can_tai_khoan_nhan": true
+    }
+  ]
+}
+```
+- `ly_do`: lý do không được hủy (nguyên văn tiếng Việt), `null` khi được hủy.
+- `ti_le_hoan`: 100 hoặc 50; 0 khi không được hủy.
+- `ghi_chu`: ví dụ vé tiền mặt chưa thu: `Vé trả tiền mặt khi lên xe chưa thu tiền nên không phát sinh hoàn tiền`.
+
+### POST `/api/v1/bookings/{ma_don}/cancel-tickets` — Hủy vé
+
+Quyền như trên. Khác `POST /bookings/{ma_don}/cancel` (hủy đơn **đang giữ ghế**, BR-BUS-33).
+
+**Request**
+```json
+{
+  "ve_ids": ["VE00100001"],
+  "ngan_hang_nhan": "Vietcombank",
+  "so_tai_khoan_nhan": "0123456789",
+  "muc_hoan_xac_nhan": 200000
+}
+```
+- `ve_ids`: một hoặc nhiều vé **của đơn này**, không trùng.
+- `ngan_hang_nhan`, `so_tai_khoan_nhan`: chỉ cần khi có vé đã chuyển khoản và `muc_hoan > 0`; không cần thì bị bỏ qua, không lưu.
+- `muc_hoan_xac_nhan` (không bắt buộc, frontend luôn gửi): tổng `muc_hoan` của các vé sắp hủy mà khách đã xem ở `cancel-quote`. Mức tính lại khi hủy khác số này (ví dụ vừa qua mốc 24 giờ) → **409**, không hủy gì.
+
+Xử lý trong **một transaction**:
+1. Khóa theo thứ tự chung `lock_booking`: khách hàng → ghế (của vé `GIU_CHO` và của các vé cần hủy) theo `ghe_id` → vé của đơn.
+2. Đọc lại đơn sau khi khóa; kiểm tra lại quy tắc theo `get_now()`. Vé đã bị đổi chuyến/ghế so với lúc đọc trước khi khóa → **409** `Vé vừa được thay đổi, vui lòng tải lại trang`. Một vé không hợp lệ thì **không ghi gì** cho cả request.
+3. Mỗi vé: tạo `yeu_cau_huy_doi` (`loai_yeu_cau = HUY`, `trang_thai = DA_DUYET`, `chuyen_xe_cu_id`, `ghe_cu_id`, `gia_ve_cu`, `muc_hoan`, ngân hàng và số tài khoản nhận nếu cần); `ve` → `DA_HUY`; `ghe_ngoi` → `TRONG`, `khach_hang_id` và `han_giu_cho` về NULL. Ghế đặt lại được ngay.
+4. `muc_hoan > 0` → tạo `thanh_toan` (`ve_id`, `ma_don`, `so_tien = muc_hoan`, `CHUYEN_KHOAN_SEPAY`, `CHO_THANH_TOAN`, `loai_giao_dich = HOAN_TIEN`) chờ nhà xe hoàn tay.
+5. Vé tiền mặt chưa thu: dòng `thanh_toan` `TIEN_MAT` của đơn (ghi tổng cả đơn), **chỉ khi còn `CHO_THANH_TOAN`**: hủy một phần → `so_tien` trừ đi giá các vé vừa hủy; hủy hết vé tiền mặt → `THAT_BAI`, giữ `so_tien` là số còn phải thu trước lần hủy cuối. Giá gốc từng vé vẫn ở `yeu_cau_huy_doi.gia_ve_cu`. Dòng đã `DA_THANH_TOAN` (tài xế đã thu) không bị sửa.
+
+Sau commit, gửi **biên lai hủy qua email giả lập** (chạy nền, chỉ ghi log `Gửi biên lai hủy ma_don=... so_ve=... tong_hoan=...`). Lỗi gửi chỉ ghi log tên lớp lỗi, không ảnh hưởng vé đã hủy. Gọi lại không gửi lần nữa.
+
+**Gọi lại (idempotent):** vé đã hủy bằng endpoint này trả **200** với biên lai cũ, không ghi thêm, bỏ qua tài khoản và `muc_hoan_xac_nhan` mới. Hai request hủy cùng lúc cùng một vé: chỉ một `yeu_cau_huy_doi` và một khoản hoàn được tạo, cả hai nhận cùng biên lai.
+
+**Response 200 — biên lai**
+```json
+{
+  "ma_don": "DH00100000",
+  "chuyen": { "chuyen_xe_id": "CX00000001", "ten_tuyen": "Đà Nẵng - Huế" },
+  "ve": [
+    {
+      "yeu_cau_id": "YC00100000", "ve_id": "VE00100001", "so_ghe": "A01",
+      "gia_ve": 200000, "muc_hoan": 200000,
+      "trang_thai_hoan": "CHO_HOAN_TIEN", "ngay_huy": "2026-12-13T17:00:00Z"
+    }
+  ],
+  "tong_hoan": 200000,
+  "ngan_hang_nhan": "Vietcombank",
+  "so_tai_khoan_nhan": "****6789"
+}
+```
+`chuyen` có đủ các trường như `GET /bookings/{ma_don}`. `trang_thai_hoan`: `CHO_HOAN_TIEN` (chờ nhà xe chuyển), `DA_HOAN_TIEN` (nhà xe đã đánh dấu), `KHONG_HOAN_TIEN` (`muc_hoan = 0`). Số tài khoản trong biên lai chỉ hiện 4 số cuối.
+
+**Lỗi** (dạng `{"detail", "truong"}`)
+
+| Mã | `detail` | `truong` | Khi nào |
+|---|---|---|---|
+| 400 | `Không thể hủy vé khi còn dưới 12 giờ trước giờ khởi hành`, `Chỉ hủy được vé đã xác nhận`, `Vé đã bị hủy`, ... | `ve_ids[i]` | Vé thứ `i` không qua cổng "Được phép hủy?" |
+| 404 | `Không tìm thấy đơn` / `Không tìm thấy vé` | — / `null` | Sai quyền, đơn không tồn tại, hoặc `ve_id` không thuộc đơn |
+| 409 | `Vé vừa được thay đổi, vui lòng tải lại trang` | `ve_ids[i]` | Vé bị đổi (n8n) trong lúc chờ khóa |
+| 409 | `Mức hoàn đã thay đổi thành 100.000 đ, vui lòng xem lại trước khi hủy` | `null` | `muc_hoan_xac_nhan` khác mức tính lại |
+| 422 | `Vui lòng chọn vé cần hủy` / `Danh sách vé cần hủy bị trùng` | `ve_ids` | |
+| 422 | `Vui lòng nhập ngân hàng nhận tiền hoàn` / `Tên ngân hàng phải từ 2 đến 100 ký tự` | `ngan_hang_nhan` | |
+| 422 | `Vui lòng nhập số tài khoản nhận tiền hoàn` / `Số tài khoản chỉ gồm chữ số, từ 6 đến 20 số` | `so_tai_khoan_nhan` | |
+
+Log: `Hủy vé ma_don=... so_ve=... tong_hoan=...`. Log **không** chứa SĐT, họ tên, email, số tài khoản, mã truy cập (có test kiểm tra).
+
+### GET `/api/v1/refunds` — Khoản chờ hoàn (chỉ NHA_XE)
+
+`require_role(NHA_XE)`: chưa đăng nhập → 401; KHACH, TAI_XE, ADMIN → 403. Trả các dòng `thanh_toan` `HOAN_TIEN` + `CHO_THANH_TOAN`, hủy sớm nhất trước. Hệ thống chỉ có một nhà xe (BR-BUS-38) nên không lọc theo nhà xe.
+
+```json
+[
+  {
+    "thanh_toan_id": "TT00100005", "yeu_cau_id": "YC00100000",
+    "ma_don": "DH00100000", "ve_id": "VE00100001", "so_ghe": "A01",
+    "chuyen": { "chuyen_xe_id": "CX00000001", "ten_tuyen": "Đà Nẵng - Huế" },
+    "gia_ve": 200000, "so_tien": 200000,
+    "ngay_huy": "2026-12-13T17:00:00Z",
+    "ngan_hang_nhan": "Vietcombank", "so_tai_khoan_nhan": "0123456789",
+    "trang_thai_thanh_toan": "CHO_THANH_TOAN", "ngay_thanh_toan": null, "ma_giao_dich": null
+  }
+]
+```
+Số tài khoản trả **đầy đủ** vì nhà xe cần để chuyển tiền; không chứa SĐT, họ tên khách. Dòng `THANH_TOAN` / `THAT_BAI` do tiền SePay đến muộn (BR-BUS-32) **không** có trong danh sách này.
+
+### POST `/api/v1/refunds/{thanh_toan_id}/complete` — Đánh dấu đã hoàn (chỉ NHA_XE)
+
+Body: `{"ma_giao_dich": "FT26121500"}`: mã giao dịch ngân hàng, 1–50 ký tự gồm chữ, số, `-`, `_`, `.` (bỏ khoảng trắng đầu/cuối). Khóa dòng `thanh_toan`, chuyển `DA_THANH_TOAN`, ghi `ngay_thanh_toan` và `ma_giao_dich` (UNIQUE). Response 200 cùng dạng một phần tử của `GET /refunds`.
+
+- Gọi lại **cùng mã** → 200, trả kết quả cũ, không ghi thêm.
+- Đã đánh dấu bằng mã khác → **409** `Khoản hoàn này đã được đánh dấu với mã giao dịch khác`.
+- Mã đã dùng cho dòng `thanh_toan` khác (kể cả do hai request cùng lúc) → **409** `Mã giao dịch đã được dùng cho giao dịch khác`.
+- Sai định dạng / trống → **422** kèm `truong: "ma_giao_dich"`. Không tìm thấy → **404**.
+
+Log: `Đánh dấu đã hoàn thanh_toan_id=...` (không có mã giao dịch, số tài khoản).
+
+### Giao diện
+
+- "Vé của tôi" (`/ve-cua-toi`, dùng token) và màn xem vé đã xác nhận (`/dat-ve/{ma_don}`, dùng mã truy cập trong tab): nút **Hủy vé** cạnh **Đổi vé** → mức hoàn từ `cancel-quote` (hoặc lý do không được hủy) → ô ngân hàng/số tài khoản khi `can_tai_khoan_nhan` → hộp xác nhận trong trang → màn **Hủy vé thành công** kèm biên lai.
+- `/nha-xe/hoan-tien` (chỉ NHA_XE, menu "Hoàn tiền"): danh sách khoản chờ hoàn, nút **Đã hoàn** → nhập mã giao dịch → hộp xác nhận.
+- Trang "Tra cứu vé" **không** có nút Hủy vé (xem "Rủi ro đã biết").
+
+### Hủy và đổi vé (n8n) cùng lúc — các bước workflow n8n BẮT BUỘC làm
+
+Đổi vé (`POST /bookings/exchange`) do n8n ghi thẳng vào CSDL; backend không kiểm soát được transaction của n8n. Để hủy và đổi cùng một vé không cùng thành công, workflow n8n đổi vé **bắt buộc**:
+
+1. Chạy mọi thao tác đọc/ghi trong **một transaction**.
+2. Khóa theo **cùng thứ tự** với backend: `khach_hang` của vé (`SELECT ... FOR UPDATE`) → ghế cũ và ghế mới, **sắp theo `ghe_id`** (`FOR UPDATE`) → `ve`.
+3. Sau khi khóa: `SELECT ... FROM ve WHERE ve_id = $1 AND trang_thai_ve = 'DA_XAC_NHAN' FOR UPDATE`. **Không còn dòng nào → từ chối đổi** (vé vừa bị hủy).
+4. Ghế mới phải còn `TRONG` (kiểm tra trong `WHERE` của lệnh UPDATE và kiểm tra số dòng bị ảnh hưởng).
+5. Ghi `yeu_cau_huy_doi` loại `DOI`, đổi `ve.chuyen_xe_id` / `ve.ghe_id`, trả ghế cũ về `TRONG`, rồi mới commit.
+
+Phía hủy: đọc vé trước khi khóa, khóa, đọc lại; vé đã đổi chuyến/ghế → 409, không hủy.
+
+**Giới hạn của test:** `backend/tests/test_ticket_cancel.py` dùng hàm `exchange_like_n8n` mô phỏng đúng 5 bước trên. Hai test `test_exchange_wins_then_cancel_returns_409` và `test_cancel_wins_then_exchange_is_refused` **chỉ chứng minh phía hủy vé đúng khi n8n làm đúng các bước này**. Test không kiểm tra workflow n8n thật (workflow không nằm trong repo). Nếu n8n không khóa theo các bước trên, đổi vé vẫn có thể ghi đè một vé vừa bị hủy.
+
+---
+
+## Rủi ro đã biết (chưa xử lý)
+
+1. **Tra cứu vé chỉ bằng số điện thoại** (`GET /api/v1/bookings/lookup?phone=...`). Không cần đăng nhập, không cần mã đơn, không giới hạn số lần gọi. Ai biết (hoặc dò) một SĐT là xem được mọi đơn đã xác nhận có SĐT đó, gồm họ tên, SĐT từng hành khách, mã đơn, mã vé, điểm đón/trả. Trái BR-BUS-36 (tra cứu bằng **mã đơn + SĐT**) và BR-BUS-37. Trang "Tra cứu vé" **không có nút Hủy vé**; kết quả tra cứu không có mã truy cập nên các endpoint hủy vé vẫn trả 404. Cần sửa ở một task riêng: bắt buộc mã đơn + SĐT và giới hạn số lần thử.
+2. **Đổi vé không xác thực** (`POST /api/v1/bookings/exchange`). Endpoint không kiểm tra quyền (không dùng `get_accessible_booking` hay `require_role`), chỉ cần `ve_id`; mã vé lộ ra qua trang tra cứu ở mục 1. Ai biết `ve_id` là gửi được yêu cầu đổi vé của người khác sang n8n. Backend cũng không khóa dữ liệu hay ghi `yeu_cau_huy_doi` cho đổi vé (xem mục "Hủy và đổi vé (n8n) cùng lúc"). Cần sửa ở một task riêng: dùng `get_accessible_booking` theo `ma_don`, và n8n làm đúng các bước khóa ở trên.

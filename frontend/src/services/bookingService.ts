@@ -226,3 +226,73 @@ export type ExchangeResponse = {
 export function exchangeTicket(data: ExchangeRequest): Promise<ExchangeResponse> {
   return post<ExchangeResponse>('/api/v1/bookings/exchange', data)
 }
+
+// --- Hủy vé đã xác nhận (backend tự duyệt theo quy tắc, tính mức hoàn) ---
+
+/** Kết quả cổng "Được phép hủy?" cho từng vé, do backend tính. */
+export type CancelQuoteTicket = {
+  ve_id: string
+  so_ghe: string
+  gia_ve: number
+  trang_thai_ve: TrangThaiVe
+  trang_thai_thanh_toan: TrangThaiThanhToanVe
+  duoc_huy: boolean
+  /** Lý do không được hủy; null khi được hủy */
+  ly_do: string | null
+  /** 100 hoặc 50; 0 khi không được hủy */
+  ti_le_hoan: number
+  muc_hoan: number
+  ghi_chu: string | null
+  /** Phải nhập ngân hàng, số tài khoản nhận tiền hoàn */
+  can_tai_khoan_nhan: boolean
+}
+
+export type CancelQuote = {
+  ma_don: string
+  thoi_diem_hien_tai: string
+  ve: CancelQuoteTicket[]
+}
+
+export type CancelTicketsRequest = {
+  ve_ids: string[]
+  ngan_hang_nhan?: string
+  so_tai_khoan_nhan?: string
+  /** Tổng mức hoàn khách đã xem; backend tính lại khác thì trả 409 */
+  muc_hoan_xac_nhan: number
+}
+
+export type TrangThaiHoan = 'CHO_HOAN_TIEN' | 'DA_HOAN_TIEN' | 'KHONG_HOAN_TIEN'
+
+export type CancelledTicket = {
+  yeu_cau_id: string
+  ve_id: string
+  so_ghe: string
+  gia_ve: number
+  muc_hoan: number
+  trang_thai_hoan: TrangThaiHoan
+  ngay_huy: string
+}
+
+/** Biên lai hủy vé; số tài khoản chỉ có 4 số cuối. */
+export type CancelReceipt = {
+  ma_don: string
+  chuyen: TripInfo
+  ve: CancelledTicket[]
+  tong_hoan: number
+  ngan_hang_nhan: string | null
+  so_tai_khoan_nhan: string | null
+}
+
+/** Xem trước: vé nào được hủy, lý do, mức hoàn (tài khoản sở hữu hoặc mã truy cập). */
+export function getCancelQuote(maDon: string): Promise<CancelQuote> {
+  return get<CancelQuote>(`/api/v1/bookings/${encodeURIComponent(maDon)}/cancel-quote`, accessHeaders(maDon))
+}
+
+/** Hủy vé đã xác nhận; gọi lại cho vé đã hủy trả biên lai cũ. */
+export function cancelTickets(maDon: string, data: CancelTicketsRequest): Promise<CancelReceipt> {
+  return post<CancelReceipt>(
+    `/api/v1/bookings/${encodeURIComponent(maDon)}/cancel-tickets`,
+    data,
+    accessHeaders(maDon),
+  )
+}

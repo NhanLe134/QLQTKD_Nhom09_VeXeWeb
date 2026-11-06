@@ -1,11 +1,12 @@
 """Giữ ghế, đặt cả xe, xem đơn, nhả ghế và hủy đơn (BR-BUS-14 đến 20, 33, 37)."""
 
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -373,21 +374,25 @@ async def _load_booking(session: AsyncSession, ma_don: str) -> Booking | None:
     )
 
 
-async def lock_booking(session: AsyncSession, booking: Booking) -> None:
+async def lock_booking(
+    session: AsyncSession, booking: Booking, *, ve_ids: Collection[str] = ()
+) -> None:
     """Cùng thứ tự khóa với giữ ghế, hủy đơn và job: khách hàng → ghế theo ghe_id → vé.
 
-    Gọi trong transaction; sau đó phải đọc lại đơn (load_booking) rồi mới kiểm tra.
+    Mặc định khóa ghế của vé GIU_CHO; `ve_ids` khóa thêm ghế của các vé đó (hủy vé đã
+    xác nhận). Gọi trong transaction; sau đó phải đọc lại đơn (load_booking) rồi mới kiểm tra.
     """
     await session.execute(
         select(KhachHang.khach_hang_id)
         .where(KhachHang.khach_hang_id == booking.khach_hang.khach_hang_id)
         .with_for_update()
     )
+    seat_condition = Ve.trang_thai_ve == TrangThaiVe.GIU_CHO
+    if ve_ids:
+        seat_condition = or_(seat_condition, Ve.ve_id.in_(list(ve_ids)))
     seat_ids = list(
         await session.scalars(
-            select(Ve.ghe_id).where(
-                Ve.ma_don == booking.ma_don, Ve.trang_thai_ve == TrangThaiVe.GIU_CHO
-            )
+            select(Ve.ghe_id).where(Ve.ma_don == booking.ma_don, seat_condition)
         )
     )
     if seat_ids:

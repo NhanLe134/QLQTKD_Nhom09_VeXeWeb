@@ -3,7 +3,7 @@ import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { APP_NAME } from '../utils/constants'
 import BrandLogo from './BrandLogo'
-import { HomeIcon, LookupIcon, SearchIcon, TicketIcon, UserIcon } from './icons'
+import { HomeIcon, LookupIcon, SearchIcon, SwapIcon, TicketIcon, UserIcon } from './icons'
 
 type NavItem = { to: string; label: string; icon: (props: { className?: string }) => React.ReactNode; end?: boolean }
 
@@ -15,6 +15,15 @@ const NAV_ITEMS: NavItem[] = [
 
 // "Vé của tôi" chỉ dành cho tài khoản khách (BR-BUS-36)
 const CUSTOMER_ITEM: NavItem = { to: '/ve-cua-toi', label: 'Vé của tôi', icon: TicketIcon }
+
+// Hoàn tiền thủ công cho vé đã hủy: chỉ tài khoản nhà xe
+const OPERATOR_ITEM: NavItem = { to: '/nha-xe/hoan-tien', label: 'Hoàn tiền', icon: SwapIcon }
+
+function navItemsFor(vaiTro: string | undefined): NavItem[] {
+  if (vaiTro === 'KHACH') return [NAV_ITEMS[0], NAV_ITEMS[1], CUSTOMER_ITEM]
+  if (vaiTro === 'NHA_XE') return [...NAV_ITEMS, OPERATOR_ITEM]
+  return NAV_ITEMS
+}
 
 function navClassName({ isActive }: { isActive: boolean }): string {
   const base =
@@ -31,7 +40,8 @@ function navClassName({ isActive }: { isActive: boolean }): string {
 export default function Header() {
   const { user, logout } = useAuth()
   // Đã đăng nhập tài khoản khách: hiển thị "Vé của tôi", ẩn "Tra cứu vé". Chưa đăng nhập: hiển thị "Tra cứu vé".
-  const items = user?.vai_tro === 'KHACH' ? [NAV_ITEMS[0], NAV_ITEMS[1], CUSTOMER_ITEM] : NAV_ITEMS
+  // Nhà xe: thêm "Hoàn tiền"
+  const items = navItemsFor(user?.vai_tro)
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-2xs">

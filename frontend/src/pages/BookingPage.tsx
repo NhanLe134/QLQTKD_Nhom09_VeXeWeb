@@ -5,13 +5,14 @@ import BookingDetailsForm from '../components/BookingDetailsForm'
 import BookingDetailsSummary from '../components/BookingDetailsSummary'
 import BookingFailed, { type FailureReason } from '../components/BookingFailed'
 import BookingSuccess from '../components/BookingSuccess'
+import CancelReceiptView from '../components/CancelReceipt'
 import CancelBookingButton from '../components/CancelBookingButton'
 import CashConfirmDialog from '../components/CashConfirmDialog'
 import HoldCountdown from '../components/HoldCountdown'
 import PaymentMethodPicker from '../components/PaymentMethodPicker'
 import QrSePayPanel from '../components/QrSePayPanel'
 import { useCountdown } from '../hooks/useCountdown'
-import { type Booking, taoQrSePay, type QrSePay, getBooking } from '../services/bookingService'
+import { type Booking, type CancelReceipt, taoQrSePay, type QrSePay, getBooking } from '../services/bookingService'
 import { bookerReference } from '../utils/booker'
 import { clearStoredBookingFor, moveToConfirmed } from '../utils/bookingStorage'
 import { formatCurrency, formatDate, formatTime, formatVehicleType } from '../utils/format'
@@ -88,6 +89,7 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
   const [editing, setEditing] = useState(!data.da_nhap_thong_tin)
   const [step, setStep] = useState<Step>('details')
   const [detailsError, setDetailsError] = useState<FieldError | null>(null)
+  const [cancelReceipt, setCancelReceipt] = useState<CancelReceipt | null>(null)
   const dangGiu = data.trang_thai_don === 'DANG_GIU'
   const remainingMs = useCountdown(dangGiu ? data.han_giu_cho : null, clockOffsetMs)
   const holding = remainingMs !== null && remainingMs > 0
@@ -143,12 +145,31 @@ function BookingDetail({ data, clockOffsetMs, onChange }: DetailProps) {
       .catch(() => setGone(true))
   }
 
+  // Biên lai hủy vé đứng trước: hủy hết vé thì đơn thành DA_HUY nhưng vẫn phải xem được biên lai
+  if (cancelReceipt) {
+    return (
+      <CancelReceiptView
+        receipt={cancelReceipt}
+        onDone={data.trang_thai_don === 'DA_XAC_NHAN' ? () => setCancelReceipt(null) : undefined}
+      />
+    )
+  }
+
   if (failure) {
     return <BookingFailed reason={failure} maDon={data.ma_don} chuyenXeId={chuyen.chuyen_xe_id} />
   }
 
   if (data.trang_thai_don === 'DA_XAC_NHAN') {
-    return <BookingSuccess booking={data} />
+    return (
+      <BookingSuccess
+        booking={data}
+        onCancelled={(receipt) => {
+          setCancelReceipt(receipt)
+          // Đọc lại đơn: còn vé đã xác nhận thì cho quay lại xem
+          getBooking(data.ma_don).then(onChange).catch(() => {})
+        }}
+      />
+    )
   }
 
   function showFieldError(field: string, message: string) {

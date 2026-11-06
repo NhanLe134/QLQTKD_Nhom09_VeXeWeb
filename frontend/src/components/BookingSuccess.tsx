@@ -1,13 +1,22 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useAuth } from '../hooks/useAuth'
-import type { Booking } from '../services/bookingService'
+import type { Booking, CancelReceipt, Ticket } from '../services/bookingService'
 import { formatCurrency, formatDate, formatTime, formatVehicleType } from '../utils/format'
+import CancelTicketPanel from './CancelTicketPanel'
 import TicketList from './TicketList'
 
+type Props = {
+  booking: Booking
+  /** Có thì hiện nút "Hủy vé" cho từng vé đã xác nhận */
+  onCancelled?: (receipt: CancelReceipt) => void
+}
+
 /** Màn hình đặt vé thành công (BR-BUS-35): vé gom theo mã đơn, tổng tiền do backend tính. */
-export default function BookingSuccess({ booking }: { booking: Booking }) {
+export default function BookingSuccess({ booking, onCancelled }: Props) {
   const { user } = useAuth()
+  const [cancelTicket, setCancelTicket] = useState<Ticket | null>(null)
   const { chuyen } = booking
   const tickets = booking.ve.filter((ve) => ve.trang_thai_ve === 'DA_XAC_NHAN')
   const payOnBoard = tickets.length > 0 && tickets.every((ve) => ve.trang_thai_thanh_toan === 'CHO_THU_TIEN_MAT')
@@ -34,7 +43,20 @@ export default function BookingSuccess({ booking }: { booking: Booking }) {
         <p className="text-[11px] text-slate-500">{formatVehicleType(chuyen.ten_loai_xe, chuyen.so_cho)}</p>
       </div>
 
-      <TicketList tickets={tickets} />
+      <TicketList tickets={tickets} onCancel={onCancelled ? setCancelTicket : undefined} />
+
+      {onCancelled && cancelTicket && (
+        <CancelTicketPanel
+          key={cancelTicket.ve_id}
+          maDon={booking.ma_don}
+          ticket={cancelTicket}
+          onClose={() => setCancelTicket(null)}
+          onCancelled={(receipt) => {
+            setCancelTicket(null)
+            onCancelled(receipt)
+          }}
+        />
+      )}
 
       <div className="flex justify-between items-center rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs text-xs font-bold text-slate-800">
         <span>Tổng tiền</span>

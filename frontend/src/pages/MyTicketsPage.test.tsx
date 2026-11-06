@@ -1,11 +1,11 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AuthProvider, { AUTH_STORAGE_KEY } from '../context/AuthProvider'
 import { routes } from '../routes'
 import type { MyBooking } from '../services/bookingService'
-import { CONFIRMED_BOOKING, jsonResponse } from '../utils/testBookings'
+import { CANCEL_RECEIPT, CONFIRMED_BOOKING, jsonResponse, quoteTicket } from '../utils/testBookings'
 
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -114,5 +114,48 @@ describe('MyTicketsPage (/ve-cua-toi)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Trang này chỉ dành cho tài khoản khách hàng.')
     expect(screen.queryByRole('link', { name: 'Vé của tôi' })).not.toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/me/tickets'))).toBe(false)
+  })
+
+  it('hủy vé: mức hoàn từ backend, xác nhận trong trang, hiện biên lai và tải lại vé', async () => {
+    login()
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/me/tickets')) return jsonResponse(200, ORDERS)
+      if (url.endsWith('/DH00100002/cancel-quote')) {
+        return jsonResponse(200, {
+          ma_don: 'DH00100002',
+          thoi_diem_hien_tai: '2026-12-13T20:00:00Z',
+          ve: [quoteTicket({ can_tai_khoan_nhan: false, muc_hoan: 0, trang_thai_thanh_toan: 'CHO_THU_TIEN_MAT' })],
+        })
+      }
+      if (url.endsWith('/DH00100002/cancel-tickets')) {
+        return jsonResponse(200, {
+          ...CANCEL_RECEIPT,
+          ma_don: 'DH00100002',
+          ve: [{ ...CANCEL_RECEIPT.ve[0], muc_hoan: 0, trang_thai_hoan: 'KHONG_HOAN_TIEN' }],
+          tong_hoan: 0,
+          ngan_hang_nhan: null,
+          so_tai_khoan_nhan: null,
+        })
+      }
+      return new Promise<Response>(() => {})
+    })
+    renderAt('/ve-cua-toi')
+
+    const order = await screen.findByRole('listitem', { name: 'Đơn DH00100002' })
+    fireEvent.click(within(order).getByRole('button', { name: 'Hủy vé' }))
+    fireEvent.click(await within(order).findByRole('button', { name: 'Tiếp tục hủy vé' }))
+    fireEvent.click(within(order).getByRole('button', { name: 'Đồng ý hủy vé' }))
+
+    expect(await screen.findByRole('heading', { name: 'Hủy vé thành công' })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'Vé đã hủy VE00100001' })).toHaveTextContent('Không hoàn tiền')
+    const [, init] = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/cancel-tickets')) ?? []
+    expect(init?.headers).toMatchObject({ Authorization: 'Bearer tok' })
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/me/tickets'))).toHaveLength(2),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Xem vé còn lại' }))
+    expect(await screen.findByRole('list', { name: 'Đơn đặt vé' })).toBeInTheDocument()
   })
 })

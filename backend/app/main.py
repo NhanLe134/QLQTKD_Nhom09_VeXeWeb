@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, bookings, me, trips, webhooks
+from app.api.v1 import auth, bookings, me, refunds, trips, webhooks
 from app.api.validation_errors import handle_validation_error
 from app.core.config import Settings, get_settings
 from app.db.session import get_session_factory
@@ -61,6 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(bookings.router, prefix="/api/v1")
     app.include_router(me.router, prefix="/api/v1")
     app.include_router(webhooks.router, prefix="/api/v1")
+    app.include_router(refunds.router, prefix="/api/v1")
 
     return app
 

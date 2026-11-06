@@ -73,4 +73,20 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: 'Vé của tôi' })).toHaveAttribute('href', '/ve-cua-toi')
     expect(screen.queryByRole('link', { name: 'Tra cứu vé' })).not.toBeInTheDocument()
   })
+
+  it('chỉ nhà xe thấy mục "Hoàn tiền"', () => {
+    renderHeader()
+    expect(screen.queryByRole('link', { name: 'Hoàn tiền' })).not.toBeInTheDocument()
+    cleanup()
+
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 't', vai_tro: 'KHACH', ho_ten: 'An' }))
+    renderHeader()
+    expect(screen.queryByRole('link', { name: 'Hoàn tiền' })).not.toBeInTheDocument()
+    cleanup()
+
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ token: 't', vai_tro: 'NHA_XE', ho_ten: 'Nhà Xe' }))
+    renderHeader()
+    expect(screen.getByRole('link', { name: 'Hoàn tiền' })).toHaveAttribute('href', '/nha-xe/hoan-tien')
+    expect(screen.queryByRole('link', { name: 'Vé của tôi' })).not.toBeInTheDocument()
+  })
 })

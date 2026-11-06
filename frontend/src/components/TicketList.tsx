@@ -7,12 +7,14 @@ type Props = {
   label?: string
   /** Callback khi người dùng bấm Đổi vé */
   onExchange?: (ticket: Ticket) => void
+  /** Callback khi người dùng bấm Hủy vé; được hủy hay không do backend quyết định */
+  onCancel?: (ticket: Ticket) => void
 }
 
 /**
  * Vé điện tử: mỗi ghế một vé, hiển thị gọn gàng, rõ ràng
  */
-export default function TicketList({ tickets, label = 'Vé điện tử', onExchange }: Props) {
+export default function TicketList({ tickets, label = 'Vé điện tử', onExchange, onCancel }: Props) {
   return (
     <ul aria-label={label} className="space-y-2.5">
       {tickets.map((ve) => (
@@ -59,19 +61,30 @@ export default function TicketList({ tickets, label = 'Vé điện tử', onExch
             </div>
           </dl>
 
-          {/* Nút Đổi vé */}
-          {onExchange && ve.trang_thai_ve === 'DA_XAC_NHAN' && (
-            <div className="mt-2.5 flex justify-end border-t border-slate-100 pt-2">
-              <button
-                type="button"
-                onClick={() => onExchange(ve)}
-                className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700 hover:bg-brand-100 transition-colors"
-              >
-                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-                <span>Đổi vé</span>
-              </button>
+          {/* Nút Đổi vé, Hủy vé */}
+          {(onExchange || onCancel) && ve.trang_thai_ve === 'DA_XAC_NHAN' && (
+            <div className="mt-2.5 flex justify-end gap-2 border-t border-slate-100 pt-2">
+              {onExchange && (
+                <button
+                  type="button"
+                  onClick={() => onExchange(ve)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-bold text-brand-700 hover:bg-brand-100 transition-colors"
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                  <span>Đổi vé</span>
+                </button>
+              )}
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={() => onCancel(ve)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors"
+                >
+                  Hủy vé
+                </button>
+              )}
             </div>
           )}
         </li>

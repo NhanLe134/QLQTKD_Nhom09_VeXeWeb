@@ -1,5 +1,5 @@
 // Dữ liệu mẫu cho test Vitest (không dùng trong ứng dụng).
-import type { Booking, Ticket } from '../services/bookingService'
+import type { Booking, CancelQuoteTicket, CancelReceipt, Ticket } from '../services/bookingService'
 
 export function ticket(overrides: Partial<Ticket> = {}): Ticket {
   return {
@@ -73,4 +73,43 @@ export const CONFIRMED_BOOKING: Booking = {
 
 export function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+/** Báo giá hủy một vé do backend tính (mặc định: vé chuyển khoản, hoàn 50%). */
+export function quoteTicket(overrides: Partial<CancelQuoteTicket> = {}): CancelQuoteTicket {
+  return {
+    ve_id: 'VE00100001',
+    so_ghe: 'A01',
+    gia_ve: 200000,
+    trang_thai_ve: 'DA_XAC_NHAN',
+    trang_thai_thanh_toan: 'DA_THANH_TOAN',
+    duoc_huy: true,
+    ly_do: null,
+    ti_le_hoan: 50,
+    // Giá trị riêng của backend: trang chỉ hiển thị, không tự tính từ giá vé
+    muc_hoan: 99000,
+    ghi_chu: null,
+    can_tai_khoan_nhan: true,
+    ...overrides,
+  }
+}
+
+/** Biên lai hủy backend trả sau cancel-tickets. */
+export const CANCEL_RECEIPT: CancelReceipt = {
+  ma_don: 'DH00100000',
+  chuyen: CONFIRMED_BOOKING.chuyen,
+  ve: [
+    {
+      yeu_cau_id: 'YC00100000',
+      ve_id: 'VE00100001',
+      so_ghe: 'A01',
+      gia_ve: 200000,
+      muc_hoan: 99000,
+      trang_thai_hoan: 'CHO_HOAN_TIEN',
+      ngay_huy: '2026-12-13T20:00:00Z',
+    },
+  ],
+  tong_hoan: 99000,
+  ngan_hang_nhan: 'Vietcombank',
+  so_tai_khoan_nhan: '****6789',
 }

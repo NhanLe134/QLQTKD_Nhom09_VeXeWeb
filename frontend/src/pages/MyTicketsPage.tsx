@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import CancelReceiptView from '../components/CancelReceipt'
+import CancelTicketPanel from '../components/CancelTicketPanel'
 import ExchangeModal from '../components/ExchangeModal'
 import TicketList from '../components/TicketList'
-import { getMyTickets, type MyBooking, type Ticket } from '../services/bookingService'
+import { type CancelReceipt, getMyTickets, type MyBooking, type Ticket } from '../services/bookingService'
 import { formatCurrency, formatDate, formatTime, formatVehicleType } from '../utils/format'
 
 type State =
@@ -17,6 +19,9 @@ export default function MyTicketsPage() {
 
   const [exchangeTicket, setExchangeTicket] = useState<Ticket | null>(null)
   const [exchangeOrder, setExchangeOrder] = useState<MyBooking | null>(null)
+
+  const [cancelTarget, setCancelTarget] = useState<{ maDon: string; ticket: Ticket } | null>(null)
+  const [receipt, setReceipt] = useState<CancelReceipt | null>(null)
 
   const reloadTickets = useCallback(() => {
     getMyTickets()
@@ -39,6 +44,10 @@ export default function MyTicketsPage() {
       cancelled = true
     }
   }, [])
+
+  if (receipt) {
+    return <CancelReceiptView receipt={receipt} onDone={() => setReceipt(null)} />
+  }
 
   return (
     <section className="space-y-4">
@@ -107,7 +116,22 @@ export default function MyTicketsPage() {
                   setExchangeTicket(ticket)
                   setExchangeOrder(order)
                 }}
+                onCancel={(ticket) => setCancelTarget({ maDon: order.ma_don, ticket })}
               />
+
+              {cancelTarget?.maDon === order.ma_don && (
+                <CancelTicketPanel
+                  key={cancelTarget.ticket.ve_id}
+                  maDon={order.ma_don}
+                  ticket={cancelTarget.ticket}
+                  onClose={() => setCancelTarget(null)}
+                  onCancelled={(result) => {
+                    setCancelTarget(null)
+                    setReceipt(result)
+                    reloadTickets()
+                  }}
+                />
+              )}
 
               {/* Tổng tiền */}
               <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-xs font-bold text-slate-800">

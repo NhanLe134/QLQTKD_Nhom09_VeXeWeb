@@ -19,6 +19,7 @@ from app.schemas.booking import (
     HoldResponse,
     MyBookingOut,
 )
+from app.schemas.cancellation import CancelQuoteOut, CancelReceiptOut, CancelTicketsRequest
 from app.schemas.sepay import QrSePayOut
 from app.services import (
     booking_details_service,
@@ -26,6 +27,7 @@ from app.services import (
     cash_payment_service,
     my_tickets_service,
     sepay_payment_service,
+    ticket_cancel_service,
     ticket_notifier,
 )
 
@@ -249,3 +251,57 @@ async def thanh_toan_sepay(
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
     except booking_service.BookingError as error:
         raise HTTPException(error.status_code, detail=error.detail) from None
+
+
+# --- Hủy vé đã xác nhận và hoàn tiền (BPMN "Xử lý hủy vé") ---
+
+
+@router.get(
+    "/{ma_don}/cancel-quote",
+    response_model=CancelQuoteOut,
+    responses={404: {"description": "Không tìm thấy đơn hoặc không có quyền"}},
+)
+async def cancel_quote(
+    booking: booking_service.Booking = Depends(get_accessible_booking),
+    session: AsyncSession = Depends(get_session),
+    now: datetime = Depends(get_now),
+) -> CancelQuoteOut:
+    """Xem trước từng vé: được hủy không, lý do, mức hoàn do backend tính."""
+    return await ticket_cancel_service.quote(session, booking, now)
+
+
+@router.post(
+    "/{ma_don}/cancel-tickets",
+    response_model=CancelReceiptOut,
+    responses={
+        400: {"description": '`{"detail": "...", "truong": "ve_ids[0]"}` không được hủy'},
+        404: {"description": "Không tìm thấy đơn/vé hoặc không có quyền"},
+        409: {"description": "Vé vừa thay đổi, hoặc mức hoàn khác muc_hoan_xac_nhan"},
+        422: {"description": '`{"detail": "...", "truong": "so_tai_khoan_nhan"}`'},
+    },
+)
+async def cancel_tickets(
+    data: CancelTicketsRequest,
+    background_tasks: BackgroundTasks,
+    booking: booking_service.Booking = Depends(get_accessible_booking),
+    session: AsyncSession = Depends(get_session),
+    now: datetime = Depends(get_now),
+) -> CancelReceiptOut | JSONResponse:
+    """Hủy một hoặc nhiều vé đã xác nhận của đơn; gọi lại trả biên lai cũ."""
+    try:
+        receipt, newly_cancelled = await ticket_cancel_service.cancel_tickets(
+            session, booking, data, now
+        )
+    except booking_details_service.FieldError as error:
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"detail": error.detail, "truong": error.truong},
+        )
+    except booking_service.BookingError as error:
+        raise HTTPException(error.status_code, detail=error.detail) from None
+    if newly_cancelled:
+        background_tasks.add_task(
+            ticket_notifier.deliver_cancel_receipt_safely,
+            ticket_notifier.build_cancel_receipt_email(receipt, booking.khach_hang.email),
+        )
+    return receipt

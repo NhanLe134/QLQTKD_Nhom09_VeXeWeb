@@ -1,5 +1,5 @@
-import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ticket } from '../utils/testBookings'
 import TicketList from './TicketList'
@@ -32,5 +32,26 @@ describe('TicketList', () => {
     expect(first).toHaveTextContent('200.000 đ')
     expect(first).toHaveTextContent('Chờ thu tiền mặt')
     expect(screen.getByRole('listitem', { name: 'Vé VE00100002' })).toHaveTextContent('Đã thanh toán')
+  })
+
+  it('nút "Hủy vé" chỉ hiện với vé đã xác nhận khi có onCancel; bấm gọi đúng vé', () => {
+    const onCancel = vi.fn()
+    const confirmed = ticket({ ve_id: 'VE00100001', trang_thai_ve: 'DA_XAC_NHAN' })
+    render(<TicketList tickets={[confirmed, ticket({ ve_id: 'VE00100002', trang_thai_ve: 'DA_HUY' })]} onCancel={onCancel} />)
+
+    const buttons = screen.getAllByRole('button', { name: 'Hủy vé' })
+    expect(buttons).toHaveLength(1)
+    expect(within(screen.getByRole('listitem', { name: 'Vé VE00100001' })).getByRole('button', { name: 'Hủy vé' })).toBe(
+      buttons[0],
+    )
+    expect(screen.queryByRole('button', { name: 'Đổi vé' })).not.toBeInTheDocument()
+    fireEvent.click(buttons[0])
+    expect(onCancel).toHaveBeenCalledWith(confirmed)
+  })
+
+  it('không truyền onCancel: không có nút "Hủy vé"', () => {
+    render(<TicketList tickets={[ticket({ trang_thai_ve: 'DA_XAC_NHAN' })]} />)
+
+    expect(screen.queryByRole('button', { name: 'Hủy vé' })).not.toBeInTheDocument()
   })
 })

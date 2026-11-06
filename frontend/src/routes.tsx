@@ -2,11 +2,13 @@ import type { RouteObject } from 'react-router-dom'
 
 import Layout from './components/Layout'
 import RequireCustomer from './components/RequireCustomer'
+import RequireRole from './components/RequireRole'
 import BookingPage from './pages/BookingPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import MyTicketsPage from './pages/MyTicketsPage'
 import NotFoundPage from './pages/NotFoundPage'
+import RefundsPage from './pages/RefundsPage'
 import RegisterPage from './pages/RegisterPage'
 import SeatSelectionPage from './pages/SeatSelectionPage'
 import TraCuuVePage from './pages/TraCuuVePage'
@@ -29,6 +31,15 @@ export const routes: RouteObject[] = [
           <RequireCustomer>
             <MyTicketsPage />
           </RequireCustomer>
+        ),
+      },
+      // Hoàn tiền thủ công cho vé đã hủy: chỉ tài khoản nhà xe
+      {
+        path: 'nha-xe/hoan-tien',
+        element: (
+          <RequireRole role="NHA_XE" deniedMessage="Trang này chỉ dành cho tài khoản nhà xe.">
+            <RefundsPage />
+          </RequireRole>
         ),
       },
       { path: 'dang-nhap', element: <LoginPage /> },

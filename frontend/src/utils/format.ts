@@ -81,3 +81,14 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
 export function formatPaymentStatus(status: string): string {
   return PAYMENT_STATUS_LABELS[status] ?? status
 }
+
+const REFUND_STATUS_LABELS: Record<string, string> = {
+  CHO_HOAN_TIEN: 'Chờ hoàn tiền',
+  DA_HOAN_TIEN: 'Đã hoàn tiền',
+  KHONG_HOAN_TIEN: 'Không hoàn tiền',
+}
+
+/** Nhãn tiếng Việt của trạng thái hoàn tiền backend trả về; giá trị lạ hiện nguyên văn. */
+export function formatRefundStatus(status: string): string {
+  return REFUND_STATUS_LABELS[status] ?? status
+}
