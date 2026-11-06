@@ -1,25 +1,36 @@
 @import "tailwindcss";
 
 /*
- * Bảng màu chung: xanh trời làm màu chính (thanh trên, chân trang, nút),
- * vàng cho nút hành động chính trên thẻ chuyến và sơ đồ ghế.
- * Mọi component dùng lớp brand-*, đổi màu ở đây là đổi toàn giao diện.
+ * Bảng màu chung thương hiệu Nhà xe Thịnh Vượng:
+ * Xanh đại dương hiện đại làm màu chủ đạo (thanh trên, nút chính, điểm nhấn),
+ * Vàng hổ phách / cam ấm cho nút hành động nổi bật (CTA, sơ đồ ghế).
  */
 @theme {
-  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-  --color-brand-50: #eef9fe;
-  --color-brand-100: #d8f1fc;
-  --color-brand-200: #b3e3f8;
-  --color-brand-300: #7dd0f2;
-  --color-brand-400: #3fb9ea;
-  --color-brand-500: #1ba6e0;
-  --color-brand-600: #128ac0;
-  --color-brand-700: #0f6f9c;
-  --color-brand-800: #115d80;
-  --color-brand-900: #134d6a;
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
 }
 
 body {
-  background-color: var(--color-brand-50);
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tinh chỉnh typography và thanh cuộn nhẹ nhàng */
+::selection {
+  background-color: #bfdbfe;
+  color: #1e3a8a;
 }
