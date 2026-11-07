@@ -115,13 +115,11 @@ def assert_released(ves: list[Ve], ghes: list[GheNgoi]) -> None:
 
 @pytest.fixture
 def sent(monkeypatch) -> list[TicketEmail]:
-    """Ghi lại các lần gửi vé (thay cho send_tickets_email giả lập)."""
+    """Ghi lại các lần gửi vé thay cho send_tickets_email; không gọi hàm gửi thật (R-16)."""
     messages: list[TicketEmail] = []
-    original = ticket_notifier.send_tickets_email
 
     def record(message: TicketEmail) -> None:
         messages.append(message)
-        original(message)
 
     monkeypatch.setattr(ticket_notifier, "send_tickets_email", record)
     return messages
@@ -325,7 +323,7 @@ async def test_trip_departed_during_hold_is_rejected(client, seeded, set_now):
     assert response.json() == {"detail": TRIP_NOT_BOOKABLE, "truong": None}
 
 
-# --- Email giả lập (BR-BUS-35) ---
+# --- Email vé (BR-BUS-35); SMTP luôn tắt trong test (conftest.block_real_smtp) ---
 
 
 async def test_email_failure_keeps_ticket_confirmed(client, seeded, set_now, monkeypatch, caplog):
@@ -365,8 +363,9 @@ async def test_ticket_goes_to_latest_guest_email(client, seeded, set_now, sent):
     assert [message.email for message in sent] == [BOOKER_EMAIL, "moi@vexe.example"]
 
 
-async def test_account_without_email_is_skipped(client, seeded, set_now, sent, caplog):
-    # Giới hạn: tài khoản cũ không có email thì không nhận được vé qua email
+async def test_account_without_email_is_skipped(client, seeded, set_now, caplog):
+    # Giới hạn: tài khoản cũ không có email thì không nhận được vé qua email.
+    # Không dùng fixture sent: cần chạy send_tickets_email thật (SMTP đã tắt) để thấy log bỏ qua
     async with seeded() as session, session.begin():
         await session.execute(
             update(KhachHang).where(KhachHang.khach_hang_id == KHACH_HANG).values(email=None)
@@ -378,9 +377,8 @@ async def test_account_without_email_is_skipped(client, seeded, set_now, sent, c
         response = await confirm(client, order, headers)
 
     assert response.status_code == 200
-    assert sent[0].email is None
     assert f"Bỏ qua gửi vé ma_don={order['ma_don']} ly_do=khong_co_email" in caplog.text
-    assert "Gửi vé ma_don=" not in caplog.text
+    assert "gửi email thành công" not in caplog.text
 
 
 async def test_background_task_gets_plain_data(client, seeded, set_now, sent, caplog):
@@ -397,7 +395,6 @@ async def test_background_task_gets_plain_data(client, seeded, set_now, sent, ca
     assert all(ve["trang_thai_thanh_toan"] == "CHO_THU_TIEN_MAT" for ve in message.ve)
     # Chỉ có dữ liệu thường, không có object ORM
     json.dumps(dataclasses.asdict(message))
-    assert f"Gửi vé ma_don={order['ma_don']} so_ve=2" in caplog.text
 
 
 async def test_ticket_email_sends_after_session_closed(client, seeded, set_now, caplog):
@@ -412,7 +409,8 @@ async def test_ticket_email_sends_after_session_closed(client, seeded, set_now, 
     with caplog.at_level(logging.INFO):
         ticket_notifier.deliver_tickets_safely(message)
 
-    assert f"Gửi vé ma_don={order['ma_don']} so_ve=2" in caplog.text
+    # SMTP tắt trong test: send_tickets_email dựng email rồi ghi log giả lập
+    assert f"giả lập gửi email thành công ma_don={order['ma_don']} so_ve=2" in caplog.text
     assert "thất bại" not in caplog.text
 
 
