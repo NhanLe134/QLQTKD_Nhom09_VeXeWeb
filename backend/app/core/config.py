@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     n8n_exchange_webhook_url: str = Field(
         default="http://localhost:5678/webhook/doi-ve"
     )
+    # ---- SMTP Gửi email vé điện tử (task #10/BR-BUS-35) ----
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, gt=0)
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
 
     @field_validator("cors_origins", mode="before")
     @classmethod
