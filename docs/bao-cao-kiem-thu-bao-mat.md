@@ -32,6 +32,10 @@ Tài liệu làm bằng chứng cho **tiêu chí 4.3** của báo cáo môn họ
 | 5 | `frontend/` | `npm test` (Vitest) | **39 file, 284 passed**, 0 failed, 69,02 giây |
 | 6 | `frontend/` | `npm run build` | Build thành công: `index.js` 452,12 kB (gzip 126,86 kB), `index.css` 49,81 kB |
 
+**Bổ sung sau lần chạy:** commit `da858c0` (gửi email vé qua SMTP) vào nhánh sau commit `0d905e4`. Commit này thêm `backend/tests/test_ticket_notifier.py` với 6 test (đếm `def test_`). 6 test này **chưa có** trong số 495 ở trên.
+
+**Lần chạy lại ngày 07/11/2026** (sau khi thêm chốt chặn SMTP cho test, R-16): `uv run pytest -q` trong `backend/` → **503 passed**, 0 failed, 427,21 giây, 30 file test. Mã chạy: commit `a52572e` cộng các thay đổi test (`tests/conftest.py`, `tests/test_cash_payment.py`, file mới `tests/test_smtp_guard.py`), đã commit ở `b49646e` (nội dung giống hệt bản đã chạy). 503 = 495 + 6 (`test_ticket_notifier.py`) + 2 (`test_smtp_guard.py`). Frontend không chạy lại. Bảng 2.2 vẫn là số tại `0d905e4`.
+
 ### 2.2. Backend — số test theo file
 
 | File test | Số test | Luồng nghiệp vụ được kiểm |
@@ -148,7 +152,7 @@ Hệ thống có **4 vai trò** (`tai_khoan.vai_tro`): `KHACH` (khách hàng), `
 | B-05 | Giữ chỗ | Chính: giữ 1 ghế (khách vãng lai), giữ nhiều ghế, đặt cả xe | "Chọn chuyến xe phù hợp" | `test_booking_hold.py::test_hold_one_seat_as_guest`, `test_hold_many_seats_share_order_and_access_code`, `test_book_whole_bus` | Đạt |
 | B-06 | Giữ chỗ | Ngoại lệ: 2 người giữ cùng ghế cùng lúc → chỉ 1 thắng | — | `test_booking_hold.py::test_concurrent_holds_on_same_seat_only_one_wins` | Đạt |
 | B-07 | Giữ chỗ | Ngoại lệ: ghế đang giữ hoặc đã bán → 409 | — | `test_booking_hold.py::test_hold_seat_already_held_returns_409`, `test_hold_sold_seat_returns_409` | Đạt |
-| B-08 | Hết hạn | Chính: job nhả ghế hết hạn, ghế giữ lại được | Timer "Quá 5 phút" | `test_booking_release.py::test_job_releases_only_expired_orders`, `test_booking_hold.py::test_expired_hold_can_be_held_again` | Đạt |
+| B-08 | Hết hạn | Chính: job nhả ghế hết hạn, ghế giữ lại được | Timer "Hết 10 phút giữ chỗ" (`SEAT_HOLD_MINUTES`) | `test_booking_release.py::test_job_releases_only_expired_orders`, `test_booking_hold.py::test_expired_hold_can_be_held_again` | Đạt |
 | B-09 | Hết hạn | Ngoại lệ: hai job chạy cùng lúc chỉ nhả mỗi đơn một lần | — | `test_booking_release.py::test_concurrent_jobs_release_each_order_once` | Đạt |
 | B-10 | Hủy giữ chỗ | Chính: khách bấm hủy → nhả ghế | Event "Khách hủy thao tác" | `test_booking_cancel.py::test_cancel_with_access_code_releases_seats` | Đạt |
 
@@ -164,7 +168,7 @@ Hệ thống có **4 vai trò** (`tai_khoan.vai_tro`): `KHACH` (khách hàng), `
 | C-06 | SePay | Ngoại lệ: sai khóa, thiếu khóa, sai dạng header → 401 | — | `test_sepay_payment.py::test_webhook_tu_choi_khoa_sai_hoac_thieu`, `test_webhook_header_khong_dung_dang_apikey_401` | Đạt |
 | C-07 | SePay | Ngoại lệ: thiếu cấu hình → 503 | — | `test_sepay_payment.py::test_tao_qr_thieu_cau_hinh_503` | Đạt |
 | C-08 | SePay | Ngoại lệ: tiền đến khi đơn đã hủy → `THAT_BAI` | — | `test_sepay_payment.py::test_webhook_don_da_huy_ghi_that_bai` | Đạt |
-| C-09 | SePay | Ngoại lệ: tiền đến khi **giữ chỗ đã hết hạn** | Timer "Quá 5 phút chưa nhận tiền" | Có test tạo QR sau hết hạn (`test_tao_qr_sau_khi_het_han`) và job đánh dấu `THAT_BAI` (`test_job_nha_ghe_danh_dau_sepay_that_bai`); chưa có test webhook đến sau hết hạn | Một phần (mục 8, R-12) |
+| C-09 | SePay | Ngoại lệ: tiền đến khi **giữ chỗ đã hết hạn** | Timer "Quá 5 phút chưa nhận tiền" (ứng với `SEPAY_QR_MINUTES`, đếm ngược QR; không phải thời gian giữ chỗ) | Có test tạo QR sau hết hạn (`test_tao_qr_sau_khi_het_han`) và job đánh dấu `THAT_BAI` (`test_job_nha_ghe_danh_dau_sepay_that_bai`); chưa có test webhook đến sau hết hạn | Một phần (mục 8, R-12) |
 | C-10 | SePay | Ngoại lệ: hai giao dịch khác nhau cho cùng đơn đến cùng lúc | — | `test_sepay_payment.py::test_webhook_don_vua_xac_nhan_khi_cho_khoa_ghi_that_bai` | Đạt |
 
 ### 3.d. Thanh toán tiền mặt
@@ -176,6 +180,7 @@ Hệ thống có **4 vai trò** (`tai_khoan.vai_tro`): `KHACH` (khách hàng), `
 | D-03 | Tiền mặt | Ngoại lệ: giữ chỗ hết hạn, đơn đã hủy → 410 | — | `test_cash_payment.py::test_expired_hold_is_gone`, `test_cancelled_order_is_gone` | Đạt |
 | D-04 | Tiền mặt | Ngoại lệ: xác nhận cùng lúc với job nhả ghế | — | `test_cash_payment.py::test_confirm_and_job_concurrently_never_both` | Đạt |
 | D-05 | Tiền mặt | Ngoại lệ: gửi email lỗi vẫn giữ vé | — | `test_cash_payment.py::test_email_failure_keeps_ticket_confirmed` | Đạt |
+| D-06 | Email vé (commit `da858c0`) | Dựng email tiền mặt và SePay; thiếu email thì bỏ qua; thiếu cấu hình SMTP thì chỉ ghi log; gửi SMTP (SMTP giả bằng `MagicMock`); lỗi SMTP chỉ ghi tên lớp lỗi, không ghi địa chỉ email | "Gửi vé điện tử cho từng hành khách" | `test_ticket_notifier.py`: `test_render_sepay_ticket_email`, `test_render_cash_ticket_email`, `test_send_email_skips_when_no_email`, `test_send_email_dev_mock_when_smtp_not_configured`, `test_send_email_smtp_success`, `test_deliver_tickets_safely_catches_all_exceptions` | Đạt (lần chạy lại, mục 2.1) |
 
 ### 3.e. Hủy vé và hoàn tiền — luồng phê duyệt XOR số 2
 
@@ -389,7 +394,7 @@ Cột "Cách xác minh" chỉ điền cho mục "Chưa xác minh": ghi việc ng
 | S-13 | Thông báo lỗi không lộ chi tiết nội bộ | Đạt | Lỗi nghiệp vụ là câu tiếng Việt cố định; app không bật `debug` (`backend/app/main.py`); webhook bắt lỗi và chỉ ghi log (`backend/app/api/v1/webhooks.py:45`); `test_auth.py::test_wrong_username_and_wrong_password_get_same_401` | — | Frontend không hiện lỗi 422 tiếng Anh của FastAPI (`frontend/src/services/apiClient.ts`) |
 | S-14 | CORS chỉ cho origin của frontend | **Chưa xác minh** (bản chạy thật) | Code: `main.py:48–52` (`allow_origins` từ `CORS_ORIGINS`, `allow_credentials=False`); test `test_cors.py::test_disallowed_origin_gets_no_cors_header` (Đạt) | Vào Render → service backend → **Environment**: ghi **Có / Không** có biến `CORS_ORIGINS`. Không chép giá trị. | Khi frontend deploy phải thêm origin thật |
 | S-15 | HTTPS trên Render | **Chưa xác minh** | Không truy cập được Render từ phiên kiểm thử | Mở `https://qlqtkd-vexe-backend.onrender.com/health`: trình duyệt có biểu tượng ổ khóa và trả `{"status":"ok"}` | — |
-| S-16 | Khóa webhook SePay đã đổi sau khi bị lộ | **Chưa xác minh** | `vault/DECISION_LOG/DECISION_LOG_NHA.MD`, D-40 ghi quyết định đổi khóa | Trên SePay bấm **"Gửi thử"** sau khi đổi khóa: phải ra **200**. Gửi bằng khóa cũ phải ra **401**. | R-03 |
+| S-16 | Khóa webhook SePay sau sự cố lộ qua ảnh chụp màn hình | **Chấp nhận rủi ro** | Nhóm quyết định **giữ nguyên khóa, không đổi** (thay cho quyết định đổi khóa ở D-40, `vault/DECISION_LOG/DECISION_LOG_NHA.MD`). Lý do: ảnh chụp lộ khóa chỉ được chia sẻ trong một cuộc trò chuyện riêng, không đăng công khai hay lên repo | **Phải đổi khóa ngay** khi: khóa xuất hiện ở nơi công khai, hoặc thấy webhook lạ trong lịch sử webhook của SePay. Sau khi đổi: trên SePay bấm **"Gửi thử"** phải ra **200**, gửi bằng khóa cũ phải ra **401** | R-03 |
 | S-17 | `TRUSTED_PROXY_HOPS` đặt đúng trên Render | **Chưa xác minh** | `config.py:32`; hướng dẫn trong `docs/API.md` | Vào Render → **Environment**: ghi **Có / Không** có biến `TRUSTED_PROXY_HOPS`. Không chép giá trị. | R-04 |
 | S-18 | Không còn dữ liệu test trên Supabase | **Chưa xác minh** | Không kết nối Supabase | CSDL **không có bảng `don_hang`**: đơn là nhóm vé cùng `ma_don`. Người phụ trách CSDL lọc bảng `ve` và `thanh_toan` theo danh sách mã đơn (`ma_don`) đã dùng khi test tay, rồi báo số dòng tìm thấy. Không tự xóa. | R-10 |
 
@@ -403,7 +408,7 @@ Hai cột cuối để nhóm điền. Mục R-01, R-02, R-06, R-07 trùng mục 
 |---|---|---|---|---|---|
 | R-01 | Tra cứu vé chỉ cần số điện thoại (`GET /bookings/lookup`): ai biết hoặc dò được SĐT là xem được họ tên, điểm đón/trả, mã vé. Trái BR-BUS-36, BR-BUS-37. | Cao | Bắt buộc mã đơn + SĐT; giới hạn số lần tra cứu | | |
 | R-02 | API đổi vé (`POST /bookings/exchange`) không yêu cầu đăng nhập; n8n ghi thẳng vào CSDL, backend không kiểm soát việc khóa dòng của n8n | Cao | Dùng `get_accessible_booking` theo `ma_don`; workflow n8n làm đúng 5 bước khóa trong `docs/API.md` | | |
-| R-03 | Khóa webhook SePay từng bị lộ qua ảnh chụp màn hình (D-40); người có khóa gửi được webhook giả để xác nhận vé không trả tiền | Cao | Đổi khóa trên SePay và Render **trước khi push**; xác minh theo S-16; chụp màn hình phải che `Authorization` | | |
+| R-03 | Khóa webhook SePay từng lộ qua ảnh chụp màn hình (D-40), chỉ trong một cuộc trò chuyện riêng. Người có khóa gửi được webhook giả để xác nhận vé không trả tiền. Nhóm giữ nguyên khóa, chấp nhận rủi ro (S-16) | Thấp | Theo dõi lịch sử webhook trên SePay; đổi khóa nếu có dấu hiệu bất thường hoặc trước khi đưa vào sử dụng thật. Chụp màn hình phải che `Authorization` | | |
 | R-04 | `TRUSTED_PROXY_HOPS` sai trên Render: giá trị 0 làm mọi người dùng chung IP của proxy (khóa nhầm nhau); giá trị lớn hơn số hop thật cho phép giả IP qua `X-Forwarded-For` | Trung bình | Đặt đúng số hop theo hướng dẫn trong `docs/API.md`; xác minh theo S-17 | | |
 | R-05 | Bộ giới hạn đăng nhập lưu trong bộ nhớ tiến trình: mất khi khởi động lại, không chia sẻ giữa nhiều phiên bản backend | Trung bình | Chạy 1 phiên bản; nếu mở rộng thì lưu bộ đếm vào CSDL hoặc Redis | | |
 | R-06 | Webhook SePay đến muộn cho đơn đã chọn tiền mặt: "đơn tiền mặt" suy ra từ dòng `thanh_toan`, tổng tiền mặt đã thu của chuyến có thể bị tính sai | Thấp | Thêm kiểm tra khi webhook gặp đơn đã có dòng `TIEN_MAT` | | |
@@ -416,6 +421,11 @@ Hai cột cuối để nhóm điền. Mục R-01, R-02, R-06, R-07 trùng mục 
 | R-13 | **Thiếu test:** vai trò ADMIN gọi API nhà xe, tài xế (mong đợi 403) | Thấp | Bổ sung test | | |
 | R-14 | Số tài khoản ngân hàng thật còn trong lịch sử git (commit `e29fdf8`, `8931de9`; đã gỡ ở `34226b7`). Đây là tài khoản **nhận** tiền, số này vốn hiện trên mã QR cho mọi khách, nên lộ số không cho phép rút tiền. | Thấp | **Không viết lại lịch sử git** (repo dùng chung, nhiều người đã pull). Từ nay mọi test và tài liệu chỉ dùng `0000000000`. | | |
 | R-15 | Test đổi vé đồng thời chỉ mô phỏng n8n (`exchange_like_n8n`); workflow n8n thật không nằm trong repo nên không kiểm được | Trung bình | Đưa workflow n8n (file JSON, không có khóa) vào repo và kiểm lại | | |
+| R-16 | **pytest có thể gửi email thật** (nguồn: commit `da858c0`). `send_tickets_email` gọi thẳng `get_settings()`, hàm này đọc `backend/.env`, không qua `test_settings` của `tests/conftest.py`. Fixture `sent` trong `test_cash_payment.py` còn gọi lại hàm gửi thật. Nếu `backend/.env` có `SMTP_HOST` và `SMTP_USER`, các test đi qua `confirm-cash` hoặc webhook SePay sẽ đăng nhập SMTP bằng tài khoản thật. **Đã xử lý ở commit `b49646e`, bằng chứng `tests/test_smtp_guard.py`:** fixture `autouse` `block_real_smtp` (`tests/conftest.py`) ép `smtp_*` = None trên cấu hình mà `ticket_notifier` đọc, thay `smtplib.SMTP`/`SMTP_SSL` bằng lớp ghi lại lần gọi; teardown đánh đỏ test nếu có lần gọi nào. Fixture `sent` không còn gọi hàm gửi thật. Test chứng minh: `test_smtp_guard.py::test_confirm_cash_and_sepay_webhook_open_no_smtp_connection` (đặt `SMTP_HOST`, `SMTP_USER` trong môi trường, đi qua `confirm-cash` và webhook SePay, không có kết nối SMTP nào), `test_reaching_smtplib_is_recorded_so_the_test_fails`. Không sửa `ticket_notifier.py` | **Thấp** (đã xử lý ở commit `b49646e`) | Test mới gửi email phải tự giả lập SMTP | | |
+| R-17 | **`uv.lock` chưa có `jinja2`** (nguồn: commit `da858c0` thêm `jinja2>=3.1.6` vào `pyproject.toml` nhưng không cập nhật `uv.lock`). `bookings.py` và `webhooks.py` import `ticket_notifier`, file này import `jinja2`. Cài bằng `uv sync --locked` sẽ báo lỗi lock lệch; cài bằng `uv sync --frozen` sẽ thiếu `jinja2`, backend không khởi động. **Đã xử lý ở commit `cecdc49`, bằng chứng `backend/uv.lock` có gói `jinja2`.** Lệnh build trên Render vẫn **Chưa xác minh** (README mục 8) | **Thấp** (đã xử lý ở commit `cecdc49`) | Thêm thư viện mới thì commit `uv.lock` cùng `pyproject.toml` | | |
+| R-18 | **TLS của SMTP chỉ bật với cổng 587 và 25** (nguồn: commit `da858c0`, `ticket_notifier.py:207-211`). Cổng 465 (SSL) cần `smtplib.SMTP_SSL`, code dùng `smtplib.SMTP` nên không kết nối được: email không gửi, chỉ có log lỗi. Cổng khác (ví dụ 2525) gửi mật khẩu SMTP **không mã hóa** | Thấp (nhóm dùng Gmail cổng 587) | Ghi rõ trong `.env.example` chỉ hỗ trợ 587; hoặc dùng `SMTP_SSL` cho 465 và bắt buộc STARTTLS với cổng khác | | |
+| R-19 | **Script thử email in thông tin cấu hình ra màn hình** (nguồn: commit `da858c0`, `backend/scripts/test_email.py:20-24`, `77`). Script in `SMTP_HOST`, `SMTP_USER` (địa chỉ email gửi), `SMTP_FROM` và toàn bộ nội dung lỗi. Không in mật khẩu. Chạy khi chụp màn hình hoặc quay video sẽ lộ địa chỉ email (đã có tiền lệ lộ khóa qua ảnh chụp, R-03) | Thấp | Che `SMTP_USER` khi in; chỉ in tên lớp lỗi | | |
+| R-20 | **Thiếu test email** (nguồn: commit `da858c0`): không có test cổng khác 587 (R-18); không có test họ tên có thẻ HTML được escape trong email (template bật `autoescape`, chưa có test). Test bảo đảm bộ test không chạm SMTP đã thêm (R-16) | Thấp | Bổ sung test | | |
 
 ---
 

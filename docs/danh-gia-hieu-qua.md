@@ -10,7 +10,9 @@ Tài liệu làm bằng chứng cho **tiêu chí 4.4**.
 
 Có sẵn BPMN to-be, nên tài liệu này **không dựng to-be từ code**. Chỗ nào BPMN to-be khác code thì ghi ở mục 4.
 
-Mọi số đếm ở mục 2 và 3 lấy bằng cách đọc thẳng XML của hai file BPMN (đếm phần tử `lane`, `*Task`, `exclusiveGateway`, `sequenceFlow`). Không đếm bằng mắt trên hình.
+Mọi số đếm ở mục 2 và 3 lấy bằng cách đọc thẳng XML của hai file BPMN (đếm phần tử `lane`, `*Task`, `exclusiveGateway`, `sequenceFlow`). Không đếm bằng mắt trên hình. Số nhánh vào/ra của mỗi cổng tính theo `sequenceFlow` (`sourceRef`, `targetRef`), vì hai cổng "Nhu cầu?" và "Đã chọn được chuyến?" trong file to-be không có thẻ `incoming`/`outgoing`.
+
+Số to-be trong tài liệu này đếm trên bản BPMN to-be của nhóm, commit `50ad3b7`. Khác biệt so với lần đếm trên bản cũ: mục 3.5.
 
 ---
 
@@ -18,7 +20,7 @@ Mọi số đếm ở mục 2 và 3 lấy bằng cách đọc thẳng XML của 
 
 | Thuật ngữ | Định nghĩa dùng trong tài liệu |
 |---|---|
-| **Bước thủ công** | Việc **người** phải làm tay: gọi điện, nghe máy, ghi sổ, bấm trên web, đưa tiền. Bước hệ thống tự làm (`serviceTask`, `businessRuleTask`, `sendTask` do hệ thống gửi) **không** tính |
+| **Bước thủ công** | Việc **người** phải làm tay: gọi điện, nghe máy, ghi sổ, bấm trên web, đưa tiền. Áp dụng **cùng một quy tắc cho as-is và to-be**: mọi `userTask`, `manualTask`, `sendTask`, `receiveTask` nằm trong lane của người (Khách hàng, Nhà xe, Tài xế) đều tính. **Không** tính: `serviceTask`, `businessRuleTask`, và bước gửi do hệ thống làm. Ở to-be, bước gửi do hệ thống là các `sendTask` trong lane "Khách hàng (thao tác + hệ thống tự động)" (khách là người nhận thông báo, ví dụ "Gửi vé điện tử cho từng hành khách") và trong pool hoàn tiền ("Gửi lệnh hoàn tiền") |
 | **Bàn giao** | Luồng tuần tự (`sequenceFlow`) đi từ lane **người** này sang lane **người** khác. Bước hệ thống tự làm không tính là bàn giao |
 | **Đường đi thuận lợi** | Khách đặt vé, còn chuyến, thông tin đúng ngay lần đầu, khách có mặt khi tài xế liên hệ, chuyến hoàn thành |
 | **Cổng XOR do người quyết** | Nhánh đi theo lựa chọn của một người (khách, nhà xe, tài xế) |
@@ -33,14 +35,18 @@ As-is chỉ mô tả **đặt vé, hủy vé và vận hành chuyến** (tài x�
 
 Phần to-be nằm ngoài phạm vi as-is được tách riêng ở mục 3.4.
 
+BPMN to-be có 4 pool: "Cổng thanh toán SePay / Ngân hàng" (hệ thống ngoài, không có bước bên trong), "Hệ thống Vé xe Khách (To-be)" (lane Khách hàng), "Hệ thống vé xe_Hoàn tiền" (không chia lane) và "Hệ thống Vé xe (To-be)" (lane Nhà xe, lane Tài xế).
+
 | Phần của BPMN to-be | Trong phạm vi so sánh? |
 |---|---|
 | Lane Khách hàng: tìm chuyến, giữ chỗ và thanh toán, khách hủy giữa chừng, hủy vé | Có |
-| Lane Nhà xe: quản lý chuyến và báo tài xế, nhận tiền, hủy vé khi khách không phản hồi | Có |
+| Lane Nhà xe: tạo lịch chuyến, báo tài xế, nhận tiền, hủy vé khi khách không phản hồi | Có |
+| Lane Nhà xe: 4 cổng của luồng cập nhật dữ liệu ("Đã cấu hình tài khoản?", "Hạng mục cần cập nhật?", "Dữ liệu hợp lệ?", "Cần cập nhật thêm?") | Có, vì đường đi tới "Tạo lịch chuyến" phải qua các cổng này |
 | Lane Tài xế | Có |
-| Pool "Quy trình hoàn tiền" | Có, vì là phần tiếp theo của hủy vé |
+| Pool "Hệ thống vé xe_Hoàn tiền" | Có, vì là phần tiếp theo của hủy vé |
 | Lane Khách hàng: subprocess "Xử lý đổi vé" | **Không**: as-is không có đổi vé |
-| Pool "Quản trị danh mục cố định" (xe, sơ đồ ghế, tuyến, giá) | **Không**: as-is không có |
+| Lane Nhà xe: khai báo tuyến, loại xe và sơ đồ ghế, cập nhật giá vé | **Không**: as-is không có quản trị danh mục |
+| Lane Nhà xe: "Nhập tài khoản ngân hàng & API key SePay" | **Không**: cấu hình một lần, as-is không có chuyển khoản |
 
 ---
 
@@ -50,20 +56,25 @@ Phần to-be nằm ngoài phạm vi as-is được tách riêng ở mục 3.4.
 
 | Chỉ số | As-is | To-be | Ghi chú |
 |---|---:|---:|---|
-| Số lane người | 3 | 3 | Khách hàng, Nhà xe, Tài xế. To-be có thêm pool SePay (hệ thống ngoài) và pool "Quy trình hoàn tiền" (không chia lane) |
-| **Bước thủ công** | **29** | **17** | Chi tiết ở mục 3.2 |
-| — trong đó nhân sự (nhà xe + tài xế) làm | 23 | 10 | |
+| Số lane người | 3 | 3 | Khách hàng, Nhà xe, Tài xế. To-be có thêm pool SePay (hệ thống ngoài) và pool hoàn tiền (không chia lane) |
+| **Bước thủ công** | **29** | **20** | Cùng quy tắc đếm cho hai bên (mục 1). Chi tiết ở mục 3.2 |
+| — trong đó nhân sự (nhà xe + tài xế) làm | 23 | 13 | |
 | — trong đó khách làm | 6 | 7 | To-be: khách tự bấm trên web thay vì gọi điện |
 | Cổng XOR rẽ nhánh (điểm quyết định) | 5 | 14 | Chi tiết ở mục 3.3 |
 | — **XOR do người quyết** | **5** | **8** | |
-| ·· trong đó nhân sự quyết | 3 | 2 | |
-| ·· trong đó khách quyết | 2 | 6 | Là lựa chọn khách tự bấm trên web |
+| ·· trong đó nhân sự quyết | 3 | 3 | Xem đoạn "Về cổng XOR" bên dưới |
+| ·· trong đó khách quyết | 2 | 5 | Là lựa chọn khách tự bấm trên web |
 | — **XOR do hệ thống quyết** | **0** | **6** | |
-| Cổng XOR gộp (không phải quyết định) | 2 | — | Không dùng để so sánh |
+| Cổng XOR gộp (không phải quyết định) | 2 | 9 | Không dùng để so sánh |
 | **Bàn giao trên đường đi thuận lợi** | **7** | **2** (tiền mặt) / **1** (chuyển khoản) | Liệt kê ở bảng dưới |
 | **Bàn giao thêm cho mỗi vòng sai thông tin** | **+2** | **+0** | |
 
-**Về cổng XOR:** to-be có nhiều điểm kiểm tra hơn as-is, nhưng không phức tạp hơn với người vận hành. Trong 14 điểm, **6 điểm do hệ thống tự quyết** (còn chuyến không, thông tin hợp lệ không, được hủy không…). **6 điểm là lựa chọn khách tự bấm trên web.** Số quyết định mà **nhân sự nhà xe, tài xế** phải làm **giảm từ 3 xuống 2**. As-is có 0 điểm do hệ thống quyết: mọi kiểm tra đều do người làm bằng điện thoại và Google Sheet.
+**Về cổng XOR:** to-be có nhiều điểm kiểm tra hơn as-is, nhưng không phức tạp hơn với người vận hành. Trong 14 điểm, **6 điểm do hệ thống tự quyết** (còn chuyến không, thông tin hợp lệ không, được hủy không…). **5 điểm là lựa chọn khách tự bấm trên web.** As-is có 0 điểm do hệ thống quyết: mọi kiểm tra đều do người làm bằng điện thoại và Google Sheet.
+
+Số điểm quyết định của **nhân sự nhà xe, tài xế** trên sơ đồ **không giảm: 3 ở as-is, 3 ở to-be**. Khác nhau ở chỗ quyết định đó lặp lại bao nhiêu lần:
+- As-is: "Nhu cầu của khách?" và "Trạng thái chuyến?" lặp lại ở **mỗi cuộc gọi** đặt hoặc hủy vé; "Khách phản hồi?" lặp lại với mỗi khách.
+- To-be: 2 điểm của nhà xe ("Hạng mục cần cập nhật?", "Cần cập nhật thêm?") chỉ có khi nhà xe cập nhật dữ liệu vận hành (lịch chuyến, tuyến, loại xe), không lặp theo vé. Chỉ "Khách phản hồi?" của tài xế còn lặp với mỗi khách.
+- Tính riêng các quyết định nhân sự phải làm cho mỗi vé, số quyết định **giảm từ 3 xuống 1**.
 
 **Bàn giao trên đường đi thuận lợi:**
 
@@ -79,17 +90,18 @@ Phần to-be nằm ngoài phạm vi as-is được tách riêng ở mục 3.4.
 
 | # | To-be: từ lane → sang lane | Bước nối | Tiền mặt | Chuyển khoản |
 |---|---|---|:---:|:---:|
-| 1 | Nhà xe → Tài xế | "Báo cho tài xế liên quan" → "Nhận thông báo chạy xe" (phân công tài xế cho chuyến) | Có | Có |
+| 1 | Nhà xe → Tài xế | "Báo cho tài xế" → "Nhận thông báo chạy xe" (phân công tài xế cho chuyến) | Có | Có |
 | 2 | Tài xế → Nhà xe | "Gửi tiền cho nhà xe" → "Nhận tiền" | Có | **Không** |
 
 Ghi chú về bàn giao to-be:
-- Khách đặt vé xong thì đơn nằm trong CSDL. Nhà xe **không cần nhận việc từ khách**, nên không còn bàn giao Khách hàng → Nhà xe.
-- Bàn giao số 1 tính **một lần cho cả chuyến**, không phải cho từng vé.
+- Script tìm được đúng 3 `sequenceFlow` đi qua lane người. Hai luồng trên nằm trên đường đi thuận lợi. Luồng thứ ba, "Báo cho nhà xe" → "Nhận thông báo khách không phản hồi" (Tài xế → Nhà xe), chỉ chạy khi khách không phản hồi, nên không tính.
+- Khách đặt vé xong thì đơn nằm trong CSDL. Lane Khách hàng và lane Nhà xe nằm ở hai pool khác nhau, không có luồng nào nối trực tiếp. Nhà xe **không cần nhận việc từ khách**, nên không còn bàn giao Khách hàng → Nhà xe.
+- Bàn giao số 1 tính **một lần cho cả chuyến**, không phải cho từng vé. "Báo cho tài xế" đi sau cổng song song, ngay sau "Sinh sơ đồ ghế & mở bán từng chuyến".
 - BPMN to-be không tách nhánh tiền mặt/chuyển khoản trong lane Tài xế. Số **1 bàn giao cho chuyển khoản** lấy theo code: tài xế không thu được vé chuyển khoản (`test_driver_cash.py::test_collect_transfer_ticket_returns_400`), nên không có tiền mặt để nộp.
 
 **Vòng sai thông tin:**
 - As-is: "Tất cả thông tin đúng?" = Sai → "Báo lại thông tin sai" (Khách hàng → Nhà xe, **+1**) → "Kiểm tra lại thông tin" → "Sắp xếp chuyến xe" → "Thông báo thông tin chuyến xe" (Nhà xe → Khách hàng, **+1**).
-- To-be: "Thông tin hợp lệ?" = Không hợp lệ → hệ thống "Thông báo thông tin không hợp lệ" → khách sửa ngay ở "Điền thông tin cá nhân & điểm đón/trả". Cả vòng nằm trong lane Khách hàng, **+0**.
+- To-be: "Thông tin hợp lệ?" = Không hợp lệ → hệ thống "Thông báo thông tin không hợp lệ" → cổng gộp → khách sửa ngay ở "Điền thông tin cá nhân & điểm đón/trả". Cả vòng nằm trong lane Khách hàng, **+0**.
 
 ### 3.2. Chi tiết bước thủ công
 
@@ -104,16 +116,18 @@ Ghi chú về bàn giao to-be:
 
 Theo lane: Khách hàng 6, Nhà xe 16, Tài xế 7.
 
-**To-be: 17 bước người làm (`userTask`) trong phạm vi so sánh.**
+**To-be: 20 bước người làm trong phạm vi so sánh: 15 `userTask`, 1 `manualTask`, 2 `sendTask`, 2 `receiveTask`.** Đếm theo cùng quy tắc với as-is (mục 1): as-is tính `sendTask`/`receiveTask` của người (gọi điện, nghe máy), nên to-be cũng tính `sendTask`/`receiveTask` nằm ở lane Nhà xe và lane Tài xế.
 
 | Lane | Số bước | Các bước |
 |---|---:|---|
-| Khách hàng | 7 | Nhập tiêu chí tìm kiếm; Chọn chuyến xe phù hợp; Chọn ghế ngồi; Điền thông tin cá nhân & điểm đón/trả; Chọn phương thức thanh toán; Chọn vé cần hủy; Xem mức hoàn & xác nhận hủy |
-| Nhà xe | 5 | Thêm/Sửa/Xóa chuyến xe; Chỉnh sửa thông tin (chỉ khi dữ liệu chuyến lỗi); Nhận tiền; Hủy vé của khách (khi khách không phản hồi); Nhà xe kiểm tra yêu cầu hoàn tiền |
-| Tài xế | 5 | Liên hệ khách hàng; Xem điểm đón & Đón khách; Kiểm tra thông tin & Thu tiền; Gửi tiền cho nhà xe; Xác nhận hoàn thành chuyến |
-| **Tổng** | **17** | |
+| Khách hàng | 7 | Nhập tiêu chí tìm kiếm (điểm đi, điểm đến, ngày); Chọn chuyến & chỗ ngồi; Điền thông tin cá nhân & điểm đón/trả; Chọn phương thức thanh toán; Khách quét mã & chuyển khoản (`manualTask`, chỉ ở nhánh chuyển khoản); Chọn vé cần hủy; Xem mức hoàn & xác nhận hủy |
+| Nhà xe | 6 | Tạo lịch chuyến (giờ chạy, xe, tài xế); Báo cho tài xế (`sendTask`); Nhận tiền; Nhận thông báo khách không phản hồi (`receiveTask`); Hủy vé của khách (khi khách không phản hồi); Nhà xe duyệt yêu cầu hoàn tiền (nằm ở pool hoàn tiền không chia lane, tính cho Nhà xe theo tên bước) |
+| Tài xế | 7 | Nhận thông báo chạy xe (`receiveTask`); Liên hệ khách hàng; Xem điểm đón & Đón khách; Kiểm tra thông tin & Thu tiền; Báo cho nhà xe (`sendTask`, khi khách không phản hồi); Xác nhận hoàn thành chuyến; Gửi tiền cho nhà xe |
+| **Tổng** | **20** | Nhân sự 13, khách 7 |
 
-Hệ thống làm thay 28 `serviceTask`, 2 `businessRuleTask` và phần lớn `sendTask` (đếm trên toàn file to-be).
+Không tính các `sendTask` do hệ thống gửi: 9 cái trong lane "Khách hàng (thao tác + hệ thống tự động)" (gồm cả 2 cái của "Xử lý đổi vé") và 1 cái trong pool hoàn tiền ("Gửi lệnh hoàn tiền").
+
+Đếm trên toàn file to-be: 21 `serviceTask`, 2 `businessRuleTask`, 12 `sendTask` (2 ở lane người, 10 do hệ thống gửi), 2 `receiveTask` (đều ở lane người).
 
 ### 3.3. Chi tiết cổng XOR rẽ nhánh
 
@@ -129,20 +143,23 @@ Hệ thống làm thay 28 `serviceTask`, 2 `businessRuleTask` và phần lớn `
 |---|---|
 | Có chuyến phù hợp? | **Hệ thống** |
 | Thông tin hợp lệ? | **Hệ thống** |
-| Có ghế đang giữ? (khi khách hủy giữa chừng) | **Hệ thống** |
 | Được phép hủy? (mốc 24/12 giờ) | **Hệ thống** |
 | Đã CK & mức hoàn > 0? | **Hệ thống** |
-| Dữ liệu hợp lệ? (chuyến, lịch tài xế) | **Hệ thống** |
-| Nhu cầu? (đặt / hủy / đổi) | Khách |
-| Lựa chọn? (tìm lại / dừng / chọn chuyến) | Khách |
-| Đã chọn xong? (ghế) | Khách |
+| Dữ liệu hợp lệ? (kiểm tra hợp lệ & trùng lịch xe/tài xế) | **Hệ thống** |
+| Đã cấu hình tài khoản? (tài khoản nhận tiền SePay) | **Hệ thống**: chỉ kiểm tra đã có cấu hình hay chưa |
+| Nhu cầu? (đặt vé mới / hủy vé / đổi vé) | Khách |
 | Đã chọn được chuyến? | Khách |
+| Tìm kiếm lại? | Khách |
 | Phương thức thanh toán? | Khách |
 | Khách xác nhận hủy? | Khách |
+| Hạng mục cần cập nhật? (lịch chuyến / tuyến / loại xe và giá) | Nhà xe |
+| Cần cập nhật thêm? | Nhà xe |
 | Khách phản hồi? | Tài xế |
-| Yêu cầu hoàn tiền được duyệt? | Nhà xe (theo BPMN). **Trong code, hệ thống tự duyệt** theo quy tắc (`ticket_cancel_service.py`, `trang_thai = DA_DUYET`). Nếu tính theo code thì nhân sự chỉ còn quyết 1 điểm |
 
-To-be còn 2 cổng sự kiện (`eventBasedGateway`): "Chờ kết quả thanh toán" và "Chờ phản hồi" hoàn tiền. Cả hai do hệ thống chờ tín hiệu, không tính vào bảng XOR.
+Ghi chú:
+- "Nhà xe duyệt yêu cầu hoàn tiền" là `userTask`, nhưng sau bước này **không có cổng XOR**: luồng luôn đi tiếp "Gửi lệnh hoàn tiền". Vì vậy không tính là điểm quyết định.
+- To-be có 2 cổng sự kiện (`eventBasedGateway`): "Chờ kết quả thanh toán" và "Chờ phản hồi" (hoàn tiền). Cả hai do hệ thống chờ tín hiệu, không tính vào bảng XOR.
+- To-be có 1 cổng song song (`parallelGateway`) sau "Sinh sơ đồ ghế & mở bán từng chuyến", tách ra "Lịch chạy mới đã mở bán" và "Báo cho tài xế". Không phải điểm quyết định.
 
 ### 3.4. Ngoài phạm vi as-is
 
@@ -150,20 +167,50 @@ Các phần dưới đây chỉ có ở to-be, nên không đưa vào bảng ch�
 
 | Phần | Bước người làm | XOR do người quyết | XOR do hệ thống quyết | Hiện trạng code |
 |---|---:|---:|---:|---|
-| Xử lý đổi vé | 3 | 1 (Khách xác nhận đổi?) | 1 (Đủ điều kiện đổi?) | Chạy qua n8n, ngoài backend (`POST /api/v1/bookings/exchange`) |
-| Quản trị danh mục cố định (xe, sơ đồ ghế, tuyến, giá) | 4 | 2 (Chọn nghiệp vụ quản lý?, Cần cập nhật thêm?) | 2 (Dữ liệu xe hợp lệ?, Dữ liệu tuyến hợp lệ?) | Chưa có API. Dữ liệu hiện nạp bằng seed |
+| Xử lý đổi vé | 3 (Chọn vé cần đổi; Chọn chuyến & ghế mới; Xem chênh lệch & xác nhận đổi) | 1 (Khách xác nhận đổi?) | 1 (Đủ điều kiện đổi?) | Chạy qua n8n, ngoài backend (`POST /api/v1/bookings/exchange`) |
+| Quản trị danh mục (tuyến, loại xe và sơ đồ ghế, giá) | 3 (Khai báo / cập nhật tuyến & điểm đón/trả; Khai báo / cập nhật loại xe & sơ đồ ghế; Cập nhật giá vé theo loại xe) | 0 riêng: dùng chung cổng với "Tạo lịch chuyến", đã tính ở 3.3 | 0 riêng | Chưa có API. Dữ liệu hiện nạp bằng seed |
+| Cấu hình SePay | 1 (Nhập tài khoản ngân hàng & API key SePay) | 0 | 0 riêng: "Đã cấu hình tài khoản?" đã tính ở 3.3 | Không có màn hình hay API. Đọc từ biến môi trường (mục 4) |
 
-Đối chiếu tổng số trên toàn file to-be: 17 + 3 + 4 = **24** `userTask`; 14 + 2 + 4 = **20** XOR rẽ nhánh.
+Đối chiếu tổng số trên toàn file to-be:
+- Bước người làm: 20 + 3 + 3 + 1 = **27** = 22 `userTask` + 1 `manualTask` + 2 `sendTask` + 2 `receiveTask` ở lane người.
+- XOR rẽ nhánh: 14 + 2 = **16**. Cộng 9 cổng gộp = **25** `exclusiveGateway`, khớp số phần tử trong file.
+
+### 3.5. Khác biệt so với lần đếm trước (bản BPMN to-be cũ)
+
+Lần đếm trước làm trên bản BPMN to-be lấy nhầm. As-is không đổi (file `quy_trinh_asis.bpmn` không sửa), nên chỉ số to-be thay đổi.
+
+| Chỉ số to-be | Lần trước | Bây giờ | Nguyên nhân |
+|---|---:|---:|---|
+| Bước thủ công trong phạm vi | 17 | **20** | Đổi quy tắc đếm cho thống nhất với as-is: lần trước chỉ tính `userTask`, nay tính cả `sendTask`/`receiveTask` ở lane người (+4). Xem hai dòng dưới |
+| — nhân sự | 10 | **13** | Theo sơ đồ mới, `userTask` của nhà xe 5 → 4: "Thêm/Sửa/Xóa chuyến xe" thành "Tạo lịch chuyến", bỏ "Chỉnh sửa thông tin". Tài xế giữ 5 `userTask`. Cộng 4 bước gửi/nhận: "Báo cho tài xế", "Nhận thông báo khách không phản hồi" (Nhà xe), "Nhận thông báo chạy xe", "Báo cho nhà xe" (Tài xế) |
+| — khách | 7 | 7 | "Chọn chuyến xe phù hợp" và "Chọn ghế ngồi" gộp thành "Chọn chuyến & chỗ ngồi" (−1); thêm `manualTask` "Khách quét mã & chuyển khoản" (+1) |
+| XOR rẽ nhánh trong phạm vi | 14 | 14 | Thành phần thay đổi, tổng giữ nguyên |
+| — hệ thống quyết | 6 | 6 | Bỏ "Có ghế đang giữ?"; thêm "Đã cấu hình tài khoản?" |
+| — khách quyết | 6 | **5** | Bỏ "Đã chọn xong? (ghế)"; "Lựa chọn?" đổi tên thành "Tìm kiếm lại?" |
+| — nhân sự quyết | 2 | **3** | Bỏ "Yêu cầu hoàn tiền được duyệt?"; thêm "Hạng mục cần cập nhật?", "Cần cập nhật thêm?" |
+| XOR gộp | không đếm | 9 | |
+| Bàn giao đường thuận lợi | 2 / 1 | 2 / 1 | Không đổi |
+| `userTask` toàn file | 24 | **22** | |
+| XOR rẽ nhánh toàn file | 20 | **16** | Bản mới không còn pool "Quản trị danh mục cố định" riêng, danh mục dùng chung cổng với lịch chuyến |
+| Câu "số quyết định nhân sự" | "giảm từ 3 xuống 2" | **"3 và 3 trên sơ đồ; tính theo mỗi vé thì giảm từ 3 xuống 1"** | Xem đoạn "Về cổng XOR" ở 3.1 |
 
 ---
 
 ## 4. Chênh lệch BPMN to-be và hệ thống
 
-| Nội dung | BPMN to-be | Code | Hướng xử lý đề xuất |
-|---|---|---|---|
-| Thời gian giữ ghế | "Khóa tạm ghế (giữ chỗ 5 phút)", "Hết 5 phút giữ chỗ", nhắc sau 3 phút "còn 2 phút" | Mặc định 10 phút (`backend/app/core/config.py:22`, `backend/.env.example:25`). `quy-trinh-tobe.md` cũng ghi 10 phút. Đếm ngược 5 phút của QR chỉ hiển thị ở frontend | Nhóm chốt. Đề xuất giữ 10 phút như code và `quy-trinh-tobe.md`, sửa nhãn trên sơ đồ BPMN |
-| Hoàn tiền | Nhà xe kiểm tra → hệ thống "Gửi lệnh hoàn tiền" sang SePay → chờ SePay xác nhận hoặc báo lỗi | Hủy vé tạo khoản `HOAN_TIEN` chờ xử lý. Nhà xe **chuyển khoản tay**, rồi đánh dấu ở `POST /api/v1/refunds/{thanh_toan_id}/complete` | SePay chỉ theo dõi tiền vào, không chi tiền ra. Đề xuất sửa BPMN thành nhà xe chuyển khoản tay rồi đánh dấu hoàn tất trên hệ thống |
-| Đổi vé | Subprocess "Xử lý đổi vé" nằm trong hệ thống | Backend chỉ chuyển yêu cầu sang n8n; n8n kiểm tra và ghi thẳng vào CSDL | Giữ nguyên, ghi rõ là tích hợp ngoài backend; rủi ro xem `docs/bao-cao-kiem-thu-bao-mat.md` (R-02, R-07, R-15) |
+Đối chiếu bản BPMN to-be commit `50ad3b7` với code tại thư mục làm việc (đã có commit `da858c0` gửi email vé).
+
+| # | Nội dung | BPMN to-be | Code | Khớp / lệch | Hướng xử lý đề xuất |
+|---|---|---|---|---|---|
+| 1 | Thời gian giữ chỗ và nhắc khách | Bản hiện tại (`50ad3b7`): "Khóa tạm ghế (giữ chỗ 5 phút)"; timer biên "Sau 3 phút" → "Nhắc khách: còn 2 phút giữ chỗ" (`sendTask`); timer biên "Hết 5 phút giữ chỗ" → "Hủy giao dịch đặt vé". Nhóm sẽ sửa sơ đồ **đúng 3 chỗ**: "Khóa tạm ghế (giữ chỗ 10 phút)", timer biên "Hết 10 phút giữ chỗ", timer biên nhắc "Sau 8 phút". Timer nhánh chuyển khoản "Quá 5 phút chưa nhận tiền" **giữ 5 phút**: timer này ứng với `SEPAY_QR_MINUTES` (đếm ngược QR), không phải thời gian giữ chỗ | **Mặc định code 10 phút**, giữ nguyên: `seat_hold_minutes = 10` (`backend/app/core/config.py:22`), `SEAT_HOLD_MINUTES=10` (`backend/.env.example:25`), test `test_seat_hold_minutes_defaults_to_10` (`backend/tests/test_config.py:45-51`). pytest ghim 5 phút cho các mốc thời gian cố định trong test, không phải quy tắc nghiệp vụ (`backend/tests/conftest.py:128-130`). **Nhắc khách:** frontend hiện cảnh báo "Sắp hết thời gian giữ chỗ, vui lòng hoàn tất đặt vé." khi còn ≤ 2 phút, tức sau 8 phút với giữ chỗ 10 phút (`HOLD_WARNING_MS`, `frontend/src/components/HoldCountdown.tsx:4`, `37-41`). Chỉ hiện trên màn hình, không gửi thông báo. **Chuyển khoản:** tạo QR thì gia hạn giữ chỗ thêm một kỳ `SEAT_HOLD_MINUTES`, tức **thêm 10 phút** tính từ lúc tạo QR (`backend/app/services/sepay_payment_service.py:141-144`). Đếm ngược QR theo `SEPAY_QR_MINUTES` (mặc định 5) chỉ để hiển thị, khớp timer "Quá 5 phút chưa nhận tiền" | **Đã thống nhất 10 phút; sơ đồ BPMN cập nhật theo** (nhắc khi còn 2 phút, tức sau 8 phút). Sau khi nhóm sửa sơ đồ, code khớp về thời gian. Còn lệch nhỏ: (a) BPMN là `sendTask` (gửi thông báo), code chỉ hiện cảnh báo trên màn hình; (b) sơ đồ không vẽ việc tạo QR gia hạn giữ chỗ thêm 10 phút, nên khi khách chuyển khoản, ghế có thể được giữ lâu hơn 10 phút tính từ lúc giữ | Nhóm sửa nhãn trên sơ đồ BPMN. `backend/.env` của nhóm và Render phải đặt `SEAT_HOLD_MINUTES=10` hoặc bỏ biến để dùng mặc định (**Chưa xác minh**: tài liệu này không đọc giá trị) |
+| 2 | Hoàn tiền | Hủy vé: "Tiếp nhận yêu cầu và ghi nhận Chờ duyệt" → pool hoàn tiền: "Kiểm tra giao dịch gốc & số tiền hoàn" → "Nhà xe duyệt yêu cầu hoàn tiền" → "Gửi lệnh hoàn tiền" (gửi tới SePay) → "Chờ phản hồi": nhận xác nhận / nhận báo lỗi / quá 24 giờ → "Ghi nhận giao dịch hoàn tiền" hoặc "Hoàn tiền thất bại" | Hủy vé ghi `yeu_cau_huy_doi.trang_thai = DA_DUYET` (`ticket_cancel_service.py:289`) và dòng `thanh_toan` loại `HOAN_TIEN`, trạng thái `CHO_THANH_TOAN` (`ticket_cancel_service.py:301-304`). Nhà xe xem danh sách ở `GET /api/v1/refunds`, **chuyển khoản tay**, rồi nhập mã giao dịch ở `POST /api/v1/refunds/{thanh_toan_id}/complete`. Dòng chuyển sang `DA_THANH_TOAN`, ghi `ngay_thanh_toan` (`refund_service.py:135`) | **Khớp:** sau khi hủy có một trạng thái chờ (dòng `HOAN_TIEN` `CHO_THANH_TOAN` đóng vai "Chờ duyệt"); mức hoàn do quy tắc tính; nhà xe là người làm bước tiếp theo; có bước ghi nhận giao dịch hoàn tiền (mã giao dịch, ngày). Không có XOR sau bước duyệt ở cả BPMN lẫn code. **Lệch:** (a) yêu cầu hủy ghi `DA_DUYET` ngay, giá trị `CHO_DUYET` có trong enum (`backend/app/models/enums.py:78`) nhưng không dùng; (b) không có code gửi lệnh hoàn qua SePay: backend chỉ nhận webhook tiền vào; (c) không có chờ phản hồi, mốc 24 giờ, nhánh báo lỗi và kết thúc "Hoàn tiền thất bại" | Sửa BPMN: thay "Gửi lệnh hoàn tiền" và cổng "Chờ phản hồi" bằng "Nhà xe chuyển khoản tay & nhập mã giao dịch" → "Ghi nhận giao dịch hoàn tiền" |
+| 3 | Nhà xe hủy vé khi khách không phản hồi | Tài xế: "Khách phản hồi?" = Không → "Báo cho nhà xe" → Nhà xe: "Nhận thông báo khách không phản hồi" → `userTask` "Hủy vé của khách" → "Vé bị hủy" | **Chưa có.** API nhà xe chỉ có chuyến, tài xế, phân công, khoản nộp tiền mặt (`backend/app/api/v1/operator.py`), hoàn tiền (`refunds.py`). Tài xế không có API báo khách không phản hồi (`driver.py`). Chỉ khách tự hủy được vé (`POST /api/v1/bookings/{ma_don}/cancel-tickets`) | Lệch: cả nhánh "khách không phản hồi" chưa có trong hệ thống | Nhóm chọn: làm thêm API, hoặc ghi trên BPMN là chưa làm ở bản hiện tại |
+| 4 | Cấu hình tài khoản SePay | Cổng "Đã cấu hình tài khoản?" = Chưa → Nhà xe "Nhập tài khoản ngân hàng & API key SePay" → "Kiểm tra kết nối & đăng ký webhook SePay" | Không có màn hình hay API. Tài khoản nhận tiền và khóa lấy từ biến môi trường `SEPAY_BANK_BIN`, `SEPAY_ACCOUNT_NO`, `SEPAY_ACCOUNT_NAME`, `SEPAY_WEBHOOK_SECRET` (`backend/app/core/config.py:43-48`), một nhà xe duy nhất. Thiếu cấu hình thì `pay-sepay` trả 503 (`sepay_payment_service.py:117`), webhook trả 503 (`sepay_webhook_service.py:114`). Không có code kiểm tra kết nối hay đăng ký webhook: đăng ký làm tay trên SePay Dashboard | Khớp một phần: lỗi 503 là chỗ code tương ứng cổng "Đã cấu hình tài khoản?". Lệch: người nhập là người deploy (biến môi trường), không phải nhà xe trên web. Code không dùng "API key" để gọi SePay; khóa duy nhất là khóa SePay gửi kèm webhook | Sửa nhãn BPMN: "Người deploy đặt biến môi trường SePay; đăng ký webhook trên SePay Dashboard", hoặc ghi là ngoài phạm vi bản hiện tại |
+| 5 | Nhà xe nhận tiền mặt | "Gửi tiền cho nhà xe" → "Nhận tiền" → "Hoàn thành vé". **Không có XOR** sau "Nhận tiền" | Tài xế tạo khoản nộp (`POST /api/v1/driver/trips/{chuyen_xe_id}/cash-deposits`). Nhà xe **xác nhận hoặc từ chối** (`POST /api/v1/operator/cash-deposits/{nop_tien_id}/confirm` hoặc `/reject`, hàm `_decide` ở `cash_deposit_service.py:243-268`). Bị từ chối thì tài xế nộp lại | Lệch: code có điểm quyết định của nhà xe mà BPMN không vẽ. Đây là luồng XOR số 3 trong `docs/chung-minh-yeu-cau.md` | Thêm vào BPMN cổng XOR sau "Nhận tiền": Xác nhận → "Hoàn thành vé"; Từ chối → tài xế nộp lại. Khi đó nhân sự quyết thêm 1 điểm (mục 3.1 thành 4) |
+| 6 | Đổi vé | Subprocess "Xử lý đổi vé" nằm trong hệ thống | Backend chỉ chuyển yêu cầu sang n8n (`POST /api/v1/bookings/exchange`, `N8N_EXCHANGE_WEBHOOK_URL`); n8n kiểm tra và ghi thẳng vào CSDL. Workflow n8n không có trong repo | Lệch: cổng "Đủ điều kiện đổi?" do n8n quyết, ngoài backend | Giữ nguyên, ghi rõ là tích hợp ngoài backend; rủi ro xem `docs/bao-cao-kiem-thu-bao-mat.md` (R-02, R-07, R-15) |
+| 7 | Gửi vé điện tử | "Gửi vé điện tử cho từng hành khách" | Từ commit `da858c0`: gửi **một** email HTML cho **người đặt** (`email = detail.nguoi_dat.email`, `ticket_notifier.py:72`) qua SMTP, chạy nền sau khi trả response. Gửi khi xác nhận tiền mặt (`bookings.py:219-222`) và khi webhook SePay xác nhận (`webhooks.py:54-57`). Thiếu `SMTP_HOST` hoặc `SMTP_USER` thì chỉ ghi log | Khớp: có gửi vé sau khi xác nhận. Lệch: một email cho cả đơn, gửi người đặt, không gửi từng hành khách | Sửa nhãn BPMN thành "Gửi vé điện tử cho người đặt", hoặc nhóm quyết định gửi từng hành khách |
+| 8 | Biên lai hủy vé | "Gửi thông báo hủy & biên lai hoàn tiền" | `send_cancel_receipt_email` **chỉ ghi log**, chưa gửi email (`ticket_notifier.py:259-269`). Commit `da858c0` không sửa phần này | Lệch: biên lai hủy chưa tới tay khách | Dùng lại cách gửi SMTP của email vé (cần nhóm duyệt) |
+| 9 | Báo tài xế | "Báo cho tài xế" (`sendTask`) → Tài xế "Nhận thông báo chạy xe" | Nhà xe phân công ở `PUT /api/v1/operator/trips/{chuyen_xe_id}/driver`. Tài xế tự xem chuyến được giao ở `GET /api/v1/driver/trips`. Không có thông báo chủ động (email, tin nhắn) | Khớp về dữ liệu, lệch về cách báo | Ghi trên BPMN là tài xế xem chuyến trên web |
 
 ---
 
@@ -185,7 +232,7 @@ Các phần dưới đây chỉ có ở to-be, nên không đưa vào bảng ch�
 | Mô tả | Nhà xe "Kiểm tra chuyến" → "Trạng thái chuyến?" → "Sắp xếp chuyến xe" → "Thông báo thông tin chuyến xe" → khách "Xác nhận thông tin" → nhà xe "Nhập thông tin vào ggsheet" → "Báo cho tài xế" |
 | Vì sao nghẽn | Nhà xe phải nhớ hoặc tra tay ghế còn trống. Hai người gọi cùng lúc có thể được hứa cùng một ghế. Google Sheet không chặn trùng ghế, không lưu ai sửa gì. Mỗi vé cần 2 bàn giao chỉ để xác nhận lại thông tin |
 | To-be xử lý bằng | Sơ đồ ghế lấy thẳng từ CSDL. CSDL chặn bán trùng ghế bằng index `uq_ve_ghe_id_chua_huy` (`backend/migrations/versions/0001_initial_schema.py:221`). Ghế giữ chỗ tự nhả khi hết hạn (`backend/app/services/release_job.py`). Thông tin được kiểm tra ngay khi nhập (schema Pydantic trong `backend/app/schemas/`). Đơn và vé lưu trong CSDL, thay Google Sheet. Nhà xe phân công tài xế bằng `PUT /api/v1/operator/trips/{chuyen_xe_id}/driver`, hệ thống chặn trùng lịch tài xế |
-| Vẫn còn thủ công | Nhà xe tạo và sửa chuyến, xe, tuyến: **chưa có API**, dữ liệu hiện nạp bằng seed. Email vé điện tử **đang giả lập** (`backend/app/services/ticket_notifier.py:46-47`), khách xem vé trên web |
+| Vẫn còn thủ công | Nhà xe tạo và sửa chuyến, xe, tuyến: **chưa có API**, dữ liệu hiện nạp bằng seed. Email vé điện tử gửi qua SMTP khi đã cấu hình `SMTP_*` (từ commit `da858c0`, `backend/app/services/ticket_notifier.py:169-214`); biên lai hủy vé vẫn chỉ ghi log. Khách vẫn xem vé trên web |
 
 ### 5.3. Thu tiền → gửi tiền → nhận tiền
 
@@ -346,5 +393,5 @@ Tài liệu này không đề xuất thêm cột vào CSDL.
 | Mẫu đo nhỏ (3 lần mỗi công đoạn) | Trung bình chỉ mang tính minh họa, không suy ra thống kê |
 | Frontend chưa deploy (R-09) | To-be đo trên máy phát triển. Thời gian mạng và tải thật chưa có |
 | Dữ liệu là dữ liệu test | Chuyến, vé, thanh toán do nhóm tạo. SePay thử bằng webhook giả trên máy |
-| Số đếm dựa trên BPMN | Bước thủ công, XOR và bàn giao đếm trên sơ đồ, không phải quan sát thực tế. BPMN to-be còn lệch code ở 3 chỗ (mục 4) |
-| Email vé đang giả lập | Thời gian khách nhận email vé chưa đo được |
+| Số đếm dựa trên BPMN | Bước thủ công, XOR và bàn giao đếm trên sơ đồ, không phải quan sát thực tế. BPMN to-be còn lệch code ở 9 chỗ (mục 4). Phạm vi các cổng ở lane Nhà xe là lựa chọn của tài liệu này (mục 2) |
+| Email vé chưa đo | Email vé gửi thật qua SMTP từ commit `da858c0`, nhưng chưa đo thời gian từ lúc xác nhận vé đến lúc khách nhận email. Biên lai hủy vé chưa gửi thật |

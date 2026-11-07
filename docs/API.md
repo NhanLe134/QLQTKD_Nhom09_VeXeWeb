@@ -426,7 +426,7 @@ Header `Authorization` không bắt buộc. Gửi token sai hoặc hết hạn �
 2. Khóa hồ sơ người đặt (`FOR UPDATE`), rồi khóa ghế theo thứ tự `ghe_id`. Mọi request khóa theo cùng thứ tự nên không deadlock; hai request cùng ghế thì đúng một request thành công (BR-BUS-14).
 3. Mỗi số điện thoại chỉ có **1 đơn đang giữ ghế** (BR-BUS-18): khách có vé `GIU_CHO` mà ghế còn hạn giữ → 409. Giữ đã quá hạn thì không chặn.
 4. Mọi ghế phải khả dụng. Vé `GIU_CHO` cũ của ghế giữ quá hạn chuyển `DA_HUY` trước khi tạo vé mới.
-5. Ghế → `GIU_CHO`, `han_giu_cho` = bây giờ + `SEAT_HOLD_MINUTES` phút (mặc định 5, BR-BUS-17).
+5. Ghế → `GIU_CHO`, `han_giu_cho` = bây giờ + `SEAT_HOLD_MINUTES` phút (mặc định 10, BR-BUS-17; nhóm chốt giữ 10 phút).
 6. Mỗi ghế một vé, chung `ma_don`: `gia_ve` lấy theo loại xe lúc đặt, `trang_thai_ve` `GIU_CHO`, `trang_thai_thanh_toan` `CHO_THANH_TOAN`, họ tên và SĐT mặc định của người đặt.
 7. Cấp **mã truy cập** ngẫu nhiên cho đơn (BR-BUS-19). CSDL chỉ lưu SHA-256; mã gốc chỉ có trong response này, không ghi log.
 
@@ -777,7 +777,7 @@ Log: `Xác nhận tiền mặt ma_don=... so_ve=...`. Không ghi mã truy cập,
 - Chưa cấu hình `SEPAY_BANK_BIN`/`SEPAY_ACCOUNT_NO` → **503** `Chưa cấu hình thanh toán SePay`.
 - **Idempotent (NFR-BUS-05):** đơn đã có dòng SePay `CHO_THANH_TOAN` thì trả đúng QR cũ, không tạo dòng thứ hai.
 - **Response 200** `SepayQrOut`: `ma_don`, `so_tien` (tổng giá vé), `noi_dung` = `THANH TOAN VE {ma_don}`, `qr_url` (ảnh VietQR từ cấu hình tài khoản nhận), `thoi_gian_cho_giay` = `SEPAY_QR_MINUTES` × 60.
-- Đếm ngược 5 phút chỉ ở frontend; server chấp nhận tiền đến trong toàn bộ thời gian giữ chỗ (10 phút), sau khi job nhả ghế thì giao dịch rẽ nhánh `THAT_BAI`.
+- Đếm ngược chuyển khoản (`SEPAY_QR_MINUTES`, mặc định 5 phút) chỉ ở frontend. Server chấp nhận tiền đến trong toàn bộ thời gian giữ chỗ: tạo QR thì giữ chỗ được gia hạn thêm `SEAT_HOLD_MINUTES` (mặc định 10 phút) tính từ lúc tạo QR. Sau khi job nhả ghế thì giao dịch rẽ nhánh `THAT_BAI`.
 
 ## POST `/api/v1/webhooks/sepay` — Webhook SePay
 
@@ -807,15 +807,20 @@ Log: `Xác nhận tiền mặt ma_don=... so_ve=...`. Không ghi mã truy cập,
 
 Nguồn: [SePay – Tích hợp Webhooks](https://docs.sepay.vn/tich-hop-webhooks.html), [SePay Developer – Tạo Webhooks](https://developer.sepay.vn/vi/sepay-webhooks/tich-hop-webhook).
 
-### Gửi vé qua email (giả lập)
+### Gửi vé qua email (SMTP)
 
-- Chỉ chạy khi đơn **vừa được xác nhận** trong lời gọi đó; gọi lại `confirm-cash` không gửi lần hai.
-- Chạy nền **sau khi commit và trả response** (FastAPI `BackgroundTasks`). Trước khi trả response, backend dựng sẵn dữ liệu thường `TicketEmail` (`ma_don`, email người đặt hoặc `null`, `tong_tien`, thông tin chuyến, danh sách vé dạng dict). Tác vụ nền không dùng object ORM, vì lúc chạy session của request đã đóng.
-- Hiện chỉ ghi log `Gửi vé ma_don=... so_ve=...`. Người đặt không có email → log `Bỏ qua gửi vé ma_don=... ly_do=khong_co_email`.
-- Gửi lỗi chỉ ghi log `Gửi vé thất bại ma_don=... loi=<tên lớp lỗi>`. Vé vẫn `DA_XAC_NHAN`, request vẫn 200 (BR-BUS-35). Log không ghi nội dung lỗi, vì có thể chứa địa chỉ email.
-- Đổi sang email thật: chỉ thay thân `ticket_notifier.send_tickets_email`.
+Gửi email thật qua SMTP từ commit `da858c0` (`app/services/ticket_notifier.py`, `send_tickets_email`).
 
-**Giới hạn:** tác vụ nền chạy trong tiến trình backend. Tiến trình dừng giữa chừng thì email bị mất và không gửi lại; vé không bị ảnh hưởng. Gửi thật nên dùng hàng đợi có thử lại.
+- Gửi ở hai chỗ: `confirm-cash` và webhook SePay (`POST /api/v1/webhooks/sepay`, kết quả `XAC_NHAN`). Chỉ chạy khi đơn **vừa được xác nhận** trong lời gọi đó; gọi lại `confirm-cash` hoặc webhook trùng không gửi lần hai.
+- Chạy nền **sau khi commit và trả response** (FastAPI `BackgroundTasks`), nên request đặt vé không chờ gửi mail. Trước khi trả response, backend dựng sẵn dữ liệu thường `TicketEmail` (`ma_don`, email người đặt hoặc `null`, `tong_tien`, thông tin chuyến, danh sách vé dạng dict, họ tên, điểm đón/trả, phương thức thanh toán). Tác vụ nền không dùng object ORM, vì lúc chạy session của request đã đóng.
+- Một email HTML cho **người đặt** (template `app/templates/emails/ticket_confirmation.html`, Jinja2 bật `autoescape`), không gửi cho từng hành khách. Tiêu đề: `[VexeApp] Xác nhận thanh toán thành công - Mã đơn: ...` (SePay) hoặc `[VexeApp] Xác nhận đặt vé thành công - Mã đơn: ...` (tiền mặt).
+- Cấu hình: `SMTP_HOST`, `SMTP_PORT` (mặc định 587), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`. Chỉ bật STARTTLS với cổng 587 và 25; cổng 465 không dùng được.
+- Thiếu `SMTP_HOST` hoặc `SMTP_USER` → không gửi, chỉ ghi log `Cấu hình SMTP chưa bật, giả lập gửi email thành công ma_don=... so_ve=...`. Gửi được → log `Đã gửi email thành công ma_don=...`. Người đặt không có email → log `Bỏ qua gửi vé ma_don=... ly_do=khong_co_email`.
+- Gửi lỗi (SMTP từ chối, sai mật khẩu, mất mạng, timeout 10 giây) chỉ ghi log `Gửi vé thất bại ma_don=... loi=<tên lớp lỗi>`. Vé vẫn `DA_XAC_NHAN`, request vẫn 200 (BR-BUS-35). Log không ghi mật khẩu, địa chỉ email hay nội dung lỗi.
+- Thử gửi tay: `uv run python scripts/test_email.py` gửi một email mẫu tới chính `SMTP_USER`. Script in `SMTP_HOST`, `SMTP_USER` ra màn hình, đừng chụp màn hình.
+- Kiểm thử: pytest luôn tắt SMTP và chặn `smtplib` (fixture `block_real_smtp` trong `tests/conftest.py`); test nào mở kết nối SMTP thật sẽ báo lỗi.
+
+**Giới hạn:** tác vụ nền chạy trong tiến trình backend. Tiến trình dừng giữa chừng thì email bị mất và không gửi lại; vé không bị ảnh hưởng. Không có hàng đợi thử lại.
 
 ### GET `/api/v1/bookings/{ma_don}` với đơn đã xác nhận
 
@@ -971,7 +976,7 @@ Xử lý trong **một transaction**:
 4. `muc_hoan > 0` → tạo `thanh_toan` (`ve_id`, `ma_don`, `so_tien = muc_hoan`, `CHUYEN_KHOAN_SEPAY`, `CHO_THANH_TOAN`, `loai_giao_dich = HOAN_TIEN`) chờ nhà xe hoàn tay.
 5. Vé tiền mặt chưa thu: dòng `thanh_toan` `TIEN_MAT` của đơn (ghi tổng cả đơn), **chỉ khi còn `CHO_THANH_TOAN`**: hủy một phần → `so_tien` trừ đi giá các vé vừa hủy; không còn vé chưa thu nhưng tài xế **đã thu** vé khác của đơn → `so_tien` trừ giá vé vừa hủy, chuyển `DA_THANH_TOAN` và ghi `ngay_thanh_toan`; chưa thu vé nào mà hủy hết → `THAT_BAI`, giữ `so_tien` là số còn phải thu trước lần hủy cuối. Giá gốc từng vé vẫn ở `yeu_cau_huy_doi.gia_ve_cu`. Dòng đã `DA_THANH_TOAN` (tài xế đã thu đủ) không bị sửa. Vé đã thu tiền mặt rồi mới hủy (còn ≥ 12 giờ) được xử lý như vé đã thanh toán và có khoản hoàn qua `/refunds` (xem mục "Phân công tài xế, thu và nộp tiền mặt").
 
-Sau commit, gửi **biên lai hủy qua email giả lập** (chạy nền, chỉ ghi log `Gửi biên lai hủy ma_don=... so_ve=... tong_hoan=...`). Lỗi gửi chỉ ghi log tên lớp lỗi, không ảnh hưởng vé đã hủy. Gọi lại không gửi lần nữa.
+Sau commit, chạy nền bước gửi **biên lai hủy**. Bước này **vẫn chỉ ghi log** `Gửi biên lai hủy ma_don=... so_ve=... tong_hoan=...`, **chưa gửi email thật** (`ticket_notifier.send_cancel_receipt_email`; commit `da858c0` chỉ làm email vé, không đổi phần này). Lỗi gửi chỉ ghi log tên lớp lỗi, không ảnh hưởng vé đã hủy. Gọi lại không gửi lần nữa.
 
 **Gọi lại (idempotent):** vé đã hủy bằng endpoint này trả **200** với biên lai cũ, không ghi thêm, bỏ qua tài khoản và `muc_hoan_xac_nhan` mới. Hai request hủy cùng lúc cùng một vé: chỉ một `yeu_cau_huy_doi` và một khoản hoàn được tạo, cả hai nhận cùng biên lai.
 

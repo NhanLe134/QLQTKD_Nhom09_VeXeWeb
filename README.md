@@ -72,6 +72,8 @@ Mở `backend/.env`, thay mọi giá trị `CHANGE_ME`. Biến nào cần điề
 | `N8N_EXCHANGE_WEBHOOK_URL` | Tùy chọn | Đổi vé | Có giá trị mặc định (mục 7) |
 | `N8N_BOOKING_WEBHOOK_URL` | Tùy chọn | — | Khai báo nhưng backend chưa dùng |
 | `CORS_ORIGINS` | Tùy chọn | — | Mặc định cho Vite dev server (`http://localhost:5173`, `http://127.0.0.1:5173`) |
+| `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Tùy chọn | Gửi email vé điện tử thật | Thiếu `SMTP_HOST` hoặc `SMTP_USER` thì backend chỉ ghi log "giả lập gửi email", không gửi. Với Gmail: bật xác minh 2 bước, dùng mật khẩu ứng dụng. Trong `.env.example` các dòng này đang có dấu `#` ở đầu, phải bỏ `#` mới có tác dụng. Xem lưu ý pytest ở mục 4 |
+| `SMTP_PORT` | Tùy chọn | Gửi email vé điện tử thật | Mặc định 587. Code chỉ bật TLS với cổng 587 và 25; không dùng cổng 465 |
 | `SEAT_HOLD_MINUTES`, `RELEASE_JOB_ENABLED`, `RELEASE_JOB_INTERVAL_SECONDS`, `ACCESS_TOKEN_MINUTES`, `LOGIN_MAX_FAILED_ATTEMPTS`, `LOGIN_LOCKOUT_MINUTES`, `TRUSTED_PROXY_HOPS`, `SEPAY_QR_MINUTES` | Tùy chọn | — | Có giá trị mặc định trong `backend/app/core/config.py`; ý nghĩa ghi trong `.env.example` |
 
 ### 2.2. Tạo `frontend/.env`
@@ -115,6 +117,8 @@ Test backend **chỉ chạy trên PostgreSQL Docker trên máy**, không bao gi�
 ```
 TEST_DATABASE_URL=postgresql+asyncpg://vexe:<POSTGRES_PASSWORD>@127.0.0.1:5432/vexe_test
 ```
+
+**Email khi chạy test:** pytest luôn tắt SMTP và chặn `smtplib` (fixture `block_real_smtp` trong `backend/tests/conftest.py`), nên `backend/.env` có `SMTP_*` cũng không gửi email thật. Test nào mở kết nối SMTP thật sẽ báo lỗi; test cần thử gửi mail phải tự giả lập SMTP (xem `tests/test_ticket_notifier.py`).
 
 pytest tự tạo và xóa CSDL `vexe_test`, bạn không cần tạo tay. Nên dùng `127.0.0.1`: trên Windows, `localhost` thử IPv6 trước nên mỗi kết nối chậm khoảng 2 giây.
 
@@ -255,6 +259,7 @@ Biến môi trường phải đặt trên Render (Render → service → **Envir
 | `SEPAY_WEBHOOK_SECRET` | Khóa SePay gửi trong header `Authorization: Apikey <khóa>` | Bắt buộc nếu bật SePay |
 | `SEPAY_BANK_BIN`, `SEPAY_ACCOUNT_NO`, `SEPAY_ACCOUNT_NAME` | Tài khoản nhận tiền của nhà xe, dùng dựng mã QR | Bắt buộc nếu bật SePay |
 | `N8N_EXCHANGE_WEBHOOK_URL` | Địa chỉ webhook n8n cho đổi vé | Bắt buộc nếu dùng đổi vé (mặc định chỉ đúng trên máy) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Máy chủ và tài khoản gửi email vé điện tử. Thiếu `SMTP_HOST` hoặc `SMTP_USER` thì chỉ ghi log, khách không nhận email. `SMTP_PORT` mặc định 587 | Bắt buộc nếu muốn gửi email vé |
 | `SEAT_HOLD_MINUTES`, `ACCESS_TOKEN_MINUTES`, `LOGIN_MAX_FAILED_ATTEMPTS`, `LOGIN_LOCKOUT_MINUTES`, `RELEASE_JOB_ENABLED`, `RELEASE_JOB_INTERVAL_SECONDS`, `SEPAY_QR_MINUTES` | Có giá trị mặc định | Tùy chọn |
 
 Không đặt trên Render: `TEST_DATABASE_URL`, `POSTGRES_*`, `SEED_USER_PASSWORD`, `ALLOW_REMOTE_DOWNGRADE`.

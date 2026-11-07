@@ -14,7 +14,7 @@ Tài liệu làm bằng chứng cho **tiêu chí 4.1**. Mọi con số lấy t�
 | 1 | Tối thiểu 3 vai trò | **Đạt**: 4 vai trò trong code, 3 vai trò có chức năng nghiệp vụ | `backend/app/models/enums.py:6-10`; `require_role` ở `backend/app/api/deps.py:89`; commit `7987db3` | Mục 1 |
 | 2 | Tối thiểu 3 luồng phê duyệt XOR | **Đạt**: 3 luồng trong backend, thêm 1 luồng qua n8n | `sepay_webhook_service.py`, `ticket_cancel_service.py`, `cash_deposit_service.py`; commit `e29fdf8`, `408218a`, `0d905e4` | Mục 2 |
 | 3 | Lưu trữ bền vững | **Đạt** | PostgreSQL trên Supabase; 3 migration Alembic; ràng buộc CHECK/UNIQUE | Mục 3 |
-| 4 | Tích hợp bên ngoài | **Đạt**: SePay, n8n. Email **đang giả lập** | `webhooks.py`, `sepay_payment_service.py`, `bookings.py:51`, `ticket_notifier.py:46-47` | Mục 4 |
+| 4 | Tích hợp bên ngoài | **Đạt**: SePay, n8n, email vé qua SMTP (từ commit `da858c0`). Biên lai hủy vé vẫn chỉ ghi log | `webhooks.py`, `sepay_payment_service.py`, `bookings.py:51`, `ticket_notifier.py:169-214` | Mục 4 |
 | 5 | Kiểm thử tự động | **Đạt** | 495 test backend, 284 test frontend, đều qua (ngày 07/11/2026) | Mục 5 |
 | 6 | Tối thiểu 15 commit | **Đạt**: 45 commit | `git rev-list --count HEAD` | Mục 6 |
 
@@ -62,6 +62,18 @@ Khách vãng lai (chưa đăng nhập) vẫn đặt được vé. Họ xem đơn
 | 2 | Duyệt hủy vé | "Được phép hủy?" (mốc 24 giờ/12 giờ) | Hệ thống, theo quy tắc | `backend/app/services/ticket_cancel_service.py` |
 | 3 | Nhà xe nhận tiền mặt tài xế nộp | "Nhận tiền": Xác nhận / Từ chối | **Người**: nhà xe | `backend/app/services/cash_deposit_service.py` |
 | 4 | Đổi vé | Ghế mới còn trống, đúng chính sách đổi | Workflow n8n, **ngoài backend** | `backend/app/api/v1/bookings.py:51` chỉ chuyển tiếp sang n8n |
+
+Đối chiếu với BPMN to-be của nhóm (`vault/02-domain/quy_trinh_tobe.bpmn`, commit `50ad3b7`):
+- Luồng 1: BPMN vẽ bằng cổng sự kiện "Chờ kết quả thanh toán" (nhận webhook thành công / "Quá 5 phút chưa nhận tiền"; timer này ứng với `SEPAY_QR_MINUTES`, đếm ngược QR, không phải thời gian giữ chỗ), không có cổng XOR tên "Đã nhận đủ tiền?". Việc so số tiền nằm trong code (`_don_hop_le`).
+- Luồng 2: khớp cổng XOR "Được phép hủy?" trên BPMN.
+- Luồng 3: BPMN **chưa vẽ** cổng XOR sau "Nhận tiền", trong khi code có Xác nhận / Từ chối. Đề xuất bổ sung: `docs/danh-gia-hieu-qua.md`, mục 4, dòng 5.
+- Luồng 4: khớp cổng "Đủ điều kiện đổi?" trên BPMN, nhưng do n8n quyết.
+
+Số bước và số cổng as-is/to-be dùng chung với `docs/danh-gia-hieu-qua.md` (mục 1 và 3), đếm trên phạm vi đặt vé, hủy vé, vận hành chuyến:
+- Quy tắc đếm bước người làm, áp dụng như nhau cho as-is và to-be: mọi `userTask`, `manualTask`, `sendTask`, `receiveTask` trong lane người đều tính, trừ bước do hệ thống làm.
+- Bước người làm: as-is **29** (nhân sự 23, khách 6), to-be **20** (nhân sự 13, khách 7).
+- Cổng XOR rẽ nhánh: as-is 5, to-be 14 (hệ thống quyết 6, khách 5, nhân sự 3).
+- Quyết định của nhân sự: theo sơ đồ **3 → 3**; tính cho mỗi vé **3 → 1**.
 
 ### 2.1. Luồng 1 — Xác nhận thanh toán SePay
 
@@ -151,11 +163,14 @@ Cột trạng thái dùng `VARCHAR + CHECK` (`backend/app/models/enums.py`, hàm
 | Hệ thống | Cách tích hợp | Bằng chứng | Trạng thái |
 |---|---|---|---|
 | SePay: mã QR | Backend dựng ảnh VietQR theo tài khoản nhận của nhà xe, nội dung `THANH TOAN VE <mã đơn>` | `sepay_payment_service.py:53-66`, API `POST /bookings/{ma_don}/pay-sepay` | Chạy thật |
-| SePay: webhook | SePay gọi `POST /api/v1/webhooks/sepay` khi có tiền vào. Xác thực `Authorization: Apikey <khóa>` bằng `compare_digest`. Chống trùng bằng `ma_giao_dich` UNIQUE | `webhooks.py:25`, `sepay_webhook_service.py:100-120` | Chạy thật. Đổi khóa sau sự cố lộ khóa: **Chưa xác minh** (S-16 trong báo cáo kiểm thử) |
+| SePay: webhook | SePay gọi `POST /api/v1/webhooks/sepay` khi có tiền vào. Xác thực `Authorization: Apikey <khóa>` bằng `compare_digest`. Chống trùng bằng `ma_giao_dich` UNIQUE | `webhooks.py:25`, `sepay_webhook_service.py:100-120` | Chạy thật. Khóa webhook giữ nguyên sau sự cố lộ khóa: nhóm **chấp nhận rủi ro** (S-16, R-03 trong báo cáo kiểm thử) |
 | n8n | Backend chuyển yêu cầu đổi vé sang webhook n8n; n8n ghi thẳng vào CSDL | `bookings.py:51-61`, `config.py:53-55` | Chạy ngoài backend. Workflow không có trong repo |
-| Email vé điện tử | Dựng nội dung email sau khi xác nhận vé hoặc hủy vé | `ticket_notifier.py:46-47`: hàm `send_tickets_email` ghi rõ **"Giả lập gửi email: chỉ ghi log"** | **Đang giả lập**, chưa gửi email thật |
+| Email vé điện tử | Gửi một email HTML (template Jinja2 `backend/app/templates/emails/ticket_confirmation.html`) cho người đặt qua SMTP, chạy nền sau khi trả response. Gửi khi xác nhận tiền mặt và khi webhook SePay xác nhận. Lỗi SMTP chỉ ghi log tên lớp lỗi, vé vẫn giữ | `ticket_notifier.py:169-214` (`send_tickets_email`), `ticket_notifier.py:217-225` (`deliver_tickets_safely`); gọi ở `bookings.py:219-222`, `webhooks.py:54-57`; cấu hình `SMTP_*` ở `config.py:56-61`; commit `da858c0` | **Chạy thật** khi đặt `SMTP_HOST` và `SMTP_USER`; thiếu thì chỉ ghi log. Rủi ro: R-16 đến R-20 trong báo cáo kiểm thử |
+| Email biên lai hủy vé | Dựng nội dung biên lai sau khi hủy vé | `ticket_notifier.py:259-269`: `send_cancel_receipt_email` chỉ ghi log | **Đang giả lập**, chưa gửi email thật |
 
-**Cách tự kiểm tra:** gửi webhook giả theo README mục 7.2. Xem log backend: có dòng ghi việc gửi vé (chỉ mã đơn, không có email).
+**Cách tự kiểm tra:**
+1. Thử email vé không cần đặt vé: điền `SMTP_*` vào `backend/.env`, chạy `uv run python scripts/test_email.py` trong `backend/`. Script gửi một email vé mẫu tới chính địa chỉ `SMTP_USER`. Lưu ý: script in `SMTP_HOST`, `SMTP_USER` ra màn hình (R-19), đừng chụp màn hình.
+2. Thử cả luồng: gửi webhook giả theo README mục 7.2. Xem log backend: có `Đã gửi email thành công ma_don=...` (đã cấu hình SMTP) hoặc `Cấu hình SMTP chưa bật, giả lập gửi email thành công ma_don=...` (chưa cấu hình). Log chỉ có mã đơn, không có địa chỉ email.
 
 ---
 
@@ -171,6 +186,8 @@ Số liệu chép từ [bao-cao-kiem-thu-bao-mat.md](bao-cao-kiem-thu-bao-mat.md
 | Frontend | `npm run build` | Build thành công |
 
 Số test theo từng file và ma trận kịch bản: báo cáo kiểm thử, mục 2.2, 2.3 và 3.
+
+Commit `da858c0` (email vé) thêm `backend/tests/test_ticket_notifier.py` với 6 test. Sau khi thêm chốt chặn SMTP cho test (R-16, thêm `tests/test_smtp_guard.py` 2 test), chạy lại backend ngày 07/11/2026: **503 passed**, 0 failed, 30 file test (báo cáo kiểm thử, mục 2.1). Các thay đổi test này đã commit ở `b49646e`.
 
 **Cách tự kiểm tra:** làm theo README mục 4. Backend chạy khoảng 8 phút.
 
@@ -217,8 +234,11 @@ Lấy từ mục 8 của báo cáo kiểm thử, chỉ giữ những điểm li�
 | R-15 | Workflow n8n không nằm trong repo; test đổi vé cùng lúc với hủy vé chỉ mô phỏng n8n | 2. Luồng XOR số 4, 4. Tích hợp, 5. Kiểm thử | Trung bình |
 | R-11 | Thiếu test chuyển **thừa** tiền SePay | 2. Luồng XOR số 1, 5. Kiểm thử | Thấp |
 | R-12 | Thiếu test webhook SePay đến khi giữ chỗ đã hết hạn | 2. Luồng XOR số 1, 5. Kiểm thử | Thấp |
-| R-03 | Khóa webhook SePay từng bị lộ; đổi khóa chưa xác minh | 4. Tích hợp | Cao |
+| R-03 | Khóa webhook SePay từng lộ trong một cuộc trò chuyện riêng; nhóm giữ nguyên khóa, chấp nhận rủi ro. Theo dõi lịch sử webhook trên SePay, đổi khóa nếu có dấu hiệu bất thường hoặc trước khi đưa vào sử dụng thật | 4. Tích hợp | Thấp |
 | R-06 | Webhook SePay đến muộn cho đơn đã chọn tiền mặt có thể làm tính sai tiền mặt của chuyến | 2. Luồng XOR số 1 và 3 | Thấp |
 | R-07 | Vé đã thu tiền mặt rồi đổi chuyến qua n8n: tiền bị tính sang chuyến mới | 2. Luồng XOR số 3 và 4 | Thấp |
 | R-10 | Dữ liệu test có thể còn trên Supabase | 3. Lưu trữ | Thấp |
-| — | Email vé đang giả lập (chỉ ghi log) | 4. Tích hợp | Chưa đánh giá mức độ: nhóm tự quyết |
+| R-16 | pytest có thể gửi email thật khi `backend/.env` có cấu hình SMTP. Đã xử lý ở commit `b49646e` (fixture `block_real_smtp`), bằng chứng `tests/test_smtp_guard.py` | 4. Tích hợp, 5. Kiểm thử | Thấp |
+| R-17 | `uv.lock` chưa có `jinja2`: cài bằng `uv sync --frozen` thì backend không khởi động. Đã xử lý ở commit `cecdc49`, bằng chứng `backend/uv.lock` có gói `jinja2` | 4. Tích hợp | Thấp |
+| R-18, R-19, R-20 | SMTP chỉ bật TLS với cổng 587/25; script thử email in địa chỉ email; thiếu test email | 4. Tích hợp, 5. Kiểm thử | Thấp |
+| — | Biên lai hủy vé chưa gửi email thật (chỉ ghi log) | 4. Tích hợp | Chưa đánh giá mức độ: nhóm tự quyết |

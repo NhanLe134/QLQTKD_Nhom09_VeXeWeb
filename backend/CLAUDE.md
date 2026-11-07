@@ -22,7 +22,7 @@
 - Chạy kiểm thử: `cd backend` → `uv run pytest -q`.
 
 ## Quy tắc nghiệp vụ đã chốt
-- Giữ ghế tối đa **5 phút** (đọc từ cấu hình `SEAT_HOLD_MINUTES`, không ghi cứng). Hết hạn → tự nhả ghế.
+- Giữ ghế tối đa **10 phút** (đọc từ cấu hình `SEAT_HOLD_MINUTES`, mặc định 10, không ghi cứng). Hết hạn → tự nhả ghế. Frontend nhắc khi còn 2 phút (sau 8 phút).
 - Quy tắc chưa chốt (ví dụ số ghế tối đa mỗi lần giữ): KHÔNG tự đặt giá trị — hỏi lại người dùng trước.
 
 ## Ràng buộc bắt buộc
