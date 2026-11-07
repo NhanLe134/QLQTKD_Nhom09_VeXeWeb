@@ -364,3 +364,137 @@ Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
 - Lý do: viết lại lịch sử nhánh chung làm hỏng code các thành viên; khóa lộ cho phép gửi webhook giả để xác nhận vé không trả tiền.
 - Hệ quả: số tài khoản cũ còn trong 2 commit cũ (ghi trong docs/API.md); quy ước: chụp màn hình phải che Authorization và số tài khoản; mỗi lần push kiểm tra Render Deploy live, /health và "Gửi thử".
 - Người quyết định: Nhã, Nhàn 
+
+### D-41: Giới hạn đăng nhập sai bằng bộ đếm trong bộ nhớ
+- Ngày: 06/11/2026 · Commit: 4610b57 fix: gioi han dang nhap sai, tai khoan admin mau va on dinh test frontend
+- Bối cảnh: /auth/login không giới hạn số lần thử → dò được mật khẩu; checklist bảo mật Ch.5 yêu cầu chống dò.
+- Các phương án đã cân nhắc: (1) bộ đếm trong bộ nhớ theo (tên đăng nhập, IP); (2) lưu số lần sai trong CSDL; (3) dùng Redis.
+- Quyết định: phương án 1, 5 lần sai trong 5 phút → 429 kèm Retry-After; tên đăng nhập không tồn tại cũng đếm như thật.
+- Lý do: không đổi schema, không thêm dịch vụ; Render chạy 1 phiên bản.
+- Hệ quả: bộ đếm mất khi khởi động lại và không chia sẻ nếu chạy nhiều phiên bản (ghi ở mục rủi ro báo cáo kiểm thử).
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-42: Lấy IP người dùng theo số proxy tin cậy (TRUSTED_PROXY_HOPS)
+- Ngày: 06/11/2026 · Commit: 4610b57
+- Bối cảnh: backend sau proxy Render, IP kết nối là IP proxy; header X-Forwarded-For thì người dùng tự giả được.
+- Các phương án đã cân nhắc: (1) lấy IP kết nối; (2) lấy phần tử đầu X-Forwarded-For; (3) lấy phần tử thứ N tính từ phải theo số proxy tin cậy.
+- Quyết định: phương án 3, mặc định 0 (chạy ở máy).
+- Lý do: phần tử đầu do người dùng tự ghi; tính từ phải chỉ tin phần proxy thật thêm vào.
+- Hệ quả: phải đặt TRUSTED_PROXY_HOPS đúng trên Render khi push và kiểm tra lại bằng log.
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-43: Tài khoản admin_mau chỉ seed ở máy
+- Ngày: 06/11/2026 · Commit: 4610b57
+- Bối cảnh: hệ thống có vai trò ADMIN nhưng chưa có tài khoản mẫu; seed dùng mật khẩu mẫu công khai trong repo.
+- Các phương án đã cân nhắc: (1) seed cả trên Supabase; (2) chỉ seed ở máy, trên Supabase tạo bằng SQL với mật khẩu riêng khi cần.
+- Quyết định: phương án 2.
+- Lý do: repo công khai, tài khoản ADMIN với mật khẩu mẫu trên bản chạy thật là lỗ hổng.
+- Hệ quả: ADMIN trên Supabase chưa có; khi cần thì nhóm trưởng tạo, gửi mật khẩu riêng.
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-44: Hủy vé tự duyệt theo mốc 24 giờ/12 giờ
+- Ngày: 06/11/2026 · Commit: 408218a feat: them huy ve va hoan tien theo quy dinh 24 gio 12 gio
+- Bối cảnh: BPMN to-be vẽ cổng XOR hệ thống tự quyết theo thời gian còn lại trước giờ đi.
+- Các phương án đã cân nhắc: (1) nhà xe duyệt tay từng yêu cầu; (2) hệ thống tự duyệt theo quy tắc.
+- Quyết định: phương án 2. Hơn 24 giờ hoàn 100%; từ 12 đến 24 giờ (tính cả 2 mốc) hoàn 50%; dưới 12 giờ không cho hủy. Vé tiền mặt chưa thu hoàn 0. Vé đã chuyển khoản bắt buộc nhập tài khoản nhận.
+- Lý do: đúng BPMN to-be, giảm việc tay của nhà xe.
+- Hệ quả: yeu_cau_huy_doi ghi thẳng DA_DUYET; trả 409 nếu vé hoặc mức hoàn đổi giữa lúc xem và lúc hủy.
+- Người quyết định: Nhã (theo BPMN của nhóm; AI đề xuất cách chống đổi giữa chừng)
+
+### D-45: Hoàn tiền do nhà xe chuyển khoản tay rồi đánh dấu hoàn tất
+- Ngày: 06/11/2026 · Commit: 408218a
+- Bối cảnh: BPMN to-be vẽ hoàn tiền qua SePay; SePay chỉ theo dõi tiền vào, không chi tiền ra.
+- Các phương án đã cân nhắc: (1) tích hợp API chi tiền ngân hàng; (2) nhà xe chuyển tay, nhập mã giao dịch ở màn hình Hoàn tiền.
+- Quyết định: phương án 2 (POST /refunds/{id}/complete).
+- Lý do: không có API chi tiền khả dụng trong phạm vi môn học.
+- Hệ quả: lệch BPMN to-be → đề xuất nhóm sửa sơ đồ (đang chờ Nhàn).
+- Người quyết định: Nhã (AI đề xuất), chờ nhóm xác nhận phần sửa sơ đồ
+
+### D-46: Không đặt chức năng hủy vé trên trang tra cứu vé
+- Ngày: 06/11/2026 · Commit: 408218a
+- Bối cảnh: trang tra cứu (code của Nhàn) chỉ cần số điện thoại, không xác thực chủ vé.
+- Các phương án đã cân nhắc: (1) thêm nút hủy vào trang tra cứu; (2) chỉ cho hủy khi đăng nhập, từ trang đơn của tôi.
+- Quyết định: phương án 2.
+- Lý do: ai biết số điện thoại cũng hủy được vé người khác (IDOR); không sửa code của Nhàn khi chưa đồng ý.
+- Hệ quả: lỗ hổng tra cứu chỉ bằng số điện thoại vẫn còn, ghi ở rủi ro báo cáo kiểm thử, chờ Nhàn.
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-47: Quy tắc trùng giờ khi phân công tài xế
+- Ngày: 07/11/2026 · Commit: 0d905e4 feat: them phan cong tai xe, thu nop tien mat va nha xe xac nhan
+- Bối cảnh: một tài xế không được chạy 2 chuyến cùng lúc; chuyen_xe.gio_den có thể trống.
+- Các phương án đã cân nhắc: (1) chỉ so giờ đi; (2) so khoảng [gio_di, gio_den hoặc gio_di], chạm mốc không tính trùng; (3) như (2) và thêm cùng giờ đi luôn là trùng.
+- Quyết định: phương án 3; bỏ qua chuyến DA_HUY; chặn đổi tài xế khi chuyến đã có tiền thu hoặc khoản nộp.
+- Lý do: phương án 2 để lọt hai chuyến cùng giờ đi mà thiếu giờ đến (AI tự phát hiện).
+- Hệ quả: chuyến thiếu giờ đến vẫn có thể không phát hiện trùng với chuyến khác giờ (ghi trong docs/API.md).
+- Người quyết định: Nhã (AI đề xuất quy tắc bổ sung)
+
+### D-48: Cách tính số tiền tài xế nộp; nhà xe từ chối thì nộp lại
+- Ngày: 07/11/2026 · Commit: 0d905e4
+- Bối cảnh: tài xế có thể nộp nhiều lần; nhà xe có thể từ chối khoản nộp.
+- Các phương án đã cân nhắc: (1) tài xế tự nhập số tiền; (2) hệ thống tính = tổng đã thu − (khoản đang chờ + đã xác nhận).
+- Quyết định: phương án 2; khoản bị từ chối không bị trừ; mỗi chuyến chỉ 1 khoản đang chờ; nộp không bắt buộc chuyến đã hoàn thành.
+- Lý do: tránh nhập sai; nộp lại sau khi bị từ chối ra đúng số cũ.
+- Hệ quả: lệch BPMN (BPMN không có XOR sau "Nhận tiền", nộp sau khi hoàn thành chuyến) → ghi trong docs/API.md.
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-49: Dòng TIEN_MAT khi khách hủy phần vé còn lại sau khi tài xế đã thu một phần
+- Ngày: 07/11/2026 · Commit: 0d905e4
+- Bối cảnh: code hủy vé cũ chuyển dòng TIEN_MAT thành THAT_BAI khi không còn vé chưa thu, kể cả khi đã thu tiền vé khác.
+- Các phương án đã cân nhắc: (1) giữ THAT_BAI; (2) nếu đơn có vé đã thu thì chuyển DA_THANH_TOAN, ghi ngay_thanh_toan và trừ tiền vé vừa hủy.
+- Quyết định: phương án 2, có test tái hiện đỏ trước khi sửa.
+- Lý do: tiền đã thu thật, THAT_BAI làm sai đối soát.
+- Hệ quả: sửa lại quy tắc A của dòng TIEN_MAT trong docs/API.md.
+- Người quyết định: Nhã (AI phát hiện và đề xuất)
+
+### D-50: Cách làm phần bổ sung: commit từng bước, push một lần, ghi log một lần
+- Ngày: 06/11/2026 · Commit: (áp dụng từ 34226b7 đến commit log này)
+- Bối cảnh: backend tự deploy lên Render khi push; khóa SePay cần đổi trước khi push; nhóm cần ổn định bản chạy thật.
+- Các phương án đã cân nhắc: (1) push từng bước; (2) commit cục bộ từng bước, push một lần sau khi đủ test và đổi khóa.
+- Quyết định: phương án 2; log ghi một lần ở cuối, mỗi bước có mục riêng.
+- Lý do: tránh deploy bản dở và tránh push khi khóa cũ còn hiệu lực.
+- Hệ quả: các commit trên GitHub hiện cùng thời điểm push; log ghi rõ ngày làm từng bước.
+- Người quyết định: Nhã
+
+### D-51: Nguyên tắc viết tài liệu báo cáo: không bịa số, ghi rõ chưa xác minh
+- Ngày: 07/11/2026 · Commit: 7c3ea42, c049c50, accdca8
+- Bối cảnh: tài liệu 4.1, 4.3, 4.4 cần số liệu; nhóm chưa đo thời gian thật, AI không vào được Render/SePay/Supabase.
+- Các phương án đã cân nhắc: (1) điền số ước lượng; (2) chỉ ghi số đo thật, còn lại ghi "Chưa đo"/"Chưa xác minh" kèm cách xác minh.
+- Quyết định: phương án 2. Số đếm BPMN phải đếm bằng script; so sánh as-is/to-be trên cùng phạm vi; không ghi số tài khoản thật (chỉ mã commit); không viết lại lịch sử git; ghi về commit khách quan, không nêu tên.
+- Lý do: số ước lượng không kiểm chứng được, dễ bị bác khi chấm.
+- Hệ quả: nhóm phải tự đo thời gian 3 lần và điền bảng; ký checklist bảo mật.
+- Người quyết định: Nhã
+### D-52: Giữ nguyên khóa webhook SePay (thay phần "đổi khóa" của D-40)
+- Ngày: 07/11/2026 · Commit: 56da4a6 docs: cap nhat tai lieu theo BPMN to-be moi, email, giu cho 10 phut va khoa SePay
+- Bối cảnh: D-40 quyết định đổi khóa trước khi push vì ảnh chụp làm lộ khóa. Khi rà lại, ảnh chỉ được chia sẻ trong một cuộc trò chuyện riêng, không đăng công khai hay lên repo.
+- Các phương án đã cân nhắc: (A) đổi khóa trên SePay và Render; (B) giữ khóa, chấp nhận rủi ro có điều kiện.
+- Quyết định: phương án B.
+- Lý do: phạm vi lộ hẹp; nhóm ưu tiên không thay đổi cấu hình bản đang chạy sát hạn nộp.
+- Hệ quả: S-16 ghi "Chấp nhận rủi ro", R-03 mức Thấp. Phải đổi khóa ngay nếu khóa xuất hiện ở nơi công khai hoặc thấy webhook lạ trong lịch sử SePay; đổi khóa trước khi đưa vào sử dụng thật. Không gửi .env hay ảnh có dòng Authorization vào nhóm chat chung.
+- Người quyết định: Nhóm (Nhàn, Nhã, Anh Thư). AI trình bày 2 phương án, đề xuất A
+
+### D-53: Thời gian giữ chỗ 10 phút; sơ đồ BPMN sửa 3 chỗ
+- Ngày: 07/11/2026 · Commit: 56da4a6
+- Bối cảnh: code mặc định 10 phút (quyết định 04/11), .env của nhóm đặt 5, sơ đồ BPMN to-be ghi 5 phút và nhắc sau 3 phút.
+- Các phương án đã cân nhắc: (1) đổi code về 5 phút theo sơ đồ; (2) giữ 10 phút theo code, sửa sơ đồ và .env.
+- Quyết định: phương án 2. Sơ đồ sửa 3 chỗ: "Khóa tạm ghế (giữ chỗ 10 phút)", "Hết 10 phút giữ chỗ" (PT10M), "Sau 8 phút" (PT8M). Timer "Quá 5 phút chưa nhận tiền" giữ nguyên vì ứng với SEPAY_QR_MINUTES (đếm ngược QR).
+- Lý do: không phải sửa code và test; frontend đã nhắc khi còn 2 phút.
+- Hệ quả: mọi .env và Render đặt SEAT_HOLD_MINUTES=10 hoặc bỏ biến. Còn lệch: tạo QR gia hạn giữ chỗ thêm 10 phút, sơ đồ chưa vẽ (ghi ở bảng chênh lệch).
+- Người quyết định: Nhóm. AI phát hiện timer QR khác timer giữ chỗ
+
+### D-54: Chặn email thật khi chạy pytest bằng fixture chung, không sửa code gửi email
+- Ngày: 07/11/2026 · Commit: b49646e test: chan gui email that khi chay pytest; cecdc49 chore: cap nhat uv.lock them jinja2 cho chuc nang gui email
+- Bối cảnh: commit da858c0 gửi email thật qua SMTP; hàm gửi đọc cấu hình từ .env nên các test đặt vé có thể đăng nhập Gmail thật; uv.lock chưa có jinja2.
+- Các phương án đã cân nhắc: (1) dặn nhóm để trống SMTP khi chạy test; (2) sửa ticket_notifier.py để đọc cấu hình test; (3) fixture autouse trong conftest chặn smtplib và kiểm cuối mỗi test.
+- Quyết định: phương án 3; commit uv.lock riêng.
+- Lý do: (1) dựa vào trí nhớ; (2) sửa code của thành viên khác khi chưa cần; (3) chỉ sửa test và tự động.
+- Hệ quả: test mới có gửi email phải tự giả lập SMTP; thêm thư viện thì commit uv.lock cùng pyproject.toml.
+- Người quyết định: Nhã (AI đề xuất cách kiểm cuối mỗi test); đã báo Anh Thư
+
+### D-55: Một quy tắc đếm chung cho BPMN as-is và to-be
+- Ngày: 07/11/2026 · Commit: 56da4a6
+- Bối cảnh: lần đếm đầu dùng nhầm file to-be; khi đếm lại, AI đề xuất bỏ sendTask/receiveTask ở lane người cho to-be trong khi as-is đã tính.
+- Các phương án đã cân nhắc: (1) mỗi bên một cách đếm; (2) cùng quy tắc: tính mọi userTask, manualTask, sendTask, receiveTask trong lane người; không tính bước hệ thống.
+- Quyết định: phương án 2. As-is 29 → to-be 20 bước người làm. Số quyết định nhân sự trình bày 2 cách: theo sơ đồ 3 → 3, cho mỗi vé 3 → 1.
+- Lý do: so sánh chỉ có nghĩa khi đếm cùng cách; trình bày cả 2 cách để không phóng đại kết quả.
+- Hệ quả: đính chính số liệu ở LOG-18; bảng thời gian thực tế vẫn chờ nhóm đo.
+- Người quyết định: Nhã
