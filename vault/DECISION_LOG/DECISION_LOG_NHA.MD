@@ -1,0 +1,500 @@
+# Decision Log - Nhã 
+
+### D-01: Chạy PostgreSQL bằng Docker thay vì Supabase
+
+- **Ngày · Commit:** 02/11/2026 · C1 (794a983)
+- **Bối cảnh:** Backend cần một CSDL PostgreSQL mà mọi thành viên dựng lại được khi phát triển.
+- **Các phương án đã cân nhắc:** (1) PostgreSQL chạy Docker Compose trên máy; (2) dùng dịch vụ Supabase.
+- **Quyết định:** Chọn phương án 1, dùng image `postgres:16` trong `compose.yaml`.
+- **Lý do:** Tài liệu dự án của nhóm đã chốt PostgreSQL (Docker) và deploy Render; đổi sang Supabase là quyết định của cả nhóm, chưa được thống nhất. Dùng Supabase chung thì pytest sẽ xóa/ghi đè dữ liệu của thành viên khác. Dùng thêm Supabase Auth/API sẽ làm lệch kiến trúc FastAPI + JWT (C3). Docker chạy cục bộ, mỗi người một CSDL riêng; sau này muốn đổi chỉ cần sửa DATABASE_URL.
+- **Hệ quả:** Mỗi máy cần cài Docker và phải bật container trước khi chạy backend. Các test CSDL sẽ fail nếu Postgres tắt.
+- **Người quyết định:** Nhã 
+
+### D-02: Theo RDM của nhóm thay vì tự thiết kế bảng
+
+- **Ngày · Commit:** 02/11/2026 · C2 – feat: them model du lieu dat ve va seed data tuyen chuyen ghe
+- **Bối cảnh:** Lần đầu làm C2 tạo 9 bảng tên tiếng Anh, không có RDM trong ngữ cảnh. Khi đối chiếu, thiết kế này không khớp RDM chính thức 15 bảng (`docs/RDM_TheoMauNhom.drawio`).
+- **Các phương án đã cân nhắc:** (1) Giữ 9 bảng đã làm; (2) làm lại toàn bộ theo RDM.
+- **Quyết định:** Chọn phương án 2. Viết lại model, migration `0001`, seed và test; hạ CSDL dev về trống trước khi migrate lại. Khi RDM khác quyết định cũ thì theo RDM.
+- **Lý do:** RDM là thiết kế chính thức của nhóm và chưa có gì được commit, nên viết lại `0001` không ảnh hưởng ai.
+- **Hệ quả:** Tên bảng/cột dùng snake_case tiếng Việt, đối chiếu trong `docs/data-model.md`. `test_rdm_conformance.py` kiểm tra schema với RDM. `backend/CLAUDE.md` thêm ràng buộc không tự đổi cấu trúc bảng.
+- **Người quyết định:** Nhã 
+
+### D-03: thanh_toan thêm ma_don, ve_id cho phép NULL, ma_giao_dich UNIQUE
+
+- **Ngày · Commit:** 03/11/2026 (nhóm trưởng xác nhận) · C2 – feat: them model du lieu dat ve va seed data tuyen chuyen ghe
+- **Bối cảnh:** RDM gắn mỗi thanh toán với một vé, trong khi một đơn nhiều vé chỉ có một giao dịch SePay.
+- **Các phương án đã cân nhắc:** (1) Giữ đúng RDM; (2) thêm `ma_don`, cho `ve_id` NULL, đặt `ma_giao_dich` UNIQUE.
+- **Quyết định:** Chọn phương án 2, đưa vào migration `0001`, kèm CHECK `ve_id IS NOT NULL OR ma_don IS NOT NULL`.
+- **Lý do:** Một giao dịch được ghi đúng một lần; webhook SePay gọi lại không tạo bản ghi trùng.
+- **Hệ quả:** Schema `thanh_toan` khác RDM ở các điểm này, đã ghi trong `docs/data-model.md`. Nhóm trưởng đã xác nhận ngày 03/11/2026.
+- **Người quyết định:** Nhã 
+
+### D-04: Sinh mã khóa chính bằng sequence, dạng 2 chữ + 8 số
+
+- **Ngày · Commit:** 02–03/11/2026 ·C2 – feat: them model du lieu dat ve va seed data tuyen chuyen ghe
+- **Bối cảnh:** RDM dùng PK `varchar(10)` và code phải tự sinh mã có tiền tố.
+- **Các phương án đã cân nhắc:** (1) Lấy `max + 1` trong code; (2) dùng sequence của Postgres.
+- **Quyết định:** Chọn phương án 2. Mã gồm 2 chữ + 8 số, sequence bắt đầu từ `100000`; seed dùng số nhỏ hơn `100000`.
+- **Lý do:** Sequence tránh hai giao dịch đồng thời nhận trùng mã. Tách dải số giúp dữ liệu seed không trùng dữ liệu thật về sau.
+- **Hệ quả:** Migration `0001` có 14 sequence khai báo tay, vì autogenerate không tạo chúng. Thêm tiền tố mới phải sửa cả `app/db/ids.py` và migration.
+- **Người quyết định:** Nhã 
+
+### D-05: Chấp nhận giá vé theo loại xe theo RDM
+
+- **Ngày · Commit:** 02–03/11/2026 · C2 – feat: them model du lieu dat ve va seed data tuyen chuyen ghe
+- **Bối cảnh:** RDM đặt giá ở `Loaixe.GiaVe`, không có giá theo tuyến hoặc chuyến.
+- **Các phương án đã cân nhắc:** (1) Theo RDM; (2) sửa RDM để có giá theo tuyến hoặc chuyến.
+- **Quyết định:** Chọn phương án 1.
+- **Lý do:** Giữ schema khớp RDM chính thức.
+- **Hệ quả:** Cùng loại xe có cùng giá trên mọi tuyến. `ve.gia_ve` lưu giá lúc đặt. Vấn đề được ghi ở mục "Vấn đề RDM cần nhóm xem lại" trong `docs/data-model.md`.
+- **Người quyết định:** Nhã 
+
+### D-06: ngay_khoi_hanh lưu theo giờ Việt Nam
+
+- **Ngày · Commit:** 02–03/11/2026 ·C2 – feat: them model du lieu dat ve va seed data tuyen chuyen ghe
+- **Bối cảnh:** RDM có cả `NgayKhoiHanh` kiểu Date và `GioDi` kiểu Datetime, trong khi thời gian trong CSDL lưu UTC.
+- **Các phương án đã cân nhắc:** (1) `ngay_khoi_hanh` lưu theo ngày UTC; (2) lưu theo ngày Việt Nam.
+- **Quyết định:** Chọn phương án 2; `gio_di` và `gio_den` vẫn lưu UTC.
+- **Lý do:** Lưu theo UTC sẽ làm các chuyến trước 07:00 giờ Việt Nam lệch sang ngày hôm trước.
+- **Hệ quả:** Khi tạo chuyến phải tính ngày theo giờ Việt Nam. Seed có chuyến 06:00 và có test kiểm tra quy ước này.
+- **Người quyết định:** Nhã 
+
+### D-07: Khách bắt buộc đăng nhập để đặt vé
+
+- **Ngày · Commit:** 02–03/11/2026 · C2 – feat: them model du lieu dat ve va seed data tuyen chuyen ghe
+- **Bối cảnh:** Cần chốt việc khách vãng lai có được đặt vé không.
+- **Các phương án đã cân nhắc:** (1) Cho phép đặt không đăng nhập, cột khách hàng cho phép NULL (AI đề xuất); (2) bắt buộc đăng nhập, cột NOT NULL.
+- **Quyết định:** Chọn phương án 2: `ve.khach_hang_id` NOT NULL. Không theo đề xuất của AI.
+- **Lý do:** Mỗi vé luôn gắn với một khách hàng có tài khoản.
+- **Hệ quả:** Đặt vé phải đi qua đăng nhập. CSDL từ chối vé không có `khach_hang_id`.
+- **Người quyết định:** Nhã
+- **Trạng thái:** ĐÃ ĐƯỢC THAY THẾ bởi D-08 (03/11/2026, task #3): khách vãng lai được đặt vé. Nội dung trên giữ nguyên để lưu lịch sử.
+
+### D-08: Cho phép khách vãng lai, nhận diện khách bằng số điện thoại
+
+- **Ngày · Commit:** 03/11/2026 Task #3 – feat: ho tro khach vang lai va du lieu tuyen Da Nang Hoi An Hue xe 4 7 16 cho
+- **Bối cảnh:** Quyết định nghiệp vụ ngày 03/11 (BR-BUS-01, 07, 08) cho khách đặt vé không cần tài khoản, khác với D-07. RDM bắt buộc `KhachHang.UserID`. Migration `0001` đã commit và push.
+- **Các phương án đã cân nhắc:** (1) Giữ D-07, bắt buộc đăng nhập; (2) cho `khach_hang.user_id` NULL và đặt `so_dien_thoai` UNIQUE, qua migration mới `0002`; (3) tạo tài khoản ẩn cho mỗi khách vãng lai.
+- **Quyết định:** Chọn phương án 2, làm bằng migration `0002`, không sửa `0001`. `ve.khach_hang_id` vẫn NOT NULL: khách vãng lai cũng có hồ sơ `khach_hang`. **Quyết định này thay cho D-07.**
+- **Lý do:** Đúng quy tắc nghiệp vụ mới, thay đổi schema ít nhất. Khách đặt lại bằng cùng số điện thoại thì dùng lại hồ sơ cũ; sau này đăng ký bằng số đó thì tài khoản được gắn vào hồ sơ cũ. Không sửa migration đã push để các máy khác không bị lệch schema.
+- **Hệ quả:** Service đặt vé và đăng ký (C5, C9) phải tìm hồ sơ theo số điện thoại trước khi tạo mới. Thành viên đã chạy `0001` phải `upgrade head` và dọn seed cũ. Ghi trong `docs/data-model.md` mục 7.
+- **Người quyết định:** Nhã 
+
+### D-09: Mã truy cập đơn lưu dạng hash SHA-256 ở ve.ma_truy_cap_hash, NOT NULL
+
+- **Ngày · Commit:** 03/11/2026 · Task #3 – feat: ho tro khach vang lai va du lieu tuyen Da Nang Hoi An Hue xe 4 7 16 cho"
+- **Bối cảnh:** BR-BUS-19: mã đơn dễ đoán, nên khi giữ ghế cần cấp cho đơn một mã truy cập ngẫu nhiên. RDM không có bảng đơn.
+- **Các phương án đã cân nhắc:** Nơi lưu: (1) `ve`, cùng giá trị cho mọi vé cùng `ma_don`; (2) `thanh_toan`; (3) `ghe_ngoi`; (4) bảng đơn mới. Cách lưu: mã gốc, Argon2 hoặc SHA-256. Ràng buộc: NULL hay NOT NULL.
+- **Quyết định:** Thêm `ve.ma_truy_cap_hash VARCHAR(64) NOT NULL`, lưu SHA-256 (hex) của mã; không lưu mã gốc; không tạo bảng đơn mới.
+- **Lý do:** Đơn trong RDM chính là nhóm vé cùng `ma_don`, đã có index. `thanh_toan` chỉ có ở bước trả tiền, còn mã cần ngay từ lúc giữ ghế; ghế được dùng lại sau khi vé hủy; bảng mới là thay đổi lớn ngoài RDM. Mã ngẫu nhiên đủ dài nên băm nhanh SHA-256 là đủ an toàn, không cần Argon2. NOT NULL vì đơn nào cũng có mã, kể cả đơn của khách đã đăng nhập.
+- **Hệ quả:** CSDL không chặn được việc các vé cùng đơn có hash khác nhau; service giữ ghế phải tạo mọi vé của đơn trong một transaction. Mã gốc chỉ trả cho khách một lần, không ghi log. Migration chỉ chạy được khi bảng `ve` còn trống.
+- **Người quyết định:** Nhã 
+
+### D-10: Dùng TypeScript cho frontend
+**Ngày · Commit:** 03/11/2026 · Task #4 – chore: khoi tao frontend React Vite, router va API client
+**Bối cảnh:** cần chọn ngôn ngữ cho frontend React + Vite.
+**Các phương án đã cân nhắc:** (1) JavaScript; (2) TypeScript.
+**Quyết định:** TypeScript.
+**Lý do:** vault/00-index.md mục 2 bước 3 bắt buộc chạy npm run typecheck, chỉ có ý nghĩa với TypeScript; bắt lỗi sai kiểu dữ liệu giữa frontend và API sớm.
+Hệ quả: mọi file frontend là .ts/.tsx; lệnh typecheck kiểm tra riêng từng tsconfig (tsconfig gốc chỉ có references).
+**Người quyết định:** Nhã 
+
+### D-11: Dùng Tailwind CSS cho giao diện
+**Ngày · Commit:** 03/11/2026 · Task #4 – chore: khoi tao frontend React Vite, router va API client
+**Bối cảnh:** tài liệu dự án chỉ định React + Vite, không chỉ định cách làm CSS.
+Các phương án đã cân nhắc: (1) CSS thường; (2) Tailwind CSS.
+**Quyết định:** Tailwind CSS (bản 4, plugin Vite chính thức).
+**Lý do:** làm nhanh khi một người làm cả frontend và backend; màu, khoảng cách đồng nhất; dễ làm giao diện điện thoại (NFR-BUS-07); hợp làm việc với Claude Code, đọc diff thấy ngay thay đổi giao diện.
+**Hệ quả:** thêm 1 thư viện; không dùng thêm thư viện UI nào khác.
+**Người quyết định:** Nhã 
+
+### D-12: Lưu token đăng nhập ở sessionStorage
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: frontend cần giữ token JWT để gắn vào các request.
+- Các phương án đã cân nhắc: (1) localStorage; (2) sessionStorage; (3) chỉ giữ trong bộ nhớ; (4) cookie httpOnly.
+- Quyết định: sessionStorage.
+- Lý do: F5 vẫn giữ phiên nên không đứt luồng đặt vé dài (giữ ghế, chờ chuyển khoản); tự xóa khi đóng tab, hợp với hạn 60 phút; ít rủi ro hơn localStorage trên máy dùng chung. Cookie httpOnly an toàn nhất nhưng phải sửa backend (Set-Cookie, chống CSRF, CORS credentials), ngoài phạm vi task.
+- Hệ quả: mở tab mới phải đăng nhập lại; token vẫn đọc được nếu trang bị XSS (giảm thiểu bằng việc không chèn HTML thô).
+- Người quyết định: Nhã 
+
+### D-13: Gắn tài khoản mới vào hồ sơ khách vãng lai cũ theo phương án (a)
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: BR-BUS-08 cho khách vãng lai đăng ký bằng SĐT cũ để thấy vé cũ, nhưng vault chưa nói cách xử lý thông tin hồ sơ.
+- Các phương án đã cân nhắc: (a) cập nhật ho_ten, cập nhật email nếu có nhập, ngay_dang_ky = lúc đăng ký; (b) giữ nguyên hồ sơ cũ, chỉ gắn user_id.
+- Quyết định: phương án (a).
+- Lý do: thông tin khách nhập lúc đăng ký là mới và chính xác nhất; ngay_dang_ky phản ánh đúng thời điểm có tài khoản.
+- Hệ quả: hồ sơ cũ bị cập nhật họ tên; khach_hang_id giữ nguyên nên vé cũ vẫn gắn đúng.
+- Người quyết định: Nhã 
+
+### D-14: Chấp nhận rủi ro chiếm hồ sơ khách vãng lai do không có OTP
+- Ngày: 03/11/2026 · Commit: Task #5 – feat: them dang ky dang nhap JWT va phan quyen theo vai tro
+- Bối cảnh: ai biết SĐT của khách vãng lai có thể đăng ký bằng số đó và xem vé cũ của họ, vì hệ thống không xác minh SĐT.
+- Các phương án đã cân nhắc: (1) xác minh SĐT bằng OTP; (2) chấp nhận rủi ro trong phạm vi đồ án.
+- Quyết định: phương án 2; ghi rủi ro vào docs/API.md (endpoint /register).
+- Lý do: OTP cần dịch vụ SMS bên ngoài, ngoài phạm vi và thời gian đồ án; đây là lỗ hổng của quy tắc BR-BUS-08, không phải lỗi mã.
+- Hệ quả: hướng phát triển: xác minh SĐT bằng OTP trước khi gắn hồ sơ.
+- Người quyết định: Nhã
+
+### D-15: Tìm chuyến theo điểm đầu/cuối của tuyến, không theo điểm trung gian
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: tuyến có điểm trung gian (ví dụ Đà Nẵng → Huế qua Lăng Cô); cần chốt khách tìm theo điểm nào.
+- Các phương án đã cân nhắc: (1) tìm theo cả điểm trung gian; (2) chỉ tìm theo điểm đi / điểm đến của tuyến.
+- Quyết định: phương án 2; /locations chỉ trả điểm đầu/cuối tuyến.
+- Lý do: giữ task gọn và đúng phạm vi; khách vẫn chọn được điểm đón/trả trung gian ở bước nhập thông tin (task #9, BR-BUS-23).
+- Hệ quả: tìm "Đà Nẵng → Lăng Cô" không ra kết quả; có test xác nhận hành vi này.
+- Người quyết định: Nhã 
+
+### D-16: Điều kiện "ghế khả dụng" dùng chung, tính cả ghế giữ đã quá hạn
+- Ngày: 03/11/2026 · Commit: Task #6 – feat: them tim chuyen va goi y chuyen lan can
+- Bối cảnh: trước khi có job tự nhả ghế (task #8), ghế GIU_CHO đã quá han_giu_cho vẫn nằm trong CSDL.
+- Các phương án đã cân nhắc: (1) chỉ đếm ghế TRONG; (2) đếm TRONG hoặc GIU_CHO có han_giu_cho <= now, viết một lần dùng chung.
+- Quyết định: phương án 2, hàm seat_available(now) trong seat_availability.py, có test riêng.
+- Lý do: số ghế trống hiển thị đúng thực tế; bước tìm chuyến và bước giữ ghế (task #7) dùng cùng một điều kiện nên không lệch nhau.
+- Hệ quả: task #7, #8 bắt buộc dùng lại seat_available(now).
+- Người quyết định: Nhã 
+
+### D-17: Nhập thông tin người đặt ngay khi giữ ghế (phương án A)
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: mã đơn và mã truy cập lưu trên bảng ve (D-09), mà ve.khach_hang_id bắt buộc (RDM); khách vãng lai chưa có hồ sơ khi mới chọn ghế.
+- Các phương án đã cân nhắc: (A) hỏi họ tên + SĐT người đặt khi giữ ghế, không đổi schema; (B) migration cho ve.khach_hang_id được NULL đến khi nhập thông tin.
+- Quyết định: phương án A; sửa BR-BUS-20 cho khớp.
+- Lý do: không đổi schema thêm lần nữa; chặn giữ ghế tràn lan theo SĐT ngay từ đầu (rủi ro 2 trong requirements.md); vẫn khớp BPMN vì bước "Điền thông tin từng hành khách & điểm đón/trả" vẫn sau bước giữ ghế.
+- Hệ quả: task #9 chỉ còn thông tin hành khách và điểm đón/trả; SĐT đã có tài khoản phải đăng nhập mới đặt được.
+- Người quyết định: Nhã 
+
+### D-18: Lỗi 409 "đang có đơn chưa hoàn tất" không trả mã đơn
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: PLAN ban đầu trả ma_don trong lỗi 409 của BR-BUS-18; trang Tra cứu vé (task #13) cho xem vé bằng mã đơn + SĐT.
+- Các phương án đã cân nhắc: (1) trả ma_don để khách mở lại đơn; (2) không trả ma_don, chủ đơn mở lại bằng mã đã lưu trên trình duyệt.
+- Quyết định: phương án 2; có test xác nhận response không chứa mã đơn; ghi rủi ro vào docs/API.md.
+- Lý do: người chỉ biết SĐT sẽ lấy được mã đơn rồi xem được vé, tên, điểm đón của người khác (lộ dữ liệu cá nhân, F9).
+- Hệ quả: khách mất mã đơn (đóng tab) thì phải chờ hết 5 phút giữ chỗ mới đặt lại bằng cùng SĐT.
+- Người quyết định: Nhã (AI đề xuất phương án; rủi ro được đánh giá lại khi rà soát PLAN)
+
+### D-19: BR-BUS-18 chỉ chặn đơn còn trong thời gian giữ ghế
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: vault chưa định nghĩa "đơn đang giữ / chờ thanh toán".
+- Các phương án đã cân nhắc: (1) chỉ tính vé GIU_CHO còn hạn giữ; (2) tính cả đơn tiền mặt đã xác nhận.
+- Quyết định: phương án 1.
+- Lý do: nếu tính cả đơn đã xác nhận thì khách không đặt được chuyến thứ hai trước khi đi xong chuyến đầu.
+- Hệ quả: một SĐT có thể có nhiều đơn đã xác nhận, nhưng chỉ 1 đơn đang giữ ghế.
+- Người quyết định: Nhã 
+
+### D-20: Không ghi đè họ tên hồ sơ khách vãng lai khi đặt lại
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: khách vãng lai đặt lại bằng SĐT cũ nhưng nhập họ tên / email khác.
+- Các phương án đã cân nhắc: (1) ghi đè hồ sơ như luồng đăng ký (D-13); (2) vé lưu họ tên vừa nhập, hồ sơ giữ nguyên họ tên, chỉ bổ sung email khi hồ sơ chưa có.
+- Quyết định: phương án 2.
+- Lý do: người chỉ biết SĐT không đổi được tên trong hồ sơ của người khác. Khác với đăng ký (D-13) vì đăng ký là bước tạo tài khoản chính thức.
+- Hệ quả: GET đơn trả nguoi_dat theo hồ sơ, họ tên vừa nhập nằm ở từng vé; task #9 xem lại cách hiển thị.
+- Người quyết định: Nhã 
+
+### D-21: Mỗi tab trình duyệt một đơn đang giữ (sessionStorage), backend chặn theo SĐT
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: BR-BUS-18 ghi "mỗi trình duyệt 1 đơn"; mã đơn và mã truy cập lưu ở sessionStorage (cùng cách lưu token ở D-12).
+- Các phương án đã cân nhắc: (1) localStorage để đúng "mỗi trình duyệt"; (2) sessionStorage theo tab, dựa vào backend chặn theo SĐT.
+- Quyết định: phương án 2; sửa chữ BR-BUS-18 thành "mỗi tab trình duyệt".
+- Lý do: thống nhất với D-12; chặn quan trọng nằm ở backend (theo SĐT), không phụ thuộc trình duyệt.
+- Hệ quả: đóng tab là mất mã truy cập đơn đang giữ; đơn tự hết hạn sau 5 phút.
+- Người quyết định: Nhã
+
+### D-22: Thứ tự khóa cố định khi giữ ghế (khách hàng → ghế theo ghe_id)
+- Ngày: 04/11/2026 · Commit: Task #7 – feat: them so do ghe, giu ghe 5 phut va dat ca xe
+- Bối cảnh: nhiều request giữ ghế cùng lúc có thể khóa chéo nhau; 2 request cùng SĐT phải chạy lần lượt để BR-BUS-18 đúng.
+- Các phương án đã cân nhắc: (1) chỉ khóa ghế; (2) khóa dòng khach_hang trước, rồi ghế theo thứ tự ghe_id, kiểm tra lại sau khi khóa, partial UNIQUE làm lưới an toàn cuối.
+- Quyết định: phương án 2; tạo hồ sơ khách vãng lai bằng INSERT … ON CONFLICT DO NOTHING.
+- Lý do: không deadlock; không bán trùng ghế; 2 request cùng SĐT không tạo được 2 đơn.
+- Hệ quả: có 2 test đồng thời thật trên PostgreSQL; task #9–#12 phải giữ cùng thứ tự khóa.
+- Người quyết định: Nhã 
+
+### D-23: Chuyển CSDL dùng chung từ Docker sang Supabase (thay thế D-01)
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
+- Bối cảnh: luồng đổi vé làm bằng n8n cần kết nối tới CSDL; mỗi thành viên chạy Docker riêng thì dữ liệu không chung và n8n không với tới được.
+- Các phương án đã cân nhắc: (1) giữ Docker, n8n gọi API backend qua webhook; (2) Supabase (PostgreSQL) dùng chung cho cả nhóm và n8n.
+- Quyết định: phương án 2 (quyết định của cả nhóm); kết nối qua Session pooler cổng 5432, SSL require; chặn cổng 6543 (Transaction pooler).
+- Lý do: thành viên làm n8n thay đổi luồng dễ hơn; pull về là chạy, không cần cài Docker để chạy app. Transaction pooler làm lỗi prepared statement của asyncpg.
+- Hệ quả: file .env chứa mật khẩu chung, gửi riêng từng người, không đưa lên Git; pool nhỏ (2 + 3) vì gói Free giới hạn kết nối; chỉ người phụ trách CSDL chạy migration.
+- Người quyết định: Cả nhóm (Nhã thực hiện; AI đề xuất cấu hình kết nối)
+
+### D-24: Test chỉ chạy trên PostgreSQL Docker (TEST_DATABASE_URL)
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
+- Bối cảnh: fixture test cũ suy ra tên CSDL test từ DATABASE_URL và DROP/CREATE nó; nếu DATABASE_URL trỏ Supabase thì test sẽ xóa CSDL trên Supabase.
+- Các phương án đã cân nhắc: (1) chạy test trên một project Supabase thứ hai; (2) biến TEST_DATABASE_URL riêng trỏ Docker, kèm chốt chặn.
+- Quyết định: phương án 2; pytest dừng ngay nếu TEST_DATABASE_URL thiếu, host không phải localhost/127.0.0.1, tên không đuôi _test, hoặc trùng DATABASE_URL.
+- Lý do: test tạo/xóa CSDL liên tục, không được chạm dữ liệu chung; Docker nhanh và miễn phí.
+- Hệ quả: ai chạy test vẫn cần Docker; máy chưa đặt TEST_DATABASE_URL thì pytest báo lỗi rõ cách sửa.
+- Người quyết định: Nhã (AI phát hiện lỗi tiềm ẩn và đề xuất phương án)
+
+### D-25: Khóa Data API của Supabase bằng 2 lớp
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
+- Bối cảnh: Supabase tự mở REST API (Data API) cho schema public; repo public nên mã project lộ được, ai có anon key có thể đọc bảng.
+- Các phương án đã cân nhắc: (1) bật RLS và viết policy cho 15 bảng; (2) tắt Data API trên Dashboard và thu hồi quyền anon/authenticated bằng migration.
+- Quyết định: phương án 2; migration 0003 REVOKE quyền trên bảng, sequence và quyền mặc định (role không tồn tại thì bỏ qua, chạy được trên Docker).
+- Lý do: ứng dụng chỉ truy cập CSDL qua backend, không dùng Data API; viết RLS cho 15 bảng là việc lớn không cần thiết.
+- Hệ quả: Security Advisor vẫn cảnh báo "RLS disabled"; quyền mặc định trên function cho anon vẫn còn (hiện chưa có function nào, Data API đã tắt) — nếu sau này tạo function thì cần migration riêng; mọi bảng phải tạo qua Alembic.
+- Người quyết định: Nhã 
+
+### D-26: Chặn alembic downgrade trên CSDL không phải máy local
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an
+- Bối cảnh: downgrade 0001 xóa toàn bộ bảng; CSDL giờ dùng chung cho cả nhóm.
+- Các phương án đã cân nhắc: (1) chỉ nhắc trong README; (2) chặn trong migrations/env.py trước khi kết nối, mở bằng ALLOW_REMOTE_DOWNGRADE=1.
+- Quyết định: phương án 2, áp dụng cả chế độ online và --sql.
+- Lý do: một lệnh gõ nhầm không được làm mất dữ liệu của cả nhóm.
+- Hệ quả: chỉ chặn lệnh CLI, không chặn gọi command.downgrade() bằng Python (chấp nhận được); README ghi rõ không chạy downgrade/seed trên Supabase.
+- Người quyết định: Nhã 
+
+### D-27: n8n dùng tài khoản CSDL riêng với quyền tối thiểu
+- Ngày: 04/11/2026 · Commit: chore: chuyen CSDL sang Supabase va huong dan chay du an (role tạo thủ công trên SQL Editor, không đưa vào migration)
+- Bối cảnh: n8n cần đọc vé/chuyến và ghi yêu cầu đổi vé; dùng tài khoản postgres thì n8n có toàn quyền.
+- Các phương án đã cân nhắc: (1) n8n dùng tài khoản postgres; (2) role n8n_doi_ve chỉ SELECT ve, ghe_ngoi, chuyen_xe, tuyen_xe, loai_xe, khach_hang (cấp theo cột, không có ve.ma_truy_cap_hash) và SELECT/INSERT/UPDATE yeu_cau_huy_doi.
+- Quyết định: phương án 2; giới hạn 3 kết nối, statement_timeout 15 giây; không quyền ghi ve, ghe_ngoi, thanh_toan.
+- Lý do: đổi ghế/vé thật phải đi qua API backend để giữ đúng quy tắc khóa ghế và trạng thái; n8n lỡ lộ mật khẩu cũng không sửa được vé.
+- Hệ quả: mật khẩu role n8n khác mật khẩu chính, gửi riêng người làm n8n; user đăng nhập dạng n8n_doi_ve.<mã project>.
+- Người quyết định: Nhã 
+
+### D-28: Trạng thái đơn tính từ dữ liệu hiện có, không lưu lý do hủy
+- Ngày: 04/11/2026 · Commit: Task #8 – feat: nha ghe khi het han hoac khach huy va man hinh dat ve that bai
+- Bối cảnh: bảng ve không có cột lý do hay thời điểm hủy; sau khi job nhả ghế, đơn hết hạn và đơn khách hủy giống hệt nhau (vé DA_HUY, ghế TRONG).
+- Các phương án đã cân nhắc: (A) DA_HUY luôn báo "Đơn đặt vé đã bị hủy"; (B) như A nhưng dùng câu trung tính; (C) thêm cột lý do hủy vào ve (đổi schema).
+- Quyết định: phương án B — "Đơn đặt vé đã bị hủy hoặc hết thời gian giữ chỗ". HET_HAN chỉ có khi vé còn GIU_CHO đã quá hạn (trước khi job chạy). Tab đang mở vẫn báo đúng lý do vì frontend biết tại chỗ (khách bấm hủy / đồng hồ về 0).
+- Lý do: phương án A báo "đã bị hủy" cho khách không hề bấm hủy; C là đổi schema, cần nhóm duyệt và không cần thiết cho luồng đặt vé.
+- Hệ quả: khi mở lại trang sau một lúc, khách không biết chính xác đơn bị hủy hay hết giờ; giới hạn ghi trong docs/API.md.
+- Người quyết định: Nhã (AI phát hiện khoảng trống và đề xuất 3 phương án)
+
+### D-29: Job nhả ghế chạy nền trong FastAPI, an toàn khi nhiều instance
+- Ngày: 04/11/2026 · Commit: Task #8 – feat: nha ghe khi het han hoac khach huy va man hinh dat ve that bai
+- Bối cảnh: BR-BUS-17 yêu cầu tự nhả ghế sau 5 phút; nhiều thành viên chạy backend cùng lúc trên một Supabase (D-23).
+- Các phương án đã cân nhắc: (1) thêm thư viện lập lịch hoặc cron riêng; (2) vòng lặp asyncio trong lifespan, mỗi đơn một transaction với FOR UPDATE SKIP LOCKED.
+- Quyết định: phương án 2; chu kỳ RELEASE_JOB_INTERVAL_SECONDS (mặc định 30), tắt được bằng RELEASE_JOB_ENABLED; lỗi một vòng chỉ ghi log, job chạy tiếp.
+- Lý do: không thêm thư viện; seat_available(now) đã coi ghế quá hạn là trống nên job chỉ dọn dẹp cho CSDL khớp thực tế; SKIP LOCKED giúp job không chờ request đang giữ ghế và không nhả trùng khi nhiều job chạy.
+- Hệ quả: mỗi backend đang chạy tốn thêm vài truy vấn mỗi 30 giây trên pool nhỏ; ai không cần có thể tắt job; task #11 (thanh toán) phải khóa theo cùng thứ tự để không tranh chấp với job.
+- Người quyết định: Nhã (AI đề xuất cách cài đặt)
+
+### D-30: Job nhả ghế dùng giờ của CSDL, không dùng giờ máy
+- Ngày: 04/11/2026 · Commit: Task #8 – feat: nha ghe khi het han hoac khach huy va man hinh dat ve that bai
+- Bối cảnh: mỗi job chạy trên máy một thành viên; get_now() trả giờ của máy đó, các máy có thể lệch nhau.
+- Các phương án đã cân nhắc: (1) dùng get_now() như các phần khác; (2) job lấy giờ CSDL bằng SELECT now(), cảnh báo khi giờ máy lệch quá 5 giây.
+- Quyết định: phương án 2.
+- Lý do: máy có đồng hồ chạy nhanh sẽ nhả ghế của khách khác khi họ còn thời gian giữ; mọi máy dùng chung một CSDL nên dùng chung một đồng hồ.
+- Hệ quả: request giữ ghế vẫn đặt han_giu_cho theo get_now() của máy, nên máy thành viên cần bật đồng bộ giờ tự động (ghi trong docs/API.md).
+- Người quyết định: Nhã (rủi ro do Nhã phát hiện khi rà soát PLAN; AI cài đặt)
+
+### D-31: Lỗi trả kèm khóa "truong" để báo đúng ô (quy ước từ task #9)
+- Ngày: 04/11/2026 · Commit: Task #9 – feat: them thong tin nguoi dat, hanh khach va diem don tra theo tuyen
+- Bối cảnh: form có nhiều hành khách và 2 điểm đón/trả; lỗi 422 mặc định của Pydantic là mảng tiếng Anh, frontend chỉ hiện được thông báo chung.
+- Các phương án đã cân nhắc: (1) frontend tự đọc "loc" trong mảng lỗi Pydantic; (2) endpoint trả {"detail": "<tiếng Việt>", "truong": "hanh_khach[1].so_dien_thoai"} cho cả 400 và 422.
+- Quyết định: phương án 2; hanh_khach[i] đánh số từ 0 theo vị trí trong mảng gửi lên; áp dụng cho endpoint mới từ task #9 trở đi, endpoint cũ giữ nguyên.
+- Lý do: thông báo tiếng Việt, hiện đúng ô; giao diện người dùng tiếng Việt (frontend/CLAUDE.md).
+- Hệ quả: lỗi sai kiểu JSON (gửi số thay chuỗi) vẫn là mảng Pydantic, frontend hiện thông báo chung; task #10–#13 theo cùng quy ước.
+- Người quyết định: Nhã
+
+### D-32: Điểm đón/trả lưu "Khu vực – địa chỉ" với tên khu vực chuẩn của tuyến
+- Ngày: 04/11/2026 · Commit: Task #9 – feat: them thong tin nguoi dat, hanh khach va diem don tra theo tuyen
+- Bối cảnh: RDM không có bảng điểm đón/trả riêng; ve.diem_don, ve.diem_tra là chuỗi tối đa 150 ký tự; điểm trung gian ghi trong tuyen_xe.diem_trung_gian, cách nhau bằng ";".
+- Các phương án đã cân nhắc: (1) lưu nguyên văn khách gõ; (2) so khớp khu vực không phân biệt hoa thường và khoảng trắng, lưu tên chuẩn của tuyến, ghép địa chỉ bằng " – ".
+- Quyết định: phương án 2; vượt 150 ký tự → 422 ở ô địa chỉ; backend trả sẵn {khu_vuc, dia_chi, chuoi} để frontend không tự tách hay ghép chuỗi.
+- Lý do: dữ liệu thống nhất để tài xế, nhà xe và task #13 đọc lại; vẫn kiểm tra được tuyến và chiều đi (BR-BUS-23).
+- Hệ quả: tên điểm dừng chứa " – " sẽ bị tách sai (dữ liệu hiện tại không có); sửa tuyến sau khi khách nhập có thể làm da_nhap_thong_tin từ true thành false.
+- Người quyết định: Nhã 
+
+### D-33: Nhập thông tin không gia hạn giữ ghế; thanh toán phải có điểm đón/trả
+- Ngày: 04/11/2026 · Commit: Task #9 – feat: them thong tin nguoi dat, hanh khach va diem don tra theo tuyen
+- Bối cảnh: BR-BUS-26 cho đồng hồ giữ ghế chạy tiếp khi nhập sai; bước thanh toán (task #10, #11) cần biết đơn đã đủ thông tin.
+- Các phương án đã cân nhắc: (1) gia hạn han_giu_cho mỗi lần lưu; (2) không gia hạn; backend tính da_nhap_thong_tin và có helper ensure_details_complete.
+- Quyết định: phương án 2; ensure_details_complete trả 400 "Chưa nhập điểm đón/trả"; vé DA_HUY trong đơn không được ghi và không tính vào da_nhap_thong_tin.
+- Lý do: gia hạn mỗi lần lưu cho phép giữ ghế vô hạn, trái BR-BUS-17; kiểm tra đủ thông tin ở backend để frontend không quyết định thay.
+- Hệ quả: task #10, #11 gọi ensure_details_complete trước khi tạo thanh toán.
+- Người quyết định: Nhã 
+
+### D-34: Đơn tiền mặt ghi 1 dòng thanh_toan cho cả đơn, trạng thái chờ thu
+- Ngày: 04/11/2026 · Commit: Task #10 – feat: them thanh toan tien mat va ve dien tu
+- Bối cảnh: RDM có giá trị TIEN_MAT trong thanh_toan nhưng vault không quy định đơn tiền mặt có ghi thanh_toan không, ghi theo vé hay theo đơn (KHÔNG ĐỦ DỮ LIỆU TRONG VAULT).
+- Các phương án đã cân nhắc: (A) không ghi, chỉ dựa vào trạng thái vé; (B) 1 dòng mỗi đơn: ma_don, ve_id NULL, so_tien = tổng, TIEN_MAT, CHO_THANH_TOAN; (C) 1 dòng mỗi vé.
+- Quyết định: phương án B; chống trùng bằng khóa và kiểm tra đã có dòng sau khi khóa (ma_don không UNIQUE).
+- Lý do: cùng mô hình "một đơn một giao dịch" với SePay (D-03); có dấu vết để phần tài xế thu tiền dùng sau; A không có dấu vết, C lệch D-03.
+- Hệ quả: task #11 phải chặn hai chiều — đơn đã có dòng TIEN_MAT thì không tạo QR, đơn đã có QR thì không xác nhận tiền mặt.
+- Người quyết định: Nhã (AI phát hiện khoảng trống và đề xuất 3 phương án)
+
+### D-35: Xác nhận tiền mặt idempotent và kiểm tra lại chuyến sau khi khóa
+- Ngày: 04/11/2026 · Commit: Task #10 – feat: them thanh toan tien mat va ve dien tu
+- Bối cảnh: khách có thể bấm xác nhận 2 lần hoặc mạng gửi lại; chuyến có thể khởi hành hoặc ngừng bán trong 5 phút giữ ghế.
+- Các phương án đã cân nhắc: (1) lần gọi thứ hai báo lỗi; (2) lần gọi thứ hai trả 200 với kết quả cũ, không ghi thêm, không gửi email lại; về chuyến: (a) không kiểm tra lại; (b) kiểm tra MO_BAN và gio_di > now sau khi khóa.
+- Quyết định: (2) và (b); chuyến không hợp lệ → 400 "Chuyến xe đã khởi hành hoặc ngừng bán"; đơn đã thanh toán cách khác → 400 "Đơn đã được thanh toán"; UPDATE ghế kèm điều kiện, lệch số dòng thì rollback và trả 410.
+- Lý do: đáp ứng NFR-BUS-05; không bán vé cho chuyến đã chạy.
+- Hệ quả: frontend chỉ cần chặn bấm 2 lần cho trải nghiệm, an toàn nằm ở backend.
+- Người quyết định: Nhã
+### D-36: Email vé chạy nền sau commit, chỉ nhận dữ liệu thường
+- Ngày: 04/11/2026 · Commit: Task #10 – feat: them thanh toan tien mat va ve dien tu
+- Bối cảnh: BR-BUS-35 yêu cầu lỗi email không làm hủy vé; email hiện chỉ giả lập bằng log.
+- Các phương án đã cân nhắc: (1) gửi trong transaction xác nhận; (2) BackgroundTasks nhận object ORM; (3) BackgroundTasks nhận dữ liệu thường (TicketEmail) dựng sẵn trước khi trả response.
+- Quyết định: phương án 3; lỗi chỉ ghi tên lớp lỗi; người đặt không có email thì bỏ qua; chỉ gửi khi vừa xác nhận lần đầu.
+- Lý do: (1) làm email lỗi kéo theo hủy vé; (2) lỗi detached vì session đã đóng, bị try/except nuốt nên email không bao giờ gửi (Nhã phát hiện khi rà soát PLAN).
+- Hệ quả: tiến trình chết giữa chừng thì mất email (vé vẫn còn); gửi email thật sau này nên dùng hàng đợi.
+- Người quyết định: Nhã (lỗi do Nhã phát hiện; AI cài đặt)
+### D-37: Khóa chống trùng giao dịch SePay: id → referenceCode → mã băm, không dùng mã đơn
+- Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
+- Bối cảnh: code cũ lấy ma_giao_dich = id, nếu không có thì = code (chính là mã đơn); mọi giao dịch của một đơn trùng khóa → chuyển 2 lần hoặc sai rồi đúng thì giao dịch sau bị bỏ qua (vi phạm BR-BUS-31, 32). Tài liệu SePay: id không đổi qua retry/replay; code không phải mã giao dịch. Log thật trên SePay Dashboard: payload có id và referenceCode.
+- Các phương án đã cân nhắc: (1) giữ id hoặc code; (2) chỉ dùng id, thiếu thì bỏ qua; (3) id → "REF:" + referenceCode → "SP:" + sha256 các trường của chính giao dịch (≤ 50 ký tự).
+- Quyết định: phương án 3; id là nhánh chạy thực tế, REF và băm là dự phòng.
+- Lý do: đúng tài liệu và log thật; SePay gửi lặp cùng giao dịch ra cùng khóa, hai lần chuyển thật ra hai khóa.
+- Hệ quả: rất hiếm khi trùng khóa băm; giao dịch cũ gửi lại ra khóa mới nhưng đi nhánh THAT_BAI vì đơn đã xác nhận.
+- Người quyết định: Nhã, Nhàn đồng ý 
+### D-38: Webhook chỉ nhận header "Apikey <khóa>"
+- Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
+- Bối cảnh: code cũ nhận cả khóa trần không tiền tố; SePay Dashboard cấu hình API Key và gửi "Authorization: Apikey <khóa>".
+- Các phương án đã cân nhắc: (1) nhận cả khóa trần; (2) chỉ nhận Apikey, phân biệt hoa thường; (3) chỉ nhận Apikey, không phân biệt hoa thường (RFC 9110).
+- Quyết định: phương án 3; khóa so bằng secrets.compare_digest; khóa trần, Bearer, thiếu khóa → 401.
+- Lý do: đúng định dạng SePay gửi và chuẩn HTTP; bỏ đường vào không cần thiết.
+- Hệ quả: đổi kiểu chứng thực trên Dashboard thì webhook bị 401 — phải giữ "API Key".
+- Người quyết định: Nhã (AI đề xuất; Nhã kiểm chứng trên SePay Dashboard)
+### D-39: Kiểm tra lại đơn sau khi khóa; không hợp lệ thì ghi THAT_BAI để hoàn tiền
+- Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
+- Bối cảnh: hai webhook khác nhau cho cùng đơn đến cùng lúc đều qua bước kiểm tra trước khi khóa; giao dịch sau bị ghi DA_THANH_TOAN dù đơn đã xác nhận → không được đánh dấu để hoàn.
+- Các phương án đã cân nhắc: (1) giữ nguyên; (2) sau khi khóa và đọc lại, nếu không còn vé đang giữ, đơn không còn DANG_GIU hoặc sai số tiền thì ghi THAT_BAI.
+- Quyết định: phương án 2, có test giả lập đồng thời.
+- Lý do: BR-BUS-32 — tiền đến không được mất dấu.
+- Hệ quả: mọi khoản tiền thừa hoặc đến muộn nằm ở dòng THAT_BAI để nhà xe hoàn thủ công.
+- Người quyết định: Nhã (AI tự phát hiện khi lập PLAN và đề xuất)
+### D-40: Thay số tài khoản thật trong test, không viết lại lịch sử git; đổi khóa API đã lộ
+- Ngày: 06/11/2026 · Commit: fix: sua ma giao dich SePay va thay so tai khoan gia trong test
+- Bối cảnh: file test trong repo public chứa số tài khoản và tên chủ tài khoản thật; ảnh chụp phần Headers trên SePay làm lộ khóa API webhook; backend tự deploy lên Render từ nhánh này.
+- Các phương án đã cân nhắc: (1) viết lại lịch sử git; (2) thay bằng dữ liệu giả từ bây giờ; về khóa: (a) giữ; (b) đổi trên SePay và Render trước khi push.
+- Quyết định: (2) và (b).
+- Lý do: viết lại lịch sử nhánh chung làm hỏng code các thành viên; khóa lộ cho phép gửi webhook giả để xác nhận vé không trả tiền.
+- Hệ quả: số tài khoản cũ còn trong 2 commit cũ (ghi trong docs/API.md); quy ước: chụp màn hình phải che Authorization và số tài khoản; mỗi lần push kiểm tra Render Deploy live, /health và "Gửi thử".
+- Người quyết định: Nhã, Nhàn 
+
+### D-41: Giới hạn đăng nhập sai bằng bộ đếm trong bộ nhớ
+- Ngày: 06/11/2026 · Commit: 4610b57 fix: gioi han dang nhap sai, tai khoan admin mau va on dinh test frontend
+- Bối cảnh: /auth/login không giới hạn số lần thử → dò được mật khẩu; checklist bảo mật Ch.5 yêu cầu chống dò.
+- Các phương án đã cân nhắc: (1) bộ đếm trong bộ nhớ theo (tên đăng nhập, IP); (2) lưu số lần sai trong CSDL; (3) dùng Redis.
+- Quyết định: phương án 1, 5 lần sai trong 5 phút → 429 kèm Retry-After; tên đăng nhập không tồn tại cũng đếm như thật.
+- Lý do: không đổi schema, không thêm dịch vụ; Render chạy 1 phiên bản.
+- Hệ quả: bộ đếm mất khi khởi động lại và không chia sẻ nếu chạy nhiều phiên bản (ghi ở mục rủi ro báo cáo kiểm thử).
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-42: Lấy IP người dùng theo số proxy tin cậy (TRUSTED_PROXY_HOPS)
+- Ngày: 06/11/2026 · Commit: 4610b57
+- Bối cảnh: backend sau proxy Render, IP kết nối là IP proxy; header X-Forwarded-For thì người dùng tự giả được.
+- Các phương án đã cân nhắc: (1) lấy IP kết nối; (2) lấy phần tử đầu X-Forwarded-For; (3) lấy phần tử thứ N tính từ phải theo số proxy tin cậy.
+- Quyết định: phương án 3, mặc định 0 (chạy ở máy).
+- Lý do: phần tử đầu do người dùng tự ghi; tính từ phải chỉ tin phần proxy thật thêm vào.
+- Hệ quả: phải đặt TRUSTED_PROXY_HOPS đúng trên Render khi push và kiểm tra lại bằng log.
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-43: Tài khoản admin_mau chỉ seed ở máy
+- Ngày: 06/11/2026 · Commit: 4610b57
+- Bối cảnh: hệ thống có vai trò ADMIN nhưng chưa có tài khoản mẫu; seed dùng mật khẩu mẫu công khai trong repo.
+- Các phương án đã cân nhắc: (1) seed cả trên Supabase; (2) chỉ seed ở máy, trên Supabase tạo bằng SQL với mật khẩu riêng khi cần.
+- Quyết định: phương án 2.
+- Lý do: repo công khai, tài khoản ADMIN với mật khẩu mẫu trên bản chạy thật là lỗ hổng.
+- Hệ quả: ADMIN trên Supabase chưa có; khi cần thì nhóm trưởng tạo, gửi mật khẩu riêng.
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-44: Hủy vé tự duyệt theo mốc 24 giờ/12 giờ
+- Ngày: 06/11/2026 · Commit: 408218a feat: them huy ve va hoan tien theo quy dinh 24 gio 12 gio
+- Bối cảnh: BPMN to-be vẽ cổng XOR hệ thống tự quyết theo thời gian còn lại trước giờ đi.
+- Các phương án đã cân nhắc: (1) nhà xe duyệt tay từng yêu cầu; (2) hệ thống tự duyệt theo quy tắc.
+- Quyết định: phương án 2. Hơn 24 giờ hoàn 100%; từ 12 đến 24 giờ (tính cả 2 mốc) hoàn 50%; dưới 12 giờ không cho hủy. Vé tiền mặt chưa thu hoàn 0. Vé đã chuyển khoản bắt buộc nhập tài khoản nhận.
+- Lý do: đúng BPMN to-be, giảm việc tay của nhà xe.
+- Hệ quả: yeu_cau_huy_doi ghi thẳng DA_DUYET; trả 409 nếu vé hoặc mức hoàn đổi giữa lúc xem và lúc hủy.
+- Người quyết định: Nhã (theo BPMN của nhóm; AI đề xuất cách chống đổi giữa chừng)
+
+### D-45: Hoàn tiền do nhà xe chuyển khoản tay rồi đánh dấu hoàn tất
+- Ngày: 06/11/2026 · Commit: 408218a
+- Bối cảnh: BPMN to-be vẽ hoàn tiền qua SePay; SePay chỉ theo dõi tiền vào, không chi tiền ra.
+- Các phương án đã cân nhắc: (1) tích hợp API chi tiền ngân hàng; (2) nhà xe chuyển tay, nhập mã giao dịch ở màn hình Hoàn tiền.
+- Quyết định: phương án 2 (POST /refunds/{id}/complete).
+- Lý do: không có API chi tiền khả dụng trong phạm vi môn học.
+- Hệ quả: lệch BPMN to-be → đề xuất nhóm sửa sơ đồ (đang chờ Nhàn).
+- Người quyết định: Nhã (AI đề xuất), chờ nhóm xác nhận phần sửa sơ đồ
+
+### D-46: Không đặt chức năng hủy vé trên trang tra cứu vé
+- Ngày: 06/11/2026 · Commit: 408218a
+- Bối cảnh: trang tra cứu (code của Nhàn) chỉ cần số điện thoại, không xác thực chủ vé.
+- Các phương án đã cân nhắc: (1) thêm nút hủy vào trang tra cứu; (2) chỉ cho hủy khi đăng nhập, từ trang đơn của tôi.
+- Quyết định: phương án 2.
+- Lý do: ai biết số điện thoại cũng hủy được vé người khác (IDOR); không sửa code của Nhàn khi chưa đồng ý.
+- Hệ quả: lỗ hổng tra cứu chỉ bằng số điện thoại vẫn còn, ghi ở rủi ro báo cáo kiểm thử, chờ Nhàn.
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-47: Quy tắc trùng giờ khi phân công tài xế
+- Ngày: 07/11/2026 · Commit: 0d905e4 feat: them phan cong tai xe, thu nop tien mat va nha xe xac nhan
+- Bối cảnh: một tài xế không được chạy 2 chuyến cùng lúc; chuyen_xe.gio_den có thể trống.
+- Các phương án đã cân nhắc: (1) chỉ so giờ đi; (2) so khoảng [gio_di, gio_den hoặc gio_di], chạm mốc không tính trùng; (3) như (2) và thêm cùng giờ đi luôn là trùng.
+- Quyết định: phương án 3; bỏ qua chuyến DA_HUY; chặn đổi tài xế khi chuyến đã có tiền thu hoặc khoản nộp.
+- Lý do: phương án 2 để lọt hai chuyến cùng giờ đi mà thiếu giờ đến (AI tự phát hiện).
+- Hệ quả: chuyến thiếu giờ đến vẫn có thể không phát hiện trùng với chuyến khác giờ (ghi trong docs/API.md).
+- Người quyết định: Nhã (AI đề xuất quy tắc bổ sung)
+
+### D-48: Cách tính số tiền tài xế nộp; nhà xe từ chối thì nộp lại
+- Ngày: 07/11/2026 · Commit: 0d905e4
+- Bối cảnh: tài xế có thể nộp nhiều lần; nhà xe có thể từ chối khoản nộp.
+- Các phương án đã cân nhắc: (1) tài xế tự nhập số tiền; (2) hệ thống tính = tổng đã thu − (khoản đang chờ + đã xác nhận).
+- Quyết định: phương án 2; khoản bị từ chối không bị trừ; mỗi chuyến chỉ 1 khoản đang chờ; nộp không bắt buộc chuyến đã hoàn thành.
+- Lý do: tránh nhập sai; nộp lại sau khi bị từ chối ra đúng số cũ.
+- Hệ quả: lệch BPMN (BPMN không có XOR sau "Nhận tiền", nộp sau khi hoàn thành chuyến) → ghi trong docs/API.md.
+- Người quyết định: Nhã (AI đề xuất)
+
+### D-49: Dòng TIEN_MAT khi khách hủy phần vé còn lại sau khi tài xế đã thu một phần
+- Ngày: 07/11/2026 · Commit: 0d905e4
+- Bối cảnh: code hủy vé cũ chuyển dòng TIEN_MAT thành THAT_BAI khi không còn vé chưa thu, kể cả khi đã thu tiền vé khác.
+- Các phương án đã cân nhắc: (1) giữ THAT_BAI; (2) nếu đơn có vé đã thu thì chuyển DA_THANH_TOAN, ghi ngay_thanh_toan và trừ tiền vé vừa hủy.
+- Quyết định: phương án 2, có test tái hiện đỏ trước khi sửa.
+- Lý do: tiền đã thu thật, THAT_BAI làm sai đối soát.
+- Hệ quả: sửa lại quy tắc A của dòng TIEN_MAT trong docs/API.md.
+- Người quyết định: Nhã (AI phát hiện và đề xuất)
+
+### D-50: Cách làm phần bổ sung: commit từng bước, push một lần, ghi log một lần
+- Ngày: 06/11/2026 · Commit: (áp dụng từ 34226b7 đến commit log này)
+- Bối cảnh: backend tự deploy lên Render khi push; khóa SePay cần đổi trước khi push; nhóm cần ổn định bản chạy thật.
+- Các phương án đã cân nhắc: (1) push từng bước; (2) commit cục bộ từng bước, push một lần sau khi đủ test và đổi khóa.
+- Quyết định: phương án 2; log ghi một lần ở cuối, mỗi bước có mục riêng.
+- Lý do: tránh deploy bản dở và tránh push khi khóa cũ còn hiệu lực.
+- Hệ quả: các commit trên GitHub hiện cùng thời điểm push; log ghi rõ ngày làm từng bước.
+- Người quyết định: Nhã
+
+### D-51: Nguyên tắc viết tài liệu báo cáo: không bịa số, ghi rõ chưa xác minh
+- Ngày: 07/11/2026 · Commit: 7c3ea42, c049c50, accdca8
+- Bối cảnh: tài liệu 4.1, 4.3, 4.4 cần số liệu; nhóm chưa đo thời gian thật, AI không vào được Render/SePay/Supabase.
+- Các phương án đã cân nhắc: (1) điền số ước lượng; (2) chỉ ghi số đo thật, còn lại ghi "Chưa đo"/"Chưa xác minh" kèm cách xác minh.
+- Quyết định: phương án 2. Số đếm BPMN phải đếm bằng script; so sánh as-is/to-be trên cùng phạm vi; không ghi số tài khoản thật (chỉ mã commit); không viết lại lịch sử git; ghi về commit khách quan, không nêu tên.
+- Lý do: số ước lượng không kiểm chứng được, dễ bị bác khi chấm.
+- Hệ quả: nhóm phải tự đo thời gian 3 lần và điền bảng; ký checklist bảo mật.
+- Người quyết định: Nhã
+### D-52: Giữ nguyên khóa webhook SePay (thay phần "đổi khóa" của D-40)
+- Ngày: 07/11/2026 · Commit: 56da4a6 docs: cap nhat tai lieu theo BPMN to-be moi, email, giu cho 10 phut va khoa SePay
+- Bối cảnh: D-40 quyết định đổi khóa trước khi push vì ảnh chụp làm lộ khóa. Khi rà lại, ảnh chỉ được chia sẻ trong một cuộc trò chuyện riêng, không đăng công khai hay lên repo.
+- Các phương án đã cân nhắc: (A) đổi khóa trên SePay và Render; (B) giữ khóa, chấp nhận rủi ro có điều kiện.
+- Quyết định: phương án B.
+- Lý do: phạm vi lộ hẹp; nhóm ưu tiên không thay đổi cấu hình bản đang chạy sát hạn nộp.
+- Hệ quả: S-16 ghi "Chấp nhận rủi ro", R-03 mức Thấp. Phải đổi khóa ngay nếu khóa xuất hiện ở nơi công khai hoặc thấy webhook lạ trong lịch sử SePay; đổi khóa trước khi đưa vào sử dụng thật. Không gửi .env hay ảnh có dòng Authorization vào nhóm chat chung.
+- Người quyết định: Nhóm (Nhàn, Nhã, Anh Thư). AI trình bày 2 phương án, đề xuất A
+
+### D-53: Thời gian giữ chỗ 10 phút; sơ đồ BPMN sửa 3 chỗ
+- Ngày: 07/11/2026 · Commit: 56da4a6
+- Bối cảnh: code mặc định 10 phút (quyết định 04/11), .env của nhóm đặt 5, sơ đồ BPMN to-be ghi 5 phút và nhắc sau 3 phút.
+- Các phương án đã cân nhắc: (1) đổi code về 5 phút theo sơ đồ; (2) giữ 10 phút theo code, sửa sơ đồ và .env.
+- Quyết định: phương án 2. Sơ đồ sửa 3 chỗ: "Khóa tạm ghế (giữ chỗ 10 phút)", "Hết 10 phút giữ chỗ" (PT10M), "Sau 8 phút" (PT8M). Timer "Quá 5 phút chưa nhận tiền" giữ nguyên vì ứng với SEPAY_QR_MINUTES (đếm ngược QR).
+- Lý do: không phải sửa code và test; frontend đã nhắc khi còn 2 phút.
+- Hệ quả: mọi .env và Render đặt SEAT_HOLD_MINUTES=10 hoặc bỏ biến. Còn lệch: tạo QR gia hạn giữ chỗ thêm 10 phút, sơ đồ chưa vẽ (ghi ở bảng chênh lệch).
+- Người quyết định: Nhóm. AI phát hiện timer QR khác timer giữ chỗ
+
+### D-54: Chặn email thật khi chạy pytest bằng fixture chung, không sửa code gửi email
+- Ngày: 07/11/2026 · Commit: b49646e test: chan gui email that khi chay pytest; cecdc49 chore: cap nhat uv.lock them jinja2 cho chuc nang gui email
+- Bối cảnh: commit da858c0 gửi email thật qua SMTP; hàm gửi đọc cấu hình từ .env nên các test đặt vé có thể đăng nhập Gmail thật; uv.lock chưa có jinja2.
+- Các phương án đã cân nhắc: (1) dặn nhóm để trống SMTP khi chạy test; (2) sửa ticket_notifier.py để đọc cấu hình test; (3) fixture autouse trong conftest chặn smtplib và kiểm cuối mỗi test.
+- Quyết định: phương án 3; commit uv.lock riêng.
+- Lý do: (1) dựa vào trí nhớ; (2) sửa code của thành viên khác khi chưa cần; (3) chỉ sửa test và tự động.
+- Hệ quả: test mới có gửi email phải tự giả lập SMTP; thêm thư viện thì commit uv.lock cùng pyproject.toml.
+- Người quyết định: Nhã (AI đề xuất cách kiểm cuối mỗi test); đã báo Anh Thư
+
+### D-55: Một quy tắc đếm chung cho BPMN as-is và to-be
+- Ngày: 07/11/2026 · Commit: 56da4a6
+- Bối cảnh: lần đếm đầu dùng nhầm file to-be; khi đếm lại, AI đề xuất bỏ sendTask/receiveTask ở lane người cho to-be trong khi as-is đã tính.
+- Các phương án đã cân nhắc: (1) mỗi bên một cách đếm; (2) cùng quy tắc: tính mọi userTask, manualTask, sendTask, receiveTask trong lane người; không tính bước hệ thống.
+- Quyết định: phương án 2. As-is 29 → to-be 20 bước người làm. Số quyết định nhân sự trình bày 2 cách: theo sơ đồ 3 → 3, cho mỗi vé 3 → 1.
+- Lý do: so sánh chỉ có nghĩa khi đếm cùng cách; trình bày cả 2 cách để không phóng đại kết quả.
+- Hệ quả: đính chính số liệu ở LOG-18; bảng thời gian thực tế vẫn chờ nhóm đo.
+- Người quyết định: Nhã
