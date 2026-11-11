@@ -186,16 +186,3 @@ Nhiệm vụ: Viết code Python (FastAPI + Jinja2 + FastAPI BackgroundTasks + P
    - Xử lý ngoại lệ: Nếu khách hàng không có email (email = None) hoặc lỗi gửi SMTP, hệ thống chỉ ghi log (logger.error) và không làm crash giao dịch của khách.
 ```
 
-
-### LOG-06 — Phản hồi của Nhàn về lỗi chặn thư DKIM 550
-
-```text
-tôi vừa đặt vé thử với một email khác, thư thì đã được soạn nhưng người nhận thì chưa nhận được, bạn hãy kiểm tra và sửa lỗi này cho tôi (đã đính kèm lỗi minh hoạ trong ảnh). Hãy nói cho tôi các bước bạn sẽ làm để tôi duyệt trước
-```
-
-
-### LOG-06 — Phê duyệt của Nhàn để sửa lỗi 550 DKIM
-
-```text
-tôi đồng ý với phương án bạn đề ra, hãy chỉnh cho tôi
-```

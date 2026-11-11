@@ -7,7 +7,12 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
-DEFAULT_CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://qlqtkd-nhom09-ve-xe-web.vercel.app",  # Thêm domain Vercel vào đây
+]
+
 
 
 class Settings(BaseSettings):
